@@ -10,10 +10,10 @@ font = "font.ttf"
 # Images pour les différents éléments
 [images]
 # Image générale pour les receptors (utilisée si pas d'image spécifique par colonne)
-receptor_0="5.png"
-receptor_1="5.png"
-receptor_2="5.png"
-receptor_3="5.png"
+receptor_0="left.png"
+receptor_1="down.png"
+receptor_2="up.png"
+receptor_3="right.png"
 
 # Images spécifiques par colonne pour les receptors (optionnel)
 # receptor_0 = "receptor_col0.png"
@@ -22,10 +22,10 @@ receptor_3="5.png"
 # receptor_3 = "receptor_col3.png"
 
 # Image générale pour les notes (utilisée si pas d'image spécifique par colonne)
-note_0="2.png"
-note_1="3.png"
-note_2="4.png"
-note_3="ln.png"
+note_0="left.png"
+note_1="down.png"
+note_2="up.png"
+note_3="right.png"
 
 # Images spécifiques par colonne pour les notes (optionnel)
 # note_0 = "note_col0.png"
