@@ -4,8 +4,8 @@ use crate::models::skin::Skin;
 use crate::views::components::{
     AccuracyDisplay, ComboDisplay, HitBarDisplay, JudgementFlash, JudgementPanel, ScoreDisplay,
 };
+use crate::views::components::menu::song_select::SongSelectScreen;
 use crate::views::gameplay::GameplayView;
-use crate::views::menu::MenuView;
 use crate::views::result::ResultView;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
@@ -39,7 +39,6 @@ pub struct Renderer {
     pub(crate) pixel_system: PixelSystem,
     pub skin: Skin, // Gardé public
     pub(crate) gameplay_view: GameplayView,
-    pub(crate) menu_view: MenuView,
     pub(crate) result_view: ResultView,
     pub(crate) score_display: ScoreDisplay,
     pub(crate) accuracy_panel: AccuracyDisplay,
@@ -65,6 +64,8 @@ pub struct Renderer {
     pub(crate) egui_renderer: EguiRenderer,
     pub settings: GameSettings, // On stocke l'état ici
     pub(crate) leaderboard_scores_loaded: bool, // Cache pour éviter de charger les scores à chaque frame
+    pub(crate) current_leaderboard_hash: Option<String>, // Hash de la map pour laquelle le leaderboard est chargé
+    pub(crate) song_select_screen: Option<SongSelectScreen>, // Song select avec egui
 }
 
 // Utilitaires privés pour le renderer (fallback skin, etc.)

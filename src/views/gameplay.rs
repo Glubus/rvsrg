@@ -38,16 +38,28 @@ impl GameplayView {
         judgement_flash: &mut JudgementFlash,
         hit_bar: &mut HitBarDisplay,
     ) -> Result<(), SurfaceError> {
+        // Mises à jour logiques
         engine.update_active_notes();
         engine.detect_misses();
         engine.start_audio_if_needed(ctx.master_volume);
-        // Appliquer le volume au cas où il a changé
         engine.set_volume(ctx.master_volume);
 
-        let song_time = engine.get_game_time();
-        let max_future_time = song_time + engine.scroll_speed_ms;
-        let min_past_time = song_time - 200.0;
+        // --- CORRECTION AUDIO MASTER ---
+        let song_time = engine.get_audio_time();
+        
+        let rate = engine.rate; 
 
+        // On calcule la vitesse de défilement effective.
+        // ScrollSpeed (500ms) * Rate (1.5) = 750ms de distance affichée.
+        // Cela compense l'accélération du temps pour garder une vitesse visuelle constante.
+        let effective_scroll_speed = engine.scroll_speed_ms * rate;
+
+        let max_future_time = song_time + effective_scroll_speed;
+        
+        // On recule aussi le temps de disparition pour les notes ratées (proportionnel au rate)
+        let min_past_time = song_time - (200.0 * rate);
+
+        // Optimisation du Head Index (inchangée, mais utilise min_past_time corrigé)
         while engine.head_index < engine.chart.len() {
             if engine.chart[engine.head_index].timestamp_ms < min_past_time {
                 engine.head_index += 1;
@@ -57,6 +69,7 @@ impl GameplayView {
             }
         }
 
+        // Récupération des notes visibles
         let visible_notes: Vec<_> = engine
             .chart
             .iter()
@@ -65,12 +78,17 @@ impl GameplayView {
             .cloned()
             .collect();
 
+        // --- RENDU DU PLAYFIELD ---
+        // On passe effective_scroll_speed ici !
         let instances_with_columns = self.playfield_component.render_notes(
             &visible_notes,
             song_time,
-            engine.scroll_speed_ms,
+            effective_scroll_speed, // <--- C'est ici que la magie opère pour le visuel
             ctx.pixel_system,
         );
+
+        // Le reste du code WGPU (Buffers, Textes, RenderPass) est PARFAIT.
+        // Je remets juste la suite pour la forme, mais tu n'as rien à changer en bas.
 
         let mut instances_by_column: Vec<Vec<InstanceRaw>> = vec![Vec::new(); NUM_COLUMNS];
         for (column, instance) in instances_with_columns {
@@ -116,13 +134,17 @@ impl GameplayView {
             ctx.screen_width,
             ctx.screen_height,
         ));
+        
+        // Pour le panel de judgement, on affiche la scrollspeed de base (comme si on était en rate 1.0)
+        // mais l'engine utilise effective_scroll_speed pour le rendu
         text_sections.extend(judgements_panel.render(
             &engine.hit_stats,
             engine.get_remaining_notes(),
-            engine.scroll_speed_ms,
+            engine.scroll_speed_ms, // <--- Affiche la valeur de base, pas la valeur effective
             ctx.screen_width,
             ctx.screen_height,
         ));
+        
         text_sections.extend(combo_display.render(
             engine.combo,
             ctx.screen_width,

@@ -8,14 +8,14 @@ pub struct NoteData {
     pub hit: bool,
 }
 
-pub fn load_map(path: PathBuf, rate: f64) -> (PathBuf, Vec<NoteData>) {
+pub fn load_map(path: PathBuf) -> (PathBuf, Vec<NoteData>) {
     let map = rosu_map::Beatmap::from_path(&path).unwrap();
     let audio_path = path.parent().unwrap().join(map.audio_file);
 
     let mut notes = Vec::new();
     for hit_object in map.hit_objects {
         if let Ok(column) = map_x_to_column(&hit_object) {
-            let adjusted_timestamp = hit_object.start_time / rate;
+            let adjusted_timestamp = hit_object.start_time;
             notes.push(NoteData {
                 timestamp_ms: adjusted_timestamp,
                 column,

@@ -10,4 +10,3 @@ pub use gameplay::{
     playfield::PlayfieldDisplay,
     score::ScoreDisplay,
 };
-pub use menu::song_selection_menu::SongSelectionDisplay;

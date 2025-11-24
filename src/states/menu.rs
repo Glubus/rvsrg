@@ -57,6 +57,7 @@ impl GameState for MenuStateController {
         // Réinitialiser le flag de chargement des scores pour forcer le rechargement
         ctx.with_renderer(|renderer| {
             renderer.leaderboard_scores_loaded = false;
+            renderer.current_leaderboard_hash = None;
         });
     }
 
@@ -87,15 +88,35 @@ impl GameState for MenuStateController {
                     }
                     KeyCode::ArrowUp => {
                         self.with_menu_state(|state| state.move_up());
+                        // Réinitialiser le leaderboard pour recharger avec la nouvelle map
+                        ctx.with_renderer(|renderer| {
+                            renderer.leaderboard_scores_loaded = false;
+                            renderer.current_leaderboard_hash = None;
+                        });
                     }
                     KeyCode::ArrowDown => {
                         self.with_menu_state(|state| state.move_down());
+                        // Réinitialiser le leaderboard pour recharger avec la nouvelle map
+                        ctx.with_renderer(|renderer| {
+                            renderer.leaderboard_scores_loaded = false;
+                            renderer.current_leaderboard_hash = None;
+                        });
                     }
                     KeyCode::ArrowLeft => {
                         self.with_menu_state(|state| state.previous_difficulty());
+                        // Réinitialiser le leaderboard pour recharger avec la nouvelle difficulté
+                        ctx.with_renderer(|renderer| {
+                            renderer.leaderboard_scores_loaded = false;
+                            renderer.current_leaderboard_hash = None;
+                        });
                     }
                     KeyCode::ArrowRight => {
                         self.with_menu_state(|state| state.next_difficulty());
+                        // Réinitialiser le leaderboard pour recharger avec la nouvelle difficulté
+                        ctx.with_renderer(|renderer| {
+                            renderer.leaderboard_scores_loaded = false;
+                            renderer.current_leaderboard_hash = None;
+                        });
                     }
                     KeyCode::Enter | KeyCode::NumpadEnter => {
                         if self.load_selected_map(ctx) {

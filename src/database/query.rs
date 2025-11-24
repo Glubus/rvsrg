@@ -141,29 +141,31 @@ pub async fn insert_replay(
     score: i32,
     accuracy: f64,
     max_combo: i32,
+    rate: f64,
     data: &str,
 ) -> Result<i64, sqlx::Error> {
     let result = sqlx::query(
-        "INSERT INTO replay (beatmap_hash, timestamp, score, accuracy, max_combo, data) VALUES (?1, ?2, ?3, ?4, ?5, ?6)"
+        "INSERT INTO replay (beatmap_hash, timestamp, score, accuracy, max_combo, rate, data) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)"
     )
     .bind(beatmap_hash)
     .bind(timestamp)
     .bind(score)
     .bind(accuracy)
     .bind(max_combo)
+    .bind(rate)
     .bind(data)
     .execute(pool)
     .await?;
     Ok(result.last_insert_rowid())
 }
 
-/// Récupère tous les replays pour une beatmap
+/// Récupère tous les replays pour une beatmap, triés par rate puis accuracy (meilleurs scores en premier)
 pub async fn get_replays_for_beatmap(
     pool: &SqlitePool,
     beatmap_hash: &str,
 ) -> Result<Vec<Replay>, sqlx::Error> {
     let replays: Vec<Replay> = sqlx::query_as(
-        "SELECT id, beatmap_hash, timestamp, score, accuracy, max_combo, data FROM replay WHERE beatmap_hash = ?1 ORDER BY timestamp DESC"
+        "SELECT id, beatmap_hash, timestamp, score, accuracy, max_combo, rate, data FROM replay WHERE beatmap_hash = ?1 ORDER BY rate DESC, accuracy DESC, timestamp DESC LIMIT 10"
     )
     .bind(beatmap_hash)
     .fetch_all(pool)
@@ -171,13 +173,13 @@ pub async fn get_replays_for_beatmap(
     Ok(replays)
 }
 
-/// Récupère les 10 meilleurs scores par accuracy (toutes beatmaps confondues)
+/// Récupère les meilleurs scores triés par rate puis accuracy (toutes beatmaps confondues)
 pub async fn get_top_scores(
     pool: &SqlitePool,
     limit: i32,
 ) -> Result<Vec<Replay>, sqlx::Error> {
     let replays: Vec<Replay> = sqlx::query_as(
-        "SELECT id, beatmap_hash, timestamp, score, accuracy, max_combo, data FROM replay ORDER BY accuracy DESC, timestamp DESC LIMIT ?1"
+        "SELECT id, beatmap_hash, timestamp, score, accuracy, max_combo, rate, data FROM replay ORDER BY rate DESC, accuracy DESC, timestamp DESC LIMIT ?1"
     )
     .bind(limit)
     .fetch_all(pool)

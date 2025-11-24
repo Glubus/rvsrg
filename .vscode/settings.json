@@ -4,7 +4,7 @@
             "previewLimit": 50,
             "driver": "SQLite",
             "name": "idk",
-            "database": "${workspaceFolder:rvsrg}/maps.db"
+            "database": "${workspaceFolder:rvsrg}/main.db"
         }
     ],
     "sqltools.useNodeRuntime": true

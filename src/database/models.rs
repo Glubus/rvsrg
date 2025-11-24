@@ -26,5 +26,6 @@ pub struct Replay {
     pub score: i32,
     pub accuracy: f64,
     pub max_combo: i32,
+    pub rate: f64,  // Rate de la partie (1.0 = normal, 1.5 = 1.5x, etc.)
     pub data: String,  // JSON ou autre format pour les données de replay
 }

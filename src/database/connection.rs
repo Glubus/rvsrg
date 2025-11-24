@@ -82,12 +82,20 @@ impl Database {
                 score INTEGER NOT NULL,
                 accuracy REAL NOT NULL,
                 max_combo INTEGER NOT NULL,
+                rate REAL NOT NULL DEFAULT 1.0,
                 data TEXT NOT NULL,
                 FOREIGN KEY (beatmap_hash) REFERENCES beatmap(hash) ON DELETE CASCADE
             )",
         )
         .execute(&self.pool)
         .await?;
+
+        // Migration: Ajouter la colonne rate si elle n'existe pas (pour les bases de données existantes)
+        let _ = sqlx::query(
+            "ALTER TABLE replay ADD COLUMN rate REAL NOT NULL DEFAULT 1.0"
+        )
+        .execute(&self.pool)
+        .await; // On ignore l'erreur si la colonne existe déjà
 
         Ok(())
     }
@@ -145,9 +153,10 @@ impl Database {
         score: i32,
         accuracy: f64,
         max_combo: i32,
+        rate: f64,
         data: &str,
     ) -> Result<i64, sqlx::Error> {
-        query::insert_replay(&self.pool, beatmap_hash, timestamp, score, accuracy, max_combo, data).await
+        query::insert_replay(&self.pool, beatmap_hash, timestamp, score, accuracy, max_combo, rate, data).await
     }
 
     /// Récupère tous les replays pour une beatmap

@@ -102,6 +102,20 @@ impl GameState for PlayStateController {
         }).unwrap_or(false);
 
         if game_finished {
+            // Sauvegarder le replay dans la base de données
+            let _ = ctx.with_renderer(|renderer| {
+                let rt = tokio::runtime::Runtime::new().unwrap();
+                let db_path = std::path::PathBuf::from("main.db");
+                
+                if let Ok(db) = rt.block_on(crate::database::connection::Database::new(&db_path)) {
+                    if let Err(e) = rt.block_on(renderer.engine.save_replay(&db)) {
+                        eprintln!("Erreur lors de la sauvegarde du replay: {}", e);
+                    } else {
+                        println!("Replay sauvegardé avec succès");
+                    }
+                }
+            });
+            
             // Récupérer les stats et le replay avant de passer à l'écran de résultats
             if let Some((hit_stats, replay_data, score, accuracy, max_combo)) = ctx.with_renderer(|renderer| {
                 let hit_stats = renderer.engine.hit_stats.clone();

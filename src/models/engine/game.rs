@@ -18,54 +18,42 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-// --- STRUCTURE ESPION (Audio Monitor) ---
-// Cette structure enveloppe le Decoder de Rodio pour compter les samples
+// --- AUDIO MONITOR ---
 pub struct AudioMonitor<I> {
     inner: I,
     pub played_samples: Arc<AtomicUsize>,
 }
 
-impl<I> Iterator for AudioMonitor<I>
-where
-    I: Iterator,
-{
+impl<I> Iterator for AudioMonitor<I> where I: Iterator {
     type Item = I::Item;
-
     fn next(&mut self) -> Option<Self::Item> {
         let item = self.inner.next();
-        if item.is_some() {
-            // Chaque fois qu'un sample est consommé, on incrémente le compteur atomique
-            // Relaxed suffit car on n'a pas besoin de synchro mémoire stricte, juste du chiffre
-            self.played_samples.fetch_add(1, Ordering::Relaxed);
-        }
+        if item.is_some() { self.played_samples.fetch_add(1, Ordering::Relaxed); }
         item
     }
 }
 
-impl<I> Source for AudioMonitor<I>
-where
-    I: Source,
-    I::Item: rodio::Sample,
-{
+impl<I> Source for AudioMonitor<I> where I: Source, I::Item: rodio::Sample {
     fn current_frame_len(&self) -> Option<usize> { self.inner.current_frame_len() }
     fn channels(&self) -> u16 { self.inner.channels() }
     fn sample_rate(&self) -> u32 { self.inner.sample_rate() }
     fn total_duration(&self) -> Option<Duration> { self.inner.total_duration() }
 }
 
-// --- MOTEUR DE JEU ---
+// --- GAME ENGINE ---
 
 pub struct GameEngine {
     pub chart: Vec<NoteData>,
     pub head_index: usize,
     
-    // Temps et Synchro
-    pub start_time: Instant,            // Moment du lancement (pour le décompte initial)
-    pub played_samples: Arc<AtomicUsize>, // Compteur partagé avec le thread audio
+    // Audio / Temps
+    pub played_samples: Arc<AtomicUsize>, 
     pub sample_rate: u32,
     pub channels: u16,
-    pub audio_latency_offset: f64,      // Latence hardware (offset manuel en ms)
+    audio_start_instant: Option<Instant>,
+    engine_start_time: Instant,
     
+    // Gameplay
     pub scroll_speed_ms: f64,
     pub notes_passed: u32,
     pub combo: u32,
@@ -80,7 +68,7 @@ pub struct GameEngine {
     pub audio_sink: Arc<Mutex<Sink>>,
     audio_path: Option<PathBuf>,
     audio_started: bool,
-    rate: f64,
+    pub rate: f64,
     
     pub replay_data: ReplayData,
     beatmap_hash: Option<String>,
@@ -91,7 +79,6 @@ impl GameEngine {
         let mut rng = rand::rng();
         let mut chart = Vec::new();
         let mut current_time = 1000.0;
-
         for _ in 0..2000 {
             chart.push(NoteData {
                 timestamp_ms: current_time,
@@ -100,7 +87,6 @@ impl GameEngine {
             });
             current_time += rng.random_range(50.0..500.0);
         }
-
         let (_stream, stream_handle) = OutputStream::try_default().unwrap();
         let sink = Sink::try_new(&stream_handle).unwrap();
         let now = Instant::now();
@@ -108,12 +94,11 @@ impl GameEngine {
         Self {
             chart,
             head_index: 0,
-            start_time: now,
+            engine_start_time: now,
+            audio_start_instant: None,
             played_samples: Arc::new(AtomicUsize::new(0)),
-            sample_rate: 44100, // Valeur par défaut
-            channels: 2,        // Valeur par défaut
-            audio_latency_offset: 0.0, // À ajuster si besoin (ex: 20.0ms)
-            
+            sample_rate: 44100,
+            channels: 2,
             scroll_speed_ms: 500.0,
             notes_passed: 0,
             combo: 0,
@@ -136,19 +121,12 @@ impl GameEngine {
     pub fn from_map(map_path: PathBuf, rate: f64) -> Self {
         let beatmap_hash = Self::calculate_file_hash(&map_path).ok();
         
-        // 1. Charger la map avec timestamps originaux (rate 1.0)
-        let (audio_path, mut chart) = load_map(map_path, 1.0);
-
-        // 2. PRÉ-CALCUL : Convertir les timestamps des notes en "Temps Réel"
-        // Si rate = 1.5, une note à 1500ms devient 1000ms.
-        for note in &mut chart {
-            note.timestamp_ms /= rate;
-        }
+        // CHARGEMENT NATIF : On garde les timestamps originaux.
+        let (audio_path, chart) = load_map(map_path);
 
         let (_stream, stream_handle) = OutputStream::try_default().expect("Stream failed");
         let sink = Sink::try_new(&stream_handle).expect("Sink failed");
         
-        // Configurer la vitesse de lecture hardware
         sink.set_speed(rate as f32);
 
         let played_samples = Arc::new(AtomicUsize::new(0));
@@ -160,29 +138,23 @@ impl GameEngine {
                 Ok(source) => {
                     sample_rate = source.sample_rate();
                     channels = source.channels();
-
-                    // 3. CRÉATION DE L'ESPION
-                    let monitor = AudioMonitor {
-                        inner: source,
-                        played_samples: played_samples.clone(),
-                    };
-
+                    let monitor = AudioMonitor { inner: source, played_samples: played_samples.clone() };
                     sink.append(monitor);
                     sink.pause();
                 }
-                Err(e) => eprintln!("Error decoding audio: {}", e),
+                Err(e) => eprintln!("Error decoding: {}", e),
             },
-            Err(e) => eprintln!("Error opening audio: {}", e),
+            Err(e) => eprintln!("Error loading: {}", e),
         }
 
         Self {
             chart,
             head_index: 0,
-            start_time: Instant::now(),
+            engine_start_time: Instant::now(),
+            audio_start_instant: None,
             played_samples,
             sample_rate,
             channels,
-            audio_latency_offset: 20.0, // Petite compensation pour le buffer audio
             
             scroll_speed_ms: 500.0,
             notes_passed: 0,
@@ -212,51 +184,41 @@ impl GameEngine {
         Ok(format!("{:x}", context.finalize()))
     }
 
-    /// Cœur du système de temps
-    /// Retourne le temps écoulé en ms RÉELLES
-    pub fn get_game_time(&self) -> f64 {
-        if !self.audio_started {
-            // Phase de décompte (Lead-in)
-            let now = Instant::now();
-            let elapsed_since_init = now.duration_since(self.start_time).as_secs_f64() * 1000.0;
-            // On renvoie un temps négatif (-5000ms -> 0ms)
-            return -5000.0 + elapsed_since_init;
-        }
+    // --- TEMPS MUSICAL (AUDIO MASTER) ---
+    pub fn get_audio_time(&self) -> f64 {
+        let now = Instant::now();
 
-        // Phase de jeu : Calcul basé sur les samples consommés
-        let samples = self.played_samples.load(Ordering::Relaxed) as f64;
-        
-        // 1. Convertir samples -> secondes musicales
-        // (Samples / Channels) / SampleRate = Secondes
-        let musical_seconds = samples / self.channels as f64 / self.sample_rate as f64;
-        
-        // 2. Convertir secondes musicales -> ms musicales
-        let musical_ms = musical_seconds * 1000.0;
-        
-        // 3. Convertir ms musicales -> ms RÉELLES (compensé par le rate)
-        let real_ms = musical_ms / self.rate;
-        
-        // 4. Appliquer la compensation de latence (le compteur est en avance sur le son entendu)
-        real_ms - self.audio_latency_offset
+        if let Some(start_time) = self.audio_start_instant {
+            // Temps Écoulé Réel * Rate = Temps Musical
+            let raw_elapsed_ms = now.duration_since(start_time).as_secs_f64() * 1000.0;
+            let musical_time = raw_elapsed_ms * self.rate;
+            musical_time
+        } else {
+            // Lead-in (intro avant musique)
+            let elapsed = now.duration_since(self.engine_start_time).as_secs_f64() * 1000.0;
+            // On fait avancer le temps négatif à la vitesse du rate
+            -5000.0 + (elapsed * self.rate)
+        }
     }
 
     pub fn start_audio_if_needed(&mut self, master_volume: f32) {
         if !self.audio_started {
-            let current_time = self.get_game_time();
-            // Fin du décompte
-            if current_time >= 0.0 {
+            let current_musical_time = self.get_audio_time();
+            if current_musical_time >= 0.0 {
                 if let Ok(sink) = self.audio_sink.lock() {
                     sink.set_volume(master_volume);
                     sink.play();
                     self.audio_started = true;
+                    self.audio_start_instant = Some(Instant::now());
                 }
             }
         }
     }
-
+    
     pub fn reset_time(&mut self) {
         let now = Instant::now();
-        self.start_time = now;
+        self.engine_start_time = now;
+        self.audio_start_instant = None;
         self.head_index = 0;
         self.notes_passed = 0;
         self.combo = 0;
@@ -266,15 +228,10 @@ impl GameEngine {
         self.last_hit_timing = None;
         self.last_hit_judgement = None;
         
-        for note in &mut self.chart {
-            note.hit = false;
-        }
-
-        // Réinitialiser le compteur atomique
+        for note in &mut self.chart { note.hit = false; }
         self.played_samples.store(0, Ordering::Relaxed);
         self.audio_started = false;
         
-        // Recharger l'audio proprement
         if let Ok(sink) = self.audio_sink.lock() {
             sink.stop();
             sink.clear();
@@ -285,15 +242,9 @@ impl GameEngine {
             match File::open(audio_path) {
                 Ok(file) => match Decoder::new(BufReader::new(file)) {
                     Ok(source) => {
-                        // On doit ré-appliquer le wrapper AudioMonitor
                         self.sample_rate = source.sample_rate();
                         self.channels = source.channels();
-                        
-                        let monitor = AudioMonitor {
-                            inner: source,
-                            played_samples: self.played_samples.clone(),
-                        };
-                        
+                        let monitor = AudioMonitor { inner: source, played_samples: self.played_samples.clone() };
                         if let Ok(sink) = self.audio_sink.lock() {
                             sink.append(monitor);
                             sink.pause();
@@ -304,17 +255,16 @@ impl GameEngine {
                 Err(e) => eprintln!("Error loading: {}", e),
             }
         }
-        
         self.replay_data = ReplayData::new();
     }
-    
+
     pub async fn save_replay(&self, db: &crate::database::connection::Database) -> Result<(), Box<dyn std::error::Error>> {
         if let Some(ref hash) = self.beatmap_hash {
             let mut replay_data_with_stats = self.replay_data.clone();
             replay_data_with_stats.hit_stats = Some(self.hit_stats.clone());
             let json_data = replay_data_with_stats.to_json()?;
             let timestamp = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH)?.as_secs() as i64;
-            db.insert_replay(hash, timestamp, self.notes_passed as i32, self.hit_stats.calculate_accuracy(), self.max_combo as i32, &json_data).await?;
+            db.insert_replay(hash, timestamp, self.notes_passed as i32, self.hit_stats.calculate_accuracy(), self.max_combo as i32, self.rate, &json_data).await?;
             Ok(())
         } else { Err("No hash".into()) }
     }
@@ -323,40 +273,57 @@ impl GameEngine {
         if let Ok(sink) = self.audio_sink.lock() { sink.set_volume(volume); }
     }
 
-    // --- LOGIQUE DE JEU (Simplifiée grâce au get_game_time robuste) ---
+    pub fn update_hit_window(&mut self, mode: crate::models::settings::HitWindowMode, value: f64) {
+        self.hit_window = match mode {
+            crate::models::settings::HitWindowMode::OsuOD => {
+                HitWindow::from_osu_od(value.clamp(0.0, 10.0))
+            }
+            crate::models::settings::HitWindowMode::EtternaJudge => {
+                HitWindow::from_etterna_judge(value.clamp(1.0, 9.0) as u8)
+            }
+        };
+    }
+
+    // --- INPUT & JUGEMENT ---
 
     pub fn process_input(&mut self, column: usize) -> Option<Judgement> {
-        let current_time = self.get_game_time();
+        let audio_time = self.get_audio_time();
         let mut best_note: Option<(usize, f64)> = None;
 
         for (idx, note) in self.chart.iter().enumerate().skip(self.head_index) {
             if note.column == column && !note.hit {
-                // time_diff est maintenant en "ms réelles pures"
-                // car note.timestamp_ms a été divisé par rate au chargement
-                // et current_time est ajusté par rate dans get_game_time
-                let time_diff = note.timestamp_ms - current_time;
+                // Différence brute en MS musicales
+                let musical_diff = note.timestamp_ms - audio_time;
+                
+                // Pour la HitWindow, comme on ne peut pas modifier la struct externe,
+                // on normalise l'input.
+                // Mathématiquement : (Diff / Rate < Window) EST ÉQUIVALENT À (Diff < Window * Rate)
+                // C'est exactement la logique "J'ai 500ms -> je dois avoir 750ms" appliquée aux fenêtres.
+                let normalized_diff = musical_diff / self.rate;
 
-                let (judgement, _) = self.hit_window.judge(time_diff);
+                let (judgement, _) = self.hit_window.judge(normalized_diff);
                 if judgement != Judgement::GhostTap {
                     if let Some((_, best_diff)) = best_note {
-                        if time_diff.abs() < best_diff.abs() {
-                            best_note = Some((idx, time_diff));
+                        if normalized_diff.abs() < best_diff.abs() {
+                            best_note = Some((idx, normalized_diff));
                         }
                     } else {
-                        best_note = Some((idx, time_diff));
+                        best_note = Some((idx, normalized_diff));
                     }
                 }
             }
         }
 
-        if let Some((note_idx, time_diff)) = best_note {
-            let (judgement, _) = self.hit_window.judge(time_diff);
+        if let Some((note_idx, normalized_diff)) = best_note {
+            let (judgement, _) = self.hit_window.judge(normalized_diff);
             self.chart[note_idx].hit = true;
             self.active_notes.retain(|(idx, _)| *idx != note_idx);
-            self.last_hit_timing = Some(time_diff);
+            
+            // On sauvegarde le timing réel (normalisé) pour la cohérence stats
+            self.last_hit_timing = Some(normalized_diff);
             self.last_hit_judgement = Some(judgement);
             
-            if judgement != Judgement::GhostTap { self.replay_data.add_hit(note_idx, time_diff); }
+            if judgement != Judgement::GhostTap { self.replay_data.add_hit(note_idx, normalized_diff); }
 
             match judgement {
                 Judgement::Marv => { self.hit_stats.marv += 1; self.combo += 1; }
@@ -367,13 +334,11 @@ impl GameEngine {
                 Judgement::Miss => { self.hit_stats.miss += 1; self.combo = 0; }
                 Judgement::GhostTap => { self.hit_stats.ghost_tap += 1; }
             }
-
             if self.combo > self.max_combo { self.max_combo = self.combo; }
             if judgement != Judgement::GhostTap { self.notes_passed += 1; }
             return Some(judgement);
         }
 
-        // Gestion Ghost Tap
         let has_notes_in_column = self.chart.iter().skip(self.head_index)
             .any(|note| note.column == column && !note.hit);
 
@@ -381,25 +346,27 @@ impl GameEngine {
             self.hit_stats.ghost_tap += 1;
             self.last_hit_timing = None;
             self.last_hit_judgement = Some(Judgement::GhostTap);
-            self.replay_data.add_key_press(current_time, column);
+            self.replay_data.add_key_press(audio_time, column);
             return Some(Judgement::GhostTap);
         }
 
         self.hit_stats.ghost_tap += 1;
         self.last_hit_timing = None;
         self.last_hit_judgement = Some(Judgement::GhostTap);
-        self.replay_data.add_key_press(current_time, column);
+        self.replay_data.add_key_press(audio_time, column);
         Some(Judgement::GhostTap)
     }
 
     pub fn update_active_notes(&mut self) {
-        let current_time = self.get_game_time();
+        let audio_time = self.get_audio_time();
         self.active_notes.clear();
 
         for (idx, note) in self.chart.iter().enumerate().skip(self.head_index) {
             if !note.hit {
-                let time_diff = note.timestamp_ms - current_time;
-                let (judgement, _) = self.hit_window.judge(time_diff);
+                let musical_diff = note.timestamp_ms - audio_time;
+                let normalized_diff = musical_diff / self.rate;
+                
+                let (judgement, _) = self.hit_window.judge(normalized_diff);
                 if judgement != Judgement::GhostTap {
                     self.active_notes.push((idx, note.clone()));
                 }
@@ -408,16 +375,23 @@ impl GameEngine {
     }
 
     pub fn detect_misses(&mut self) {
-        let current_time = self.get_game_time();
+        let audio_time = self.get_audio_time();
         for (idx, note) in self.chart.iter_mut().enumerate().skip(self.head_index) {
             if !note.hit {
-                let time_diff = note.timestamp_ms - current_time;
-                if time_diff < -150.0 {
+                let musical_diff = note.timestamp_ms - audio_time;
+                
+                // LOGIQUE DE MULTIPLICATION ICI
+                // Seuil de base (-150ms) * Rate (1.5) = -225ms musicales.
+                // Si la différence musicale est pire que -225ms, c'est un Miss.
+                let miss_threshold_musical = -150.0 * self.rate;
+                
+                if musical_diff < miss_threshold_musical {
                     note.hit = true;
                     self.hit_stats.miss += 1;
                     self.combo = 0;
                     self.notes_passed += 1;
-                    self.replay_data.add_hit(idx, time_diff);
+                    // Pour le replay/stats, on normalise quand même pour rester cohérent
+                    self.replay_data.add_hit(idx, musical_diff / self.rate);
                 }
             }
         }
@@ -426,12 +400,13 @@ impl GameEngine {
     pub fn get_remaining_notes(&self) -> usize {
         self.chart.iter().skip(self.head_index).filter(|note| !note.hit).count()
     }
-
     pub fn is_game_finished(&self) -> bool {
         if self.head_index >= self.chart.len() { return true; }
         self.chart.iter().skip(self.head_index).all(|note| note.hit)
     }
 
+    // --- VISUAL (SCROLL) ---
+    
     pub fn get_visible_notes(
         &mut self,
         pixel_system: &PixelSystem,
@@ -439,22 +414,15 @@ impl GameEngine {
         playfield_x: f32,
         _playfield_width: f32,
     ) -> Vec<InstanceRaw> {
-        let current_time = self.get_game_time();
+        let audio_time = self.get_audio_time();
 
-        // Calcul de la vitesse de scroll effective.
-        // On veut garder une densité visuelle constante ou accélérée ?
-        // Standard jeu de rythme : Scroll Constant = Vitesse écran constante.
-        // Comme 'rate' accélère le temps, si on ne touche pas scroll_speed_ms,
-        // les notes défileront plus vite visuellement (ce qui est logique pour un rate > 1).
-        // Si tu veux que les notes aillent "visuellement" à la même vitesse pixel/sec,
-        // décommente la ligne ci-dessous :
-        // let effective_scroll_speed = self.scroll_speed_ms / self.rate; 
-        
-        // Pour l'instant, on garde scroll_speed_ms tel quel pour un feeling naturel d'accélération
-        let effective_scroll_speed = self.scroll_speed_ms / self.rate; 
+        // LOGIQUE DE MULTIPLICATION (Ta demande 500ms -> 750ms)
+        // La distance visible en temps musical DOIT ÊTRE plus grande.
+        // ScrollSpeed (500ms) * Rate (1.5) = 750ms de notes visibles.
+        let visible_duration_musical = self.scroll_speed_ms * self.rate;
 
-        let max_future_time = current_time + effective_scroll_speed;
-        let min_past_time = current_time - 200.0;
+        let max_future_time = audio_time + visible_duration_musical;
+        let min_past_time = audio_time - (200.0 * self.rate); 
 
         while self.head_index < self.chart.len() {
             if self.chart[self.head_index].timestamp_ms < min_past_time {
@@ -471,8 +439,11 @@ impl GameEngine {
         for note in self.chart.iter().skip(self.head_index) {
             if note.timestamp_ms > max_future_time { break; }
 
-            let time_to_hit = note.timestamp_ms - current_time;
-            let progress = time_to_hit / effective_scroll_speed;
+            let musical_time_to_hit = note.timestamp_ms - audio_time;
+            
+            // Calcul de la progression (0.0 à 1.0)
+            // Note à 750ms (Musical) / Fenêtre Visuelle de 750ms (Musical) = 1.0 (Haut écran)
+            let progress = musical_time_to_hit / visible_duration_musical;
 
             let y_pos = HIT_LINE_Y + (VISIBLE_DISTANCE * progress as f32);
             let center_x = playfield_x + (note.column as f32 * column_width_norm) + (column_width_norm / 2.0);

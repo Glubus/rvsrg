@@ -1,6 +1,6 @@
 use super::Renderer;
-use crate::views::context::{GameplayRenderContext, MenuRenderContext, ResultRenderContext};
-use std::{collections::BTreeMap, time::Instant};
+use crate::views::context::{GameplayRenderContext, ResultRenderContext};
+use std::{collections::BTreeMap, sync::Arc, time::Instant};
 use wgpu::CommandEncoderDescriptor;
 
 impl Renderer {
@@ -17,6 +17,8 @@ impl Renderer {
         let mut settings_is_open = self.settings.is_open;
         let mut settings_show_keybindings = self.settings.show_keybindings;
         let mut master_volume = self.settings.master_volume;
+        let mut hit_window_mode = self.settings.hit_window_mode;
+        let mut hit_window_value = self.settings.hit_window_value;
         let keybinding_rows = {
             let mut grouped: BTreeMap<usize, Vec<String>> = BTreeMap::new();
             for (key, column) in &self.skin.key_to_column {
@@ -31,8 +33,35 @@ impl Renderer {
                 .collect::<Vec<_>>()
         };
         
+        // Initialize song select screen if needed
+        let (in_menu, show_result) = if let Ok(menu_state) = self.menu_state.lock() {
+            (menu_state.in_menu, menu_state.show_result)
+        } else {
+            (false, false)
+        };
+
+        if in_menu && self.song_select_screen.is_none() {
+            self.song_select_screen = Some(crate::views::components::menu::song_select::SongSelectScreen::new(
+                Arc::clone(&self.menu_state)
+            ));
+        }
+
         let full_output = self.egui_ctx.run(raw_input, |ctx| {
             // Construction de l'UI directement dans la closure pour éviter les problèmes de borrow
+            
+            // Render song select if in menu and settings not open
+            if in_menu && !settings_is_open {
+                if let Some(ref mut song_select) = self.song_select_screen {
+                    song_select.render(
+                        ctx,
+                        &view,
+                        self.config.width as f32,
+                        self.config.height as f32,
+                    );
+                }
+                return;
+            }
+
             if !settings_is_open {
                 return;
             }
@@ -48,7 +77,8 @@ impl Renderer {
                     ui.label("Audio");
                     // Slider Volume
                     if ui.add(egui::Slider::new(&mut master_volume, 0.0..=1.0).text("Volume")).changed() {
-                        // Le volume sera appliqué dans la boucle de rendu via engine.set_volume()
+                        // Appliquer le volume immédiatement
+                        self.engine.set_volume(master_volume);
                     }
 
                     ui.separator();
@@ -75,6 +105,26 @@ impl Renderer {
                             }
                         }
                     });
+
+                    ui.add_space(10.0);
+                    ui.label("Hit Window");
+                    
+                    // Sélection du mode (OD ou Judge)
+                    ui.horizontal(|ui| {
+                        ui.radio_value(&mut hit_window_mode, crate::models::settings::HitWindowMode::OsuOD, "OD");
+                        ui.radio_value(&mut hit_window_mode, crate::models::settings::HitWindowMode::EtternaJudge, "Judge");
+                    });
+
+                    // Slider pour la valeur
+                    let (min_val, max_val, label) = match hit_window_mode {
+                        crate::models::settings::HitWindowMode::OsuOD => (0.0, 10.0, "OD"),
+                        crate::models::settings::HitWindowMode::EtternaJudge => (1.0, 9.0, "Judge Level"),
+                    };
+                    
+                    if ui.add(egui::Slider::new(&mut hit_window_value, min_val..=max_val).text(label)).changed() {
+                        // Appliquer immédiatement la hit window
+                        self.engine.update_hit_window(hit_window_mode, hit_window_value);
+                    }
 
                     ui.separator();
                     ui.label("Controls");
@@ -126,13 +176,11 @@ impl Renderer {
         self.settings.is_open = settings_is_open;
         self.settings.show_keybindings = settings_show_keybindings;
         self.settings.master_volume = master_volume;
+        self.settings.hit_window_mode = hit_window_mode;
+        self.settings.hit_window_value = hit_window_value;
 
         // --- 2. LOGIQUE DE JEU & FPS ---
-        let (in_menu, show_result) = if let Ok(menu_state) = self.menu_state.lock() {
-            (menu_state.in_menu, menu_state.show_result)
-        } else {
-            (false, false)
-        };
+        // (in_menu and show_result already extracted above)
 
         self.frame_count += 1;
         let now = Instant::now();
@@ -192,30 +240,51 @@ impl Renderer {
             
             self.update_menu_background();
 
-            let mut ctx = MenuRenderContext {
-                device: &self.device,
-                queue: &self.queue,
-                text_brush: &mut self.text_brush,
-                menu_view: &view,
-                background_pipeline: self.background_pipeline.as_ref(),
-                background_bind_group: self.background_bind_group.as_ref(),
-                quad_pipeline: &self.quad_pipeline,
-                quad_buffer: &self.quad_buffer,
-                screen_width: self.config.width as f32,
-                screen_height: self.config.height as f32,
-                fps: self.fps,
-            };
+            // Render background with wgpu
+            let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor::default());
 
-            // Note: menu_view.render crée sa propre RenderPass interne. 
-            // Idéalement, il faudrait refactoriser pour passer l'encoder, 
-            // mais pour l'instant on laisse menu_view gérer son encoder et on submit après.
-            // ATTENTION: Si menu_view fait un queue.submit(), cela brisera l'ordre avec egui.
-            // Pour que ça marche avec ton code actuel (qui fait submit dans menu_view), 
-            // on doit séparer les soumissions ou refactoriser.
-            // Solution rapide ici: on laisse menu_view faire son rendu, mais on devra faire une passe Egui dédiée par dessus.
-            
-            // On exécute d'abord le rendu du menu (qui submit ses commandes)
-            self.menu_view.render(&mut ctx, &self.menu_state)?;
+            if let (Some(pipeline), Some(bind_group)) = (
+                self.background_pipeline.as_ref(),
+                self.background_bind_group.as_ref()
+            ) {
+                let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                    label: Some("Background Render Pass"),
+                    color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                        view: &view,
+                        resolve_target: None,
+                        ops: wgpu::Operations {
+                            load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+                            store: wgpu::StoreOp::Store,
+                        },
+                        depth_slice: None,
+                    })],
+                    depth_stencil_attachment: None,
+                    timestamp_writes: None,
+                    occlusion_query_set: None,
+                });
+
+                render_pass.set_pipeline(pipeline);
+                render_pass.set_bind_group(0, bind_group, &[]);
+                render_pass.draw(0..6, 0..1);
+            } else {
+                let _render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                    label: Some("Menu Clear Pass"),
+                    color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                        view: &view,
+                        resolve_target: None,
+                        ops: wgpu::Operations {
+                            load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+                            store: wgpu::StoreOp::Store,
+                        },
+                        depth_slice: None,
+                    })],
+                    depth_stencil_attachment: None,
+                    timestamp_writes: None,
+                    occlusion_query_set: None,
+                });
+            }
+
+            self.queue.submit(std::iter::once(encoder.finish()));
             
         } else {
             // Rendu Gameplay

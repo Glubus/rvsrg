@@ -9,7 +9,6 @@ use crate::views::components::{
     ScoreDisplay,
 };
 use crate::views::gameplay::GameplayView;
-use crate::views::menu::MenuView;
 use crate::views::result::ResultView;
 // Note: Ajuste les chemins 'super::super' selon l'emplacement exact de tes fichiers
 use crate::renderer::pipeline::{create_bind_group_layout, create_render_pipeline, create_sampler};
@@ -394,7 +393,6 @@ impl Renderer {
             pixel_system,
             skin,
             gameplay_view: GameplayView::new(playfield_component),
-            menu_view: MenuView::new(),
             result_view: ResultView::new(screen_width, screen_height),
             hit_bar: HitBarDisplay::new(
                 playfield_center_x - hitbar_width / 2.0,
@@ -420,6 +418,8 @@ impl Renderer {
             egui_renderer,
             settings: GameSettings::new(),
             leaderboard_scores_loaded: false,
+            current_leaderboard_hash: None,
+            song_select_screen: None,
         }
     }
 }

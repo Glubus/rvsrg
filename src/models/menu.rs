@@ -154,4 +154,15 @@ impl MenuState {
                 .and_then(|bm| bm.difficulty_name.clone())
         })
     }
+
+    pub fn get_selected_beatmap_hash(&self) -> Option<String> {
+        self.get_selected_beatmapset().and_then(|(_, beatmaps)| {
+            beatmaps
+                .get(
+                    self.selected_difficulty_index
+                        .min(beatmaps.len().saturating_sub(1)),
+                )
+                .map(|bm| bm.hash.clone())
+        })
+    }
 }

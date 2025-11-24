@@ -70,6 +70,9 @@ impl Renderer {
         };
         self.engine = GameEngine::from_map(map_path, rate);
         
+        // Appliquer la hit window depuis les settings
+        self.engine.update_hit_window(self.settings.hit_window_mode, self.settings.hit_window_value);
+        
         // Recréer le buffer quad avec la bonne taille en fonction du nombre de notes
         // On a besoin de : nombre de notes (pour le graphe) + 11 quads (panneaux, background, ligne centrale)
         let num_notes = self.engine.chart.len();
@@ -125,17 +128,41 @@ impl Renderer {
     }
 
     pub fn load_leaderboard_scores(&mut self) {
-        // Charger les scores de manière synchrone via block_on
-        // On utilise un runtime tokio local pour éviter les problèmes async
-        if !self.leaderboard_scores_loaded {
+        // Obtenir le hash de la map sélectionnée
+        let selected_hash = if let Ok(menu_state) = self.menu_state.lock() {
+            menu_state.get_selected_beatmap_hash()
+        } else {
+            None
+        };
+
+        // Vérifier si on doit recharger (map différente ou pas encore chargé)
+        let needs_reload = match (&self.current_leaderboard_hash, &selected_hash) {
+            (Some(current), Some(selected)) => current != selected,
+            (None, Some(_)) => true, // Pas encore chargé mais une map est sélectionnée
+            (_, None) => false, // Pas de map sélectionnée
+        };
+
+        if needs_reload || !self.leaderboard_scores_loaded {
             let rt = tokio::runtime::Runtime::new().unwrap();
             let db_path = std::path::PathBuf::from("main.db");
             
             if let Ok(db) = rt.block_on(crate::database::connection::Database::new(&db_path)) {
-                if let Ok(scores) = rt.block_on(crate::database::query::get_top_scores(db.pool(), 10)) {
-                    self.menu_view.update_leaderboard(scores);
-                    self.leaderboard_scores_loaded = true;
+                let scores = if let Some(hash) = &selected_hash {
+                    // Charger les scores pour la map spécifique
+                    rt.block_on(crate::database::query::get_replays_for_beatmap(db.pool(), hash))
+                        .unwrap_or_else(|_| Vec::new())
+                } else {
+                    // Pas de map sélectionnée, charger les top scores globaux
+                    rt.block_on(crate::database::query::get_top_scores(db.pool(), 10))
+                        .unwrap_or_else(|_| Vec::new())
+                };
+
+                if let Some(ref mut song_select) = self.song_select_screen {
+                    song_select.update_leaderboard(scores);
+                    song_select.set_current_beatmap_hash(selected_hash.clone());
                 }
+                self.leaderboard_scores_loaded = true;
+                self.current_leaderboard_hash = selected_hash;
             }
         }
     }
