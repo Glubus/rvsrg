@@ -1,7 +1,7 @@
+use crate::database::models::{Beatmap, Beatmapset};
+use crate::database::query;
 use sqlx::{SqlitePool, sqlite::SqliteConnectOptions};
 use std::path::{Path, PathBuf};
-use crate::database::models::{Beatmapset, Beatmap};
-use crate::database::query;
 
 pub struct Database {
     pool: SqlitePool,
@@ -21,7 +21,7 @@ impl Database {
                 }
             }
         }
-        
+
         // Pour sqlx avec SQLite, convertir le chemin en chemin absolu
         let absolute_path = if db_path.is_absolute() {
             db_path.to_path_buf()
@@ -31,13 +31,13 @@ impl Database {
                 .unwrap_or_else(|_| PathBuf::from("."))
                 .join(db_path)
         };
-        
+
         // Utiliser SqliteConnectOptions directement avec le chemin du fichier
         // create_if_missing(true) crée automatiquement le fichier s'il n'existe pas
         let options = SqliteConnectOptions::new()
             .filename(&absolute_path)
             .create_if_missing(true);
-        
+
         let pool = SqlitePool::connect_with(options).await?;
         let db = Database { pool };
         db.init_schema().await?;
@@ -54,7 +54,7 @@ impl Database {
                 image_path TEXT,
                 artist TEXT,
                 title TEXT
-            )"
+            )",
         )
         .execute(&self.pool)
         .await?;
@@ -68,7 +68,7 @@ impl Database {
                 difficulty_name TEXT,
                 note_count INTEGER NOT NULL,
                 FOREIGN KEY (beatmapset_id) REFERENCES beatmapset(id) ON DELETE CASCADE
-            )"
+            )",
         )
         .execute(&self.pool)
         .await?;
@@ -109,7 +109,9 @@ impl Database {
     }
 
     /// Récupère tous les beatmapsets avec leurs beatmaps
-    pub async fn get_all_beatmapsets(&self) -> Result<Vec<(Beatmapset, Vec<Beatmap>)>, sqlx::Error> {
+    pub async fn get_all_beatmapsets(
+        &self,
+    ) -> Result<Vec<(Beatmapset, Vec<Beatmap>)>, sqlx::Error> {
         query::get_all_beatmapsets(&self.pool).await
     }
 
@@ -118,4 +120,3 @@ impl Database {
         query::count_beatmapsets(&self.pool).await
     }
 }
-

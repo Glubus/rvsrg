@@ -1,5 +1,5 @@
-use wgpu::{Device, Queue, Texture};
 use std::path::Path;
+use wgpu::{Device, Queue, Texture};
 
 /// Charge une texture depuis un fichier image
 pub fn load_texture_from_path(
@@ -11,14 +11,14 @@ pub fn load_texture_from_path(
         Ok(img) => {
             let rgba = img.to_rgba8();
             let (width, height) = rgba.dimensions();
-            
+
             // Créer la texture GPU
             let texture_size = wgpu::Extent3d {
                 width,
                 height,
                 depth_or_array_layers: 1,
             };
-            
+
             let texture = device.create_texture(&wgpu::TextureDescriptor {
                 label: path.to_str(),
                 size: texture_size,
@@ -29,7 +29,7 @@ pub fn load_texture_from_path(
                 usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
                 view_formats: &[],
             });
-            
+
             queue.write_texture(
                 wgpu::TexelCopyTextureInfo {
                     texture: &texture,
@@ -43,9 +43,13 @@ pub fn load_texture_from_path(
                     bytes_per_row: Some(4 * width),
                     rows_per_image: Some(height),
                 },
-                wgpu::Extent3d { width, height, depth_or_array_layers: 1 },
+                wgpu::Extent3d {
+                    width,
+                    height,
+                    depth_or_array_layers: 1,
+                },
             );
-            
+
             Some((texture, width, height))
         }
         Err(e) => {
@@ -64,7 +68,11 @@ pub fn create_default_texture(
 ) -> Texture {
     let texture = device.create_texture(&wgpu::TextureDescriptor {
         label: Some(label),
-        size: wgpu::Extent3d { width: 1, height: 1, depth_or_array_layers: 1 },
+        size: wgpu::Extent3d {
+            width: 1,
+            height: 1,
+            depth_or_array_layers: 1,
+        },
         mip_level_count: 1,
         sample_count: 1,
         dimension: wgpu::TextureDimension::D2,
@@ -72,7 +80,7 @@ pub fn create_default_texture(
         usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
         view_formats: &[],
     });
-    
+
     queue.write_texture(
         wgpu::TexelCopyTextureInfo {
             texture: &texture,
@@ -86,9 +94,12 @@ pub fn create_default_texture(
             bytes_per_row: Some(4),
             rows_per_image: Some(1),
         },
-        wgpu::Extent3d { width: 1, height: 1, depth_or_array_layers: 1 },
+        wgpu::Extent3d {
+            width: 1,
+            height: 1,
+            depth_or_array_layers: 1,
+        },
     );
-    
+
     texture
 }
-

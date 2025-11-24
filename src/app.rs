@@ -1,25 +1,21 @@
 use crate::database::{DbManager, DbState};
-use crate::menu::MenuState;
+use crate::models::menu::MenuState;
 use crate::renderer::Renderer;
+use crate::states::{GameState, MenuStateController, StateContext, StateTransition};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use winit::application::ApplicationHandler;
-use winit::event::{ElementState, KeyEvent, WindowEvent};
+use winit::event::WindowEvent;
 use winit::event_loop::ActiveEventLoop;
-use winit::keyboard::{KeyCode, PhysicalKey};
 use winit::window::{Window, WindowId};
-
-/// Convertit un KeyCode en nom de string pour le mapping
-fn keycode_to_string(key_code: KeyCode) -> String {
-    format!("{:?}", key_code)
-}
 
 pub struct App {
     window: Option<Arc<Window>>,
     renderer: Option<Renderer>,
-    db_manager: Option<DbManager>,
+    db_manager: DbManager,
     db_state: Arc<Mutex<DbState>>,
     menu_state: Arc<Mutex<MenuState>>,
+    state_stack: Vec<Box<dyn GameState>>,
 }
 
 impl App {
@@ -29,26 +25,23 @@ impl App {
         let songs_path = PathBuf::from("songs");
         let db_manager = DbManager::new(db_path, songs_path);
         let db_state = db_manager.get_state();
+        let menu_state = Arc::new(Mutex::new(MenuState::new()));
 
-        Self {
+        let mut app = Self {
             window: None,
             renderer: None,
-            db_manager: Some(db_manager),
+            db_manager,
             db_state,
-            menu_state: Arc::new(Mutex::new(MenuState::new())),
-        }
+            menu_state: Arc::clone(&menu_state),
+            state_stack: Vec::new(),
+        };
+
+        app.enter_state(Box::new(MenuStateController::new(menu_state)));
+        app
     }
 
     fn init_database(&mut self) {
-        if let Some(ref db_manager) = self.db_manager {
-            db_manager.init();
-        }
-    }
-
-    fn rescan_maps(&mut self) {
-        if let Some(ref db_manager) = self.db_manager {
-            db_manager.rescan();
-        }
+        self.db_manager.init();
     }
 
     fn update_menu_from_db_state(&mut self) {
@@ -95,6 +88,64 @@ impl App {
             }
         }
     }
+
+    fn make_state_context(&mut self) -> StateContext {
+        let renderer_ptr = self
+            .renderer
+            .as_mut()
+            .map(|renderer| renderer as *mut Renderer);
+        let db_manager_ptr = Some(&mut self.db_manager as *mut DbManager);
+        StateContext::new(renderer_ptr, db_manager_ptr)
+    }
+
+    fn enter_state(&mut self, mut state: Box<dyn GameState>) {
+        let mut ctx = self.make_state_context();
+        state.on_enter(&mut ctx);
+        self.state_stack.push(state);
+    }
+
+    fn exit_state(&mut self) {
+        if let Some(mut state) = self.state_stack.pop() {
+            let mut ctx = self.make_state_context();
+            state.on_exit(&mut ctx);
+        }
+    }
+
+    fn replace_state(&mut self, mut state: Box<dyn GameState>) {
+        if let Some(mut current) = self.state_stack.pop() {
+            let mut ctx = self.make_state_context();
+            current.on_exit(&mut ctx);
+        }
+        let mut ctx = self.make_state_context();
+        state.on_enter(&mut ctx);
+        self.state_stack.push(state);
+    }
+
+    fn with_active_state<F>(&mut self, f: F) -> StateTransition
+    where
+        F: FnOnce(&mut dyn GameState, &mut StateContext) -> StateTransition,
+    {
+        if self.state_stack.is_empty() {
+            return StateTransition::None;
+        }
+
+        let mut ctx = self.make_state_context();
+        if let Some(state) = self.state_stack.last_mut() {
+            f(state.as_mut(), &mut ctx)
+        } else {
+            StateTransition::None
+        }
+    }
+
+    fn apply_transition(&mut self, transition: StateTransition, event_loop: &ActiveEventLoop) {
+        match transition {
+            StateTransition::None => {}
+            StateTransition::Push(state) => self.enter_state(state),
+            StateTransition::Pop => self.exit_state(),
+            StateTransition::Replace(state) => self.replace_state(state),
+            StateTransition::Exit => event_loop.exit(),
+        }
+    }
 }
 
 impl ApplicationHandler for App {
@@ -115,6 +166,11 @@ impl ApplicationHandler for App {
             let renderer =
                 pollster::block_on(Renderer::new(window.clone(), menu_state_for_renderer));
             self.renderer = Some(renderer);
+
+            // Redemander une frame pour démarrer la boucle
+            if let Some(window) = &self.window {
+                window.request_redraw();
+            }
         }
     }
 
@@ -127,18 +183,24 @@ impl ApplicationHandler for App {
         // Mettre à jour le menu depuis le db_state à chaque frame
         self.update_menu_from_db_state();
 
-        match event {
+        match &event {
             WindowEvent::CloseRequested => {
                 println!("Shutdown requested...");
                 event_loop.exit();
             }
             WindowEvent::Resized(physical_size) => {
-                if let Some(renderer) = &mut self.renderer {
-                    renderer.resize(physical_size);
+                if let Some(renderer) = self.renderer.as_mut() {
+                    renderer.resize(*physical_size);
                 }
             }
             WindowEvent::RedrawRequested => {
-                if let Some(renderer) = &mut self.renderer {
+                let transition = self.with_active_state(|state, ctx| match state.update(ctx) {
+                    StateTransition::None => state.render(ctx),
+                    other => other,
+                });
+                self.apply_transition(transition, event_loop);
+
+                if let Some(renderer) = self.renderer.as_mut() {
                     match renderer.render() {
                         Ok(_) => {}
                         Err(wgpu::SurfaceError::Lost) => {
@@ -147,177 +209,15 @@ impl ApplicationHandler for App {
                         Err(wgpu::SurfaceError::OutOfMemory) => event_loop.exit(),
                         Err(e) => eprintln!("{:?}", e),
                     }
-                    // Demande immédiate de la prochaine frame (boucle infinie fluide)
-                    self.window.as_ref().unwrap().request_redraw();
+                    if let Some(window) = &self.window {
+                        window.request_redraw();
+                    }
                 }
             }
-            WindowEvent::KeyboardInput {
-                event:
-                    KeyEvent {
-                        state: ElementState::Pressed,
-                        physical_key: PhysicalKey::Code(key_code),
-                        ..
-                    },
-                ..
-            } => {
-                // Vérifier si on est dans le menu
-                let in_menu = {
-                    if let Some(renderer) = &self.renderer {
-                        if let Ok(menu_state) = renderer.menu_state.lock() {
-                            menu_state.in_menu
-                        } else {
-                            false
-                        }
-                    } else {
-                        false
-                    }
-                };
-
-                if in_menu {
-                    match key_code {
-                        KeyCode::Escape => {
-                            event_loop.exit();
-                        }
-                        KeyCode::F8 => {
-                            // Rescan des maps
-                            self.rescan_maps();
-                            // Le menu_state sera mis à jour par rescan_maps
-                        }
-                        KeyCode::ArrowUp => {
-                            if let Some(renderer) = &self.renderer {
-                                if let Ok(mut menu_state) = renderer.menu_state.lock() {
-                                    menu_state.move_up();
-                                }
-                            }
-                        }
-                        KeyCode::ArrowDown => {
-                            if let Some(renderer) = &self.renderer {
-                                if let Ok(mut menu_state) = renderer.menu_state.lock() {
-                                    menu_state.move_down();
-                                }
-                            }
-                        }
-                        KeyCode::ArrowLeft => {
-                            if let Some(renderer) = &self.renderer {
-                                if let Ok(mut menu_state) = renderer.menu_state.lock() {
-                                    menu_state.previous_difficulty();
-                                }
-                            }
-                        }
-                        KeyCode::ArrowRight => {
-                            if let Some(renderer) = &self.renderer {
-                                if let Ok(mut menu_state) = renderer.menu_state.lock() {
-                                    menu_state.next_difficulty();
-                                }
-                            }
-                        }
-                        KeyCode::Enter | KeyCode::NumpadEnter => {
-                            // Charger la map sélectionnée
-                            if let Some(renderer) = &mut self.renderer {
-                                let map_path = {
-                                    if let Ok(menu_state) = renderer.menu_state.lock() {
-                                        menu_state.get_selected_beatmap_path()
-                                    } else {
-                                        None
-                                    }
-                                };
-
-                                if let Some(path) = map_path {
-                                    if let Ok(mut menu_state) = renderer.menu_state.lock() {
-                                        menu_state.in_menu = false;
-                                    }
-                                    renderer.load_map(path);
-                                }
-                            }
-                        }
-                        KeyCode::PageUp => {
-                            // Increase rate
-                            if let Some(renderer) = &self.renderer {
-                                if let Ok(mut menu_state) = renderer.menu_state.lock() {
-                                    menu_state.increase_rate();
-                                    println!("Rate: {:.1}x", menu_state.rate);
-                                }
-                            }
-                        }
-                        KeyCode::PageDown => {
-                            // Decrease rate
-                            if let Some(renderer) = &self.renderer {
-                                if let Ok(mut menu_state) = renderer.menu_state.lock() {
-                                    menu_state.decrease_rate();
-                                    println!("Rate: {:.1}x", menu_state.rate);
-                                }
-                            }
-                        }
-                        _ => {}
-                    }
-                    return;
-                }
-
-                // Si on n'est pas dans le menu, gérer les touches du gameplay
-                match key_code {
-                    KeyCode::Escape => {
-                        // Retour au menu
-                        if let Some(renderer) = &mut self.renderer {
-                            renderer.stop_audio(); // Arrêter la musique
-                            if let Ok(mut menu_state) = renderer.menu_state.lock() {
-                                menu_state.in_menu = true;
-                            }
-                        }
-                    }
-                    KeyCode::F3 => {
-                        // Diminuer la vitesse de défilement
-                        if let Some(renderer) = &mut self.renderer {
-                            renderer.engine.scroll_speed_ms =
-                                (renderer.engine.scroll_speed_ms - 50.0).max(100.0);
-                            println!("Scroll speed: {:.1} ms", renderer.engine.scroll_speed_ms);
-                        }
-                    }
-                    KeyCode::F4 => {
-                        // Augmenter la vitesse de défilement
-                        if let Some(renderer) = &mut self.renderer {
-                            renderer.engine.scroll_speed_ms =
-                                (renderer.engine.scroll_speed_ms + 50.0).min(2000.0);
-                            println!("Scroll speed: {:.1} ms", renderer.engine.scroll_speed_ms);
-                        }
-                    }
-                    KeyCode::F5 => {
-                        // Relancer la map depuis le début
-                        if let Some(renderer) = &mut self.renderer {
-                            renderer.engine.reset_time();
-                            println!("Map restarted from the beginning");
-                        }
-                    }
-                    KeyCode::F8 => {
-                        // Rescan des maps (même en gameplay)
-                        self.rescan_maps();
-                    }
-                    KeyCode::F11 => {
-                        // Réduire la taille des notes et receptors
-                        if let Some(renderer) = &mut self.renderer {
-                            renderer.decrease_note_size();
-                        }
-                    }
-                    KeyCode::F12 => {
-                        // Augmenter la taille des notes et receptors
-                        if let Some(renderer) = &mut self.renderer {
-                            renderer.increase_note_size();
-                        }
-                    }
-                    _ => {
-                        // Utiliser le mapping de touches du skin
-                        if let Some(renderer) = &mut self.renderer {
-                            let key_name = keycode_to_string(key_code);
-                            if let Some(column) = renderer.skin.get_column_for_key(&key_name) {
-                                if let Some(judgement) = renderer.engine.process_input(column) {
-                                    println!(
-                                        "Hit column {} ({}): {:?}",
-                                        column, key_name, judgement
-                                    );
-                                }
-                            }
-                        }
-                    }
-                }
+            WindowEvent::KeyboardInput { .. } => {
+                let transition =
+                    self.with_active_state(|state, ctx| state.handle_input(&event, ctx));
+                self.apply_transition(transition, event_loop);
             }
             _ => {}
         }

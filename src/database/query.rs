@@ -1,5 +1,5 @@
+use crate::database::models::{Beatmap, Beatmapset};
 use sqlx::SqlitePool;
-use crate::database::models::{Beatmapset, Beatmap};
 
 /// Vide toutes les tables (pour rescan)
 pub async fn clear_all(pool: &SqlitePool) -> Result<(), sqlx::Error> {
@@ -17,18 +17,16 @@ pub async fn insert_beatmapset(
     title: Option<&str>,
 ) -> Result<i64, sqlx::Error> {
     // Vérifier si le beatmapset existe déjà
-    let existing: Option<i64> = sqlx::query_scalar(
-        "SELECT id FROM beatmapset WHERE path = ?1"
-    )
-    .bind(path)
-    .fetch_optional(pool)
-    .await?;
+    let existing: Option<i64> = sqlx::query_scalar("SELECT id FROM beatmapset WHERE path = ?1")
+        .bind(path)
+        .fetch_optional(pool)
+        .await?;
 
     match existing {
         Some(id) => {
             // Mettre à jour
             sqlx::query(
-                "UPDATE beatmapset SET image_path = ?1, artist = ?2, title = ?3 WHERE id = ?4"
+                "UPDATE beatmapset SET image_path = ?1, artist = ?2, title = ?3 WHERE id = ?4",
             )
             .bind(image_path)
             .bind(artist)
@@ -41,7 +39,7 @@ pub async fn insert_beatmapset(
         None => {
             // Insérer
             let result = sqlx::query(
-                "INSERT INTO beatmapset (path, image_path, artist, title) VALUES (?1, ?2, ?3, ?4)"
+                "INSERT INTO beatmapset (path, image_path, artist, title) VALUES (?1, ?2, ?3, ?4)",
             )
             .bind(path)
             .bind(image_path)
@@ -63,12 +61,10 @@ pub async fn insert_beatmap(
     note_count: i32,
 ) -> Result<i64, sqlx::Error> {
     // Vérifier si la beatmap existe déjà
-    let existing: Option<i64> = sqlx::query_scalar(
-        "SELECT id FROM beatmap WHERE path = ?1"
-    )
-    .bind(path)
-    .fetch_optional(pool)
-    .await?;
+    let existing: Option<i64> = sqlx::query_scalar("SELECT id FROM beatmap WHERE path = ?1")
+        .bind(path)
+        .fetch_optional(pool)
+        .await?;
 
     match existing {
         Some(id) => {
@@ -101,9 +97,11 @@ pub async fn insert_beatmap(
 }
 
 /// Récupère tous les beatmapsets avec leurs beatmaps
-pub async fn get_all_beatmapsets(pool: &SqlitePool) -> Result<Vec<(Beatmapset, Vec<Beatmap>)>, sqlx::Error> {
+pub async fn get_all_beatmapsets(
+    pool: &SqlitePool,
+) -> Result<Vec<(Beatmapset, Vec<Beatmap>)>, sqlx::Error> {
     let beatmapsets: Vec<Beatmapset> = sqlx::query_as(
-        "SELECT id, path, image_path, artist, title FROM beatmapset ORDER BY artist, title"
+        "SELECT id, path, image_path, artist, title FROM beatmapset ORDER BY artist, title",
     )
     .fetch_all(pool)
     .await?;
@@ -130,5 +128,3 @@ pub async fn count_beatmapsets(pool: &SqlitePool) -> Result<i32, sqlx::Error> {
         .await?;
     Ok(count.unwrap_or(0) as i32)
 }
-
-

@@ -17,5 +17,3 @@ pub struct Beatmap {
     pub difficulty_name: Option<String>,
     pub note_count: i32,
 }
-
-

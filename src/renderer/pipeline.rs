@@ -1,5 +1,6 @@
-use wgpu::{Device, RenderPipeline, BindGroupLayout, Sampler};
-use crate::engine::InstanceRaw;
+use crate::models::engine::InstanceRaw;
+use crate::shaders::constants::MAIN_SHADER_SRC;
+use wgpu::{BindGroupLayout, Device, RenderPipeline, Sampler};
 
 /// Crée le layout des bind groups
 pub fn create_bind_group_layout(device: &Device) -> BindGroupLayout {
@@ -47,15 +48,23 @@ pub fn create_render_pipeline(
 ) -> RenderPipeline {
     let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
         label: Some("Shader"),
-        source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(include_str!("../shader.wgs1"))),
+        source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(MAIN_SHADER_SRC)),
     });
 
     let instance_desc = wgpu::VertexBufferLayout {
         array_stride: std::mem::size_of::<InstanceRaw>() as wgpu::BufferAddress,
         step_mode: wgpu::VertexStepMode::Instance,
         attributes: &[
-            wgpu::VertexAttribute { offset: 0, shader_location: 5, format: wgpu::VertexFormat::Float32x2 }, // Offset
-            wgpu::VertexAttribute { offset: 8, shader_location: 6, format: wgpu::VertexFormat::Float32x2 }, // Scale
+            wgpu::VertexAttribute {
+                offset: 0,
+                shader_location: 5,
+                format: wgpu::VertexFormat::Float32x2,
+            }, // Offset
+            wgpu::VertexAttribute {
+                offset: 8,
+                shader_location: 6,
+                format: wgpu::VertexFormat::Float32x2,
+            }, // Scale
         ],
     };
 
@@ -91,4 +100,3 @@ pub fn create_render_pipeline(
         multiview: None,
     })
 }
-

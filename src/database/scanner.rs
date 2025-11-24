@@ -1,10 +1,13 @@
-use std::path::{Path, PathBuf};
-use std::fs;
 use crate::database::connection::Database;
-use crate::database::query::{insert_beatmapset, insert_beatmap};
+use crate::database::query::{insert_beatmap, insert_beatmapset};
+use std::fs;
+use std::path::{Path, PathBuf};
 
 /// Scanne le dossier songs/ et remplit la base de données
-pub async fn scan_songs_directory(db: &Database, songs_path: &Path) -> Result<(), Box<dyn std::error::Error>> {
+pub async fn scan_songs_directory(
+    db: &Database,
+    songs_path: &Path,
+) -> Result<(), Box<dyn std::error::Error>> {
     if !songs_path.exists() {
         eprintln!("The songs/ directory does not exist");
         return Ok(());
@@ -14,11 +17,11 @@ pub async fn scan_songs_directory(db: &Database, songs_path: &Path) -> Result<()
 
     // Parcourir tous les dossiers dans songs/
     let entries = fs::read_dir(songs_path)?;
-    
+
     for entry in entries {
         let entry = entry?;
         let path = entry.path();
-        
+
         if !path.is_dir() {
             continue;
         }
@@ -39,14 +42,14 @@ pub async fn scan_songs_directory(db: &Database, songs_path: &Path) -> Result<()
 
         // Utiliser le premier fichier .osu pour les métadonnées du beatmapset
         let first_osu = &osu_files[0];
-        
+
         // Charger la map avec rosu-map
         match rosu_map::Beatmap::from_path(first_osu) {
             Ok(map) => {
                 // Extraire les métadonnées depuis la map
                 let title = map.title.clone();
                 let artist = map.artist.clone();
-                
+
                 // Chercher l'image de fond dans les events
                 let background_filename = map.background_file.clone();
                 let image_path = if !background_filename.is_empty() {
@@ -54,7 +57,7 @@ pub async fn scan_songs_directory(db: &Database, songs_path: &Path) -> Result<()
                 } else {
                     None
                 };
-                
+
                 // Insérer le beatmapset
                 let path_str = match path.to_str() {
                     Some(s) => s,
@@ -66,7 +69,9 @@ pub async fn scan_songs_directory(db: &Database, songs_path: &Path) -> Result<()
                     image_path.as_deref(),
                     Some(artist.as_str()),
                     Some(title.as_str()),
-                ).await {
+                )
+                .await
+                {
                     Ok(id) => id,
                     Err(e) => {
                         eprintln!("Error inserting beatmapset: {}", e);
@@ -79,12 +84,19 @@ pub async fn scan_songs_directory(db: &Database, songs_path: &Path) -> Result<()
                     match rosu_map::Beatmap::from_path(osu_file) {
                         Ok(bm) => {
                             // Compter les notes (seulement les circles pour l'instant)
-                            let note_count = bm.hit_objects.iter()
-                                .filter(|ho| matches!(ho.kind, rosu_map::section::hit_objects::HitObjectKind::Circle(_)))
+                            let note_count = bm
+                                .hit_objects
+                                .iter()
+                                .filter(|ho| {
+                                    matches!(
+                                        ho.kind,
+                                        rosu_map::section::hit_objects::HitObjectKind::Circle(_)
+                                    )
+                                })
                                 .count() as i32;
-                            
+
                             let difficulty_name = bm.version.clone();
-                            
+
                             if let Some(osu_str) = osu_file.to_str() {
                                 if let Err(e) = insert_beatmap(
                                     db.pool(),
@@ -92,7 +104,9 @@ pub async fn scan_songs_directory(db: &Database, songs_path: &Path) -> Result<()
                                     osu_str,
                                     Some(&difficulty_name),
                                     note_count,
-                                ).await {
+                                )
+                                .await
+                                {
                                     eprintln!("Error inserting beatmap: {}", e);
                                 }
                             }
@@ -123,5 +137,3 @@ fn find_background_image(beatmapset_path: &Path, filename: Option<&str>) -> Opti
         }
     })
 }
-
-

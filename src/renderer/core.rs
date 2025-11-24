@@ -1,19 +1,19 @@
-use crate::components::{
-    AccuracyComponent, ComboComponent, HitBar, JudgementComponent, JudgementsComponent,
-    PlayfieldComponent, ScoreComponent,
+use crate::models::menu::MenuState;
+use crate::models::engine::{GameEngine, InstanceRaw, NUM_COLUMNS, PixelSystem, PlayfieldConfig};
+use crate::shaders::constants::{BACKGROUND_SHADER_SRC, QUAD_SHADER_SRC};
+use crate::models::skin::Skin;
+use crate::views::components::{
+    AccuracyDisplay, ComboDisplay, HitBarDisplay, JudgementFlash, JudgementPanel, PlayfieldDisplay,
+    ScoreDisplay,
 };
-use crate::engine::{GameEngine, InstanceRaw, PixelSystem, PlayfieldConfig};
-use crate::menu::MenuState;
-use crate::playfield::Playfield;
-use crate::skin::Skin;
+use crate::views::gameplay::GameplayView;
+use crate::views::menu::MenuView;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 use wgpu_text::TextBrush;
 use winit::window::Window;
 
-use super::gameplay::render_gameplay as render_gameplay_impl;
-use super::menu::render_menu as render_menu_impl;
 use super::pipeline::{create_bind_group_layout, create_render_pipeline, create_sampler};
 use super::text::load_text_brush;
 use super::texture::{create_default_texture, load_texture_from_path};
@@ -34,15 +34,15 @@ pub struct Renderer {
     last_fps_update: Instant,
     fps: f64,
     pixel_system: PixelSystem,
-    playfield: Playfield,
     pub skin: Skin,
-    hit_bar: HitBar,
-    playfield_component: PlayfieldComponent,
-    score_component: ScoreComponent,
-    accuracy_component: AccuracyComponent,
-    judgements_component: JudgementsComponent,
-    combo_component: ComboComponent,
-    judgement_component: JudgementComponent,
+    gameplay_view: GameplayView,
+    menu_view: MenuView,
+    score_display: ScoreDisplay,
+    accuracy_panel: AccuracyDisplay,
+    judgements_panel: JudgementPanel,
+    combo_display: ComboDisplay,
+    judgement_flash: JudgementFlash,
+    hit_bar: HitBarDisplay,
     pub menu_state: Arc<Mutex<MenuState>>,
     // Background pour le menu
     background_texture: Option<wgpu::Texture>,
@@ -106,12 +106,12 @@ impl Renderer {
         surface.configure(&device, &config);
 
         // Initialiser la structure des skins
-        if let Err(e) = crate::skin::init_skin_structure() {
+        if let Err(e) = crate::models::skin::init_skin_structure() {
             eprintln!("Warning: Failed to initialize skin structure: {}", e);
         }
 
         // Charger le skin par défaut
-        let num_columns = crate::engine::NUM_COLUMNS;
+        let num_columns = NUM_COLUMNS;
         let skin_temp = Skin::load_default(num_columns).unwrap_or_else(|e| {
             eprintln!(
                 "Warning: Failed to load default skin: {}. Using fallback.",
@@ -234,9 +234,7 @@ impl Renderer {
         let background_bind_group_layout = create_bind_group_layout(&device);
         let background_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Background Shader"),
-            source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(include_str!(
-                "../background_shader.wgsl"
-            ))),
+            source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(BACKGROUND_SHADER_SRC)),
         });
 
         let background_pipeline_layout =
@@ -292,9 +290,7 @@ impl Renderer {
         // Créer le pipeline pour les quads colorés (panels, cards)
         let quad_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Quad Shader"),
-            source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(include_str!(
-                "../quad_shader.wgsl"
-            ))),
+            source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(QUAD_SHADER_SRC)),
         });
 
         let quad_pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
@@ -399,7 +395,7 @@ impl Renderer {
         // Calculer les positions des components
         let screen_width = size.width as f32;
         let screen_height = size.height as f32;
-        let playfield_component = PlayfieldComponent::new(playfield_config);
+        let playfield_component = PlayfieldDisplay::new(playfield_config);
         let (_playfield_x, _playfield_width) = playfield_component.get_bounds(&pixel_system);
         let playfield_screen_width = _playfield_width * screen_height / 2.0;
         let playfield_center_x = screen_width / 2.0;
@@ -414,9 +410,8 @@ impl Renderer {
         let hitbar_y = combo_y + 60.0;
         let hitbar_width = playfield_screen_width * 0.8;
 
-        // Utiliser la même config pour playfield et playfield_component
-        let shared_playfield_config = playfield_component.config.clone();
-        let playfield = Playfield::new(shared_playfield_config);
+        let gameplay_view = GameplayView::new(playfield_component);
+        let menu_view = MenuView::new();
 
         Self {
             surface,
@@ -434,24 +429,24 @@ impl Renderer {
             last_fps_update: Instant::now(),
             fps: 0.0,
             pixel_system,
-            playfield,
             skin,
-            hit_bar: HitBar::new(
+            gameplay_view,
+            menu_view,
+            hit_bar: HitBarDisplay::new(
                 playfield_center_x - hitbar_width / 2.0,
                 hitbar_y,
                 hitbar_width,
                 20.0,
             ),
-            playfield_component,
-            score_component: ScoreComponent::new(score_x, screen_height * 0.05),
-            accuracy_component: AccuracyComponent::new(left_x, screen_height * 0.1),
-            judgements_component: JudgementsComponent::new(
+            score_display: ScoreDisplay::new(score_x, screen_height * 0.05),
+            accuracy_panel: AccuracyDisplay::new(left_x, screen_height * 0.1),
+            judgements_panel: crate::views::components::JudgementPanel::new(
                 left_x,
                 screen_height * 0.15,
                 judgement_colors,
             ),
-            combo_component: ComboComponent::new(playfield_center_x, combo_y),
-            judgement_component: JudgementComponent::new(playfield_center_x, judgement_y),
+            combo_display: ComboDisplay::new(playfield_center_x, combo_y),
+            judgement_flash: JudgementFlash::new(playfield_center_x, judgement_y),
             menu_state,
             background_texture: None,
             background_bind_group: None,
@@ -528,14 +523,14 @@ impl Renderer {
 
     fn create_fallback_skin() -> Skin {
         Skin {
-            config: crate::skin::SkinConfig {
-                skin: crate::skin::SkinInfo {
+            config: crate::models::skin::SkinConfig {
+                skin: crate::models::skin::SkinInfo {
                     name: "Fallback".to_string(),
                     version: "1.0.0".to_string(),
                     author: "System".to_string(),
                     font: None,
                 },
-                images: crate::skin::ImagePaths {
+                images: crate::models::skin::ImagePaths {
                     receptor: None,
                     receptor_0: None,
                     receptor_1: None,
@@ -599,15 +594,17 @@ impl Renderer {
     }
 
     pub fn decrease_note_size(&mut self) {
-        self.playfield_component.config.decrease_note_size();
-        // Synchroniser la config du playfield avec celle du playfield_component
-        self.playfield.config = self.playfield_component.config.clone();
+        self.gameplay_view
+            .playfield_component_mut()
+            .config
+            .decrease_note_size();
     }
 
     pub fn increase_note_size(&mut self) {
-        self.playfield_component.config.increase_note_size();
-        // Synchroniser la config du playfield avec celle du playfield_component
-        self.playfield.config = self.playfield_component.config.clone();
+        self.gameplay_view
+            .playfield_component_mut()
+            .config
+            .increase_note_size();
     }
 
     pub fn resize(&mut self, new_size: winit::dpi::PhysicalSize<u32>) {
@@ -627,8 +624,10 @@ impl Renderer {
         let screen_width = self.config.width as f32;
         let screen_height = self.config.height as f32;
 
-        let (_playfield_x, _playfield_width) =
-            self.playfield_component.get_bounds(&self.pixel_system);
+        let (_playfield_x, _playfield_width) = self
+            .gameplay_view
+            .playfield_component()
+            .get_bounds(&self.pixel_system);
         let playfield_screen_width = _playfield_width * screen_height / 2.0;
         let playfield_center_x = screen_width / 2.0;
         let left_x =
@@ -642,19 +641,21 @@ impl Renderer {
         let hitbar_y = combo_y + 60.0;
         let hitbar_width = playfield_screen_width * 0.8;
 
-        self.combo_component.x_pixels = playfield_center_x;
-        self.combo_component.y_pixels = combo_y;
-        self.judgement_component.x_pixels = playfield_center_x;
-        self.judgement_component.y_pixels = judgement_y;
-        self.hit_bar.x_pixels = playfield_center_x - hitbar_width / 2.0;
-        self.hit_bar.y_pixels = hitbar_y;
-        self.hit_bar.width_pixels = hitbar_width;
-        self.score_component.x_pixels = score_x;
-        self.score_component.y_pixels = screen_height * 0.05;
-        self.accuracy_component.x_pixels = left_x;
-        self.accuracy_component.y_pixels = screen_height * 0.1;
-        self.judgements_component.x_pixels = left_x;
-        self.judgements_component.y_pixels = screen_height * 0.15;
+        self.combo_display.set_position(playfield_center_x, combo_y);
+        self.judgement_flash
+            .set_position(playfield_center_x, judgement_y);
+        self.hit_bar.set_geometry(
+            playfield_center_x - hitbar_width / 2.0,
+            hitbar_y,
+            hitbar_width,
+            20.0,
+        );
+        self.score_display
+            .set_position(score_x, screen_height * 0.05);
+        self.accuracy_panel
+            .set_position(left_x, screen_height * 0.1);
+        self.judgements_panel
+            .set_position(left_x, screen_height * 0.15);
     }
 
     pub fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
@@ -685,7 +686,7 @@ impl Renderer {
                 self.last_fps_update = now;
             }
 
-            render_menu_impl(
+            self.menu_view.render(
                 &self.device,
                 &self.queue,
                 &mut self.text_brush,
@@ -719,7 +720,7 @@ impl Renderer {
             self.last_fps_update = now;
         }
 
-        render_gameplay_impl(
+        self.gameplay_view.render(
             &self.device,
             &self.queue,
             &mut self.text_brush,
@@ -729,14 +730,12 @@ impl Renderer {
             &self.note_bind_groups,
             &self.receptor_bind_groups,
             &mut self.engine,
-            &self.playfield_component,
-            &self.playfield,
             &self.pixel_system,
-            &mut self.score_component,
-            &mut self.accuracy_component,
-            &mut self.judgements_component,
-            &mut self.combo_component,
-            &mut self.judgement_component,
+            &mut self.score_display,
+            &mut self.accuracy_panel,
+            &mut self.judgements_panel,
+            &mut self.combo_display,
+            &mut self.judgement_flash,
             &mut self.hit_bar,
             self.config.width as f32,
             self.config.height as f32,
