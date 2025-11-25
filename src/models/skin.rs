@@ -1,75 +1,10 @@
-
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct UIPosition {
-    #[serde(default)]
-    pub x: Option<f32>,
-    #[serde(default)]
-    pub y: Option<f32>,
-    #[serde(default)]
-    pub width: Option<f32>,
-    #[serde(default)]
-    pub height: Option<f32>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct UIPositions {
-    #[serde(default)]
-    pub playfield: Option<UIPosition>,
-    #[serde(default)]
-    pub combo: Option<UIPosition>,
-    #[serde(default)]
-    pub hit_bar: Option<UIPosition>,
-    #[serde(default)]
-    pub score: Option<UIPosition>,
-    #[serde(default)]
-    pub accuracy: Option<UIPosition>,
-    #[serde(default)]
-    pub judgements: Option<UIPosition>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SkinConfig {
-    pub skin: SkinInfo,
-    pub images: ImagePaths,
-    #[serde(default)]
-    pub colors: Option<ColorConfig>,
-    #[serde(default)]
-    pub keys: Option<KeyConfig>,
-    #[serde(default)]
-    pub ui_positions: Option<UIPositions>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct KeyConfig {
-    #[serde(default)]
-    pub column_0: Option<Vec<String>>,
-    #[serde(default)]
-    pub column_1: Option<Vec<String>>,
-    #[serde(default)]
-    pub column_2: Option<Vec<String>>,
-    #[serde(default)]
-    pub column_3: Option<Vec<String>>,
-    #[serde(default)]
-    pub column_4: Option<Vec<String>>,
-    #[serde(default)]
-    pub column_5: Option<Vec<String>>,
-    #[serde(default)]
-    pub column_6: Option<Vec<String>>,
-    #[serde(default)]
-    pub column_7: Option<Vec<String>>,
-    #[serde(default)]
-    pub column_8: Option<Vec<String>>,
-    #[serde(default)]
-    pub column_9: Option<Vec<String>>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SkinInfo {
+pub struct SkinGeneral {
     pub name: String,
     pub version: String,
     pub author: String,
@@ -78,447 +13,263 @@ pub struct SkinInfo {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ImagePaths {
-    #[serde(default)]
-    pub receptor: Option<String>,
-    #[serde(default)]
-    pub receptor_0: Option<String>,
-    #[serde(default)]
-    pub receptor_1: Option<String>,
-    #[serde(default)]
-    pub receptor_2: Option<String>,
-    #[serde(default)]
-    pub receptor_3: Option<String>,
-    #[serde(default)]
-    pub receptor_4: Option<String>,
-    #[serde(default)]
-    pub receptor_5: Option<String>,
-    #[serde(default)]
-    pub receptor_6: Option<String>,
-    #[serde(default)]
-    pub receptor_7: Option<String>,
-    #[serde(default)]
-    pub receptor_8: Option<String>,
-    #[serde(default)]
-    pub receptor_9: Option<String>,
-    #[serde(default)]
-    pub note: Option<String>,
-    #[serde(default)]
-    pub note_0: Option<String>,
-    #[serde(default)]
-    pub note_1: Option<String>,
-    #[serde(default)]
-    pub note_2: Option<String>,
-    #[serde(default)]
-    pub note_3: Option<String>,
-    #[serde(default)]
-    pub note_4: Option<String>,
-    #[serde(default)]
-    pub note_5: Option<String>,
-    #[serde(default)]
-    pub note_6: Option<String>,
-    #[serde(default)]
-    pub note_7: Option<String>,
-    #[serde(default)]
-    pub note_8: Option<String>,
-    #[serde(default)]
-    pub note_9: Option<String>,
-    #[serde(default)]
-    pub miss_note: Option<String>,
-    #[serde(default)]
-    pub background: Option<String>,
+pub struct SkinColors {
+    #[serde(default = "default_white")]
+    pub receptor_color: [f32; 4],
+    #[serde(default = "default_white")]
+    pub note_color: [f32; 4],
+    #[serde(default = "default_selected")]
+    pub selected_color: [f32; 4],
+    #[serde(default = "default_diff_selected")]
+    pub difficulty_selected_color: [f32; 4],
+    #[serde(default = "default_cyan")]
+    pub marv: [f32; 4],
+    #[serde(default = "default_yellow")]
+    pub perfect: [f32; 4],
+    #[serde(default = "default_green")]
+    pub great: [f32; 4],
+    #[serde(default = "default_blue")]
+    pub good: [f32; 4],
+    #[serde(default = "default_pink")]
+    pub bad: [f32; 4],
+    #[serde(default = "default_red")]
+    pub miss: [f32; 4],
+    #[serde(default = "default_gray")]
+    pub ghost_tap: [f32; 4],
+}
 
-    #[serde(default)]
-    pub song_button: Option<String>,
-    #[serde(default)]
-    pub song_button_selected: Option<String>,
-    #[serde(default)]
-    pub difficulty_button: Option<String>,
-    #[serde(default)]
-    pub difficulty_button_selected: Option<String>,
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub struct UIElementPos {
+    pub x: f32,
+    pub y: f32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ColorConfig {
-    #[serde(default = "default_receptor_color")]
-    pub receptor_color: [f32; 4],
-    #[serde(default = "default_note_color")]
-    pub note_color: [f32; 4],
-    #[serde(default = "default_marv_color")]
-    pub marv: [f32; 4],
-    #[serde(default = "default_perfect_color")]
-    pub perfect: [f32; 4],
-    #[serde(default = "default_great_color")]
-    pub great: [f32; 4],
-    #[serde(default = "default_good_color")]
-    pub good: [f32; 4],
-    #[serde(default = "default_bad_color")]
-    pub bad: [f32; 4],
-    #[serde(default = "default_miss_color")]
-    pub miss: [f32; 4],
-    #[serde(default = "default_ghost_tap_color")]
-    pub ghost_tap: [f32; 4],
-
-    // Couleur sélection MUSIQUE (Rouge par défaut)
-    #[serde(default = "default_selected_color")]
-    pub selected_color: [f32; 4],
-
-    // Couleur sélection DIFFICULTÉ (Jaune par défaut)
-    #[serde(default = "default_difficulty_selected_color")]
-    pub difficulty_selected_color: [f32; 4],
+pub struct SkinUserConfig {
+    #[serde(default = "default_note_size")]
+    pub note_width_px: f32,
+    #[serde(default = "default_note_size")]
+    pub note_height_px: f32,
+    #[serde(default = "default_note_size")]
+    pub receptor_width_px: f32,
+    #[serde(default = "default_note_size")]
+    pub receptor_height_px: f32,
+    pub column_width_px: f32,
+    #[serde(default)]
+    pub receptor_spacing_px: f32,
+    #[serde(default = "default_text_size")]
+    pub combo_text_size: f32,
+    #[serde(default = "default_text_size")]
+    pub score_text_size: f32,
+    #[serde(default = "default_text_size")]
+    pub accuracy_text_size: f32,
+    #[serde(default = "default_text_size")]
+    pub judgement_text_size: f32,
+    #[serde(default = "default_hitbar_height")]
+    pub hit_bar_height_px: f32,
+    #[serde(default)]
+    pub playfield_pos: Option<UIElementPos>,
+    #[serde(default)]
+    pub combo_pos: Option<UIElementPos>,
+    #[serde(default)]
+    pub score_pos: Option<UIElementPos>,
+    #[serde(default)]
+    pub accuracy_pos: Option<UIElementPos>,
+    #[serde(default)]
+    pub judgement_pos: Option<UIElementPos>,
+    #[serde(default)]
+    pub judgement_flash_pos: Option<UIElementPos>,
+    #[serde(default)]
+    pub hit_bar_pos: Option<UIElementPos>,
 }
 
-fn default_receptor_color() -> [f32; 4] {
-    [0.0, 0.0, 1.0, 1.0]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SkinKeyMode {
+    pub receptor_images: Vec<String>,
+    #[serde(default)]
+    pub receptor_pressed_images: Vec<String>,
+    pub note_images: Vec<String>,
+    pub hit_bar_pos: Option<f32>,
 }
-fn default_note_color() -> [f32; 4] {
-    [1.0, 1.0, 1.0, 1.0]
-}
-fn default_marv_color() -> [f32; 4] {
-    [0.0, 1.0, 1.0, 1.0]
-}
-fn default_perfect_color() -> [f32; 4] {
-    [1.0, 1.0, 0.0, 1.0]
-}
-fn default_great_color() -> [f32; 4] {
-    [0.0, 1.0, 0.0, 1.0]
-}
-fn default_good_color() -> [f32; 4] {
-    [0.0, 0.0, 0.5, 1.0]
-}
-fn default_bad_color() -> [f32; 4] {
-    [1.0, 0.41, 0.71, 1.0]
-}
-fn default_miss_color() -> [f32; 4] {
-    [1.0, 0.0, 0.0, 1.0]
-}
-fn default_ghost_tap_color() -> [f32; 4] {
-    [0.5, 0.5, 0.5, 1.0]
-}
-fn default_selected_color() -> [f32; 4] {
-    [1.0, 0.0, 0.0, 1.0]
-}
-fn default_difficulty_selected_color() -> [f32; 4] {
-    [1.0, 1.0, 0.0, 1.0]
-} // Jaune
 
 pub struct Skin {
-    pub config: SkinConfig,
     pub base_path: PathBuf,
-    pub key_to_column: HashMap<String, usize>,
+    pub general: SkinGeneral,
+    pub colors: SkinColors,
+    pub config: SkinUserConfig,
+    pub key_modes: HashMap<usize, SkinKeyMode>,
+    pub background: Option<PathBuf>,
+    pub miss_note: Option<PathBuf>,
+    pub song_button: Option<PathBuf>,
+    pub song_button_selected: Option<PathBuf>,
+    pub difficulty_button: Option<PathBuf>,
+    pub difficulty_button_selected: Option<PathBuf>,
 }
 
 impl Skin {
-    pub fn load(skin_path: &Path) -> Result<Self, String> {
-        let toml_path = skin_path.join("skin.toml");
-        if !toml_path.exists() {
-            return Err(format!("skin.toml not found in {:?}", skin_path));
-        }
-        let toml_content = fs::read_to_string(&toml_path)
-            .map_err(|e| format!("Failed to read skin.toml: {}", e))?;
-        let config: SkinConfig = toml::from_str(&toml_content)
-            .map_err(|e| format!("Failed to parse skin.toml: {}", e))?;
-        let key_to_column = build_keymap(&config, usize::MAX);
-        Ok(Self {
-            config,
-            base_path: skin_path.to_path_buf(),
-            key_to_column,
-        })
-    }
-
-    pub fn load_default(num_columns: usize) -> Result<Self, String> {
-        let default_path = Path::new("skins/default");
-        let toml_name = format!("skin_{}k.toml", num_columns);
-        let toml_path = default_path.join(&toml_name);
-        if !toml_path.exists() {
-            return Err(format!(
-                "skin_{}k.toml not found in {:?}",
-                num_columns, default_path
-            ));
-        }
-        let toml_content = fs::read_to_string(&toml_path)
-            .map_err(|e| format!("Failed to read {}: {}", toml_name, e))?;
-        let config: SkinConfig = toml::from_str(&toml_content)
-            .map_err(|e| format!("Failed to parse {}: {}", toml_name, e))?;
-        let key_to_column = build_keymap(&config, num_columns);
-        Ok(Self {
-            config,
-            base_path: default_path.to_path_buf(),
-            key_to_column,
-        })
-    }
-
-    pub fn get_column_for_key(&self, key_name: &str) -> Option<usize> {
-        self.key_to_column.get(key_name).copied()
-    }
-    pub fn get_image_path(&self, image_name: &str) -> PathBuf {
-        self.base_path.join(image_name)
-    }
-
-    pub fn get_receptor_path(&self, column: usize) -> Option<PathBuf> {
-        let image_name = match column {
-            0 => self.config.images.receptor_0.as_ref(),
-            1 => self.config.images.receptor_1.as_ref(),
-            2 => self.config.images.receptor_2.as_ref(),
-            3 => self.config.images.receptor_3.as_ref(),
-            4 => self.config.images.receptor_4.as_ref(),
-            5 => self.config.images.receptor_5.as_ref(),
-            6 => self.config.images.receptor_6.as_ref(),
-            7 => self.config.images.receptor_7.as_ref(),
-            8 => self.config.images.receptor_8.as_ref(),
-            9 => self.config.images.receptor_9.as_ref(),
-            _ => None,
-        };
-        image_name
-            .or_else(|| self.config.images.receptor.as_ref())
-            .map(|name| self.get_image_path(name))
-    }
-
-    pub fn get_note_path(&self, column: usize) -> Option<PathBuf> {
-        let image_name = match column {
-            0 => self.config.images.note_0.as_ref(),
-            1 => self.config.images.note_1.as_ref(),
-            2 => self.config.images.note_2.as_ref(),
-            3 => self.config.images.note_3.as_ref(),
-            4 => self.config.images.note_4.as_ref(),
-            5 => self.config.images.note_5.as_ref(),
-            6 => self.config.images.note_6.as_ref(),
-            7 => self.config.images.note_7.as_ref(),
-            8 => self.config.images.note_8.as_ref(),
-            9 => self.config.images.note_9.as_ref(),
-            _ => None,
-        };
-        image_name
-            .or_else(|| self.config.images.note.as_ref())
-            .map(|name| self.get_image_path(name))
-    }
-
-    pub fn get_miss_note_path(&self) -> Option<PathBuf> {
-        self.config
-            .images
-            .miss_note
-            .as_ref()
-            .map(|name| self.get_image_path(name))
-    }
-    pub fn get_background_path(&self) -> Option<PathBuf> {
-        self.config
-            .images
-            .background
-            .as_ref()
-            .map(|name| self.get_image_path(name))
-    }
-
-    pub fn get_song_button_path(&self) -> Option<PathBuf> {
-        self.config
-            .images
-            .song_button
-            .as_ref()
-            .map(|name| self.get_image_path(name))
-    }
-    pub fn get_song_button_selected_path(&self) -> Option<PathBuf> {
-        self.config
-            .images
-            .song_button_selected
-            .as_ref()
-            .map(|name| self.get_image_path(name))
-    }
-    pub fn get_difficulty_button_path(&self) -> Option<PathBuf> {
-        self.config
-            .images
-            .difficulty_button
-            .as_ref()
-            .map(|name| self.get_image_path(name))
-    }
-    pub fn get_difficulty_button_selected_path(&self) -> Option<PathBuf> {
-        self.config
-            .images
-            .difficulty_button_selected
-            .as_ref()
-            .map(|name| self.get_image_path(name))
-    }
-
-    pub fn get_receptor_color(&self) -> [f32; 4] {
-        self.config
-            .colors
-            .as_ref()
-            .map(|c| c.receptor_color)
-            .unwrap_or([0.0, 0.0, 1.0, 1.0])
-    }
-    pub fn get_note_color(&self) -> [f32; 4] {
-        self.config
-            .colors
-            .as_ref()
-            .map(|c| c.note_color)
-            .unwrap_or([1.0, 1.0, 1.0, 1.0])
-    }
-
-    pub fn get_selected_color(&self) -> [f32; 4] {
-        self.config
-            .colors
-            .as_ref()
-            .map(|c| c.selected_color)
-            .unwrap_or(default_selected_color())
-    }
-
-    // NOUVEAU ACCESSEUR
-    pub fn get_difficulty_selected_color(&self) -> [f32; 4] {
-        self.config
-            .colors
-            .as_ref()
-            .map(|c| c.difficulty_selected_color)
-            .unwrap_or(default_difficulty_selected_color())
-    }
-
-    pub fn get_judgement_colors(&self) -> crate::models::stats::JudgementColors {
-        if let Some(colors) = &self.config.colors {
-            crate::models::stats::JudgementColors {
-                marv: colors.marv,
-                perfect: colors.perfect,
-                great: colors.great,
-                good: colors.good,
-                bad: colors.bad,
-                miss: colors.miss,
-                ghost_tap: colors.ghost_tap,
+    pub fn load(skin_name: &str) -> Result<Self, String> {
+        let base_path = Path::new("skins").join(skin_name);
+        if !base_path.exists() {
+            if skin_name == "default" {
+                eprintln!("Default skin folder missing, recreating structure...");
+                let _ = init_skin_structure();
+                if !base_path.exists() {
+                    return Err(format!(
+                        "Failed to recreate default skin at {:?}",
+                        base_path
+                    ));
+                }
+            } else {
+                return Err(format!("Skin folder not found: {:?}", base_path));
             }
-        } else {
-            crate::models::stats::JudgementColors::new()
+        }
+        let general: SkinGeneral = load_toml(&base_path.join("general.toml"))?;
+        let colors: SkinColors = load_toml(&base_path.join("colors.toml"))?;
+        let config: SkinUserConfig = load_toml(&base_path.join("conf.toml"))?;
+        Ok(Self {
+            base_path: base_path.clone(),
+            general,
+            colors,
+            config,
+            key_modes: HashMap::new(),
+            background: check_file(&base_path, "background.png"),
+            miss_note: check_file(&base_path, "miss_note.png"),
+            song_button: check_file(&base_path, "song_button.png"),
+            song_button_selected: check_file(&base_path, "song_button_selected.png"),
+            difficulty_button: check_file(&base_path, "difficulty_button.png"),
+            difficulty_button_selected: check_file(&base_path, "difficulty_button_selected.png"),
+        })
+    }
+    pub fn save_user_config(&self) -> Result<(), String> {
+        let path = self.base_path.join("conf.toml");
+        let content = toml::to_string_pretty(&self.config).map_err(|e| e.to_string())?;
+        fs::write(path, content).map_err(|e| e.to_string())
+    }
+    pub fn load_key_mode(&mut self, key_count: usize) {
+        if self.key_modes.contains_key(&key_count) {
+            return;
+        }
+        let path = self.base_path.join(format!("{}k.toml", key_count));
+        if path.exists() {
+            if let Ok(mode) = load_toml::<SkinKeyMode>(&path) {
+                self.key_modes.insert(key_count, mode);
+            } else {
+                eprintln!("Failed to parse {}k.toml", key_count);
+            }
         }
     }
-
+    pub fn get_receptor_image(&self, key_count: usize, col: usize) -> Option<PathBuf> {
+        self.key_modes
+            .get(&key_count)
+            .and_then(|m| get_image_from_list(&m.receptor_images, col))
+            .map(|name| self.base_path.join(name))
+            .or_else(|| check_file(&self.base_path, "receptor.png"))
+    }
+    pub fn get_receptor_pressed_image(&self, key_count: usize, col: usize) -> Option<PathBuf> {
+        self.key_modes
+            .get(&key_count)
+            .and_then(|m| get_image_from_list(&m.receptor_pressed_images, col))
+            .map(|name| self.base_path.join(name))
+            .or_else(|| check_file(&self.base_path, "receptor_pressed.png"))
+    }
+    pub fn get_note_image(&self, key_count: usize, col: usize) -> Option<PathBuf> {
+        self.key_modes
+            .get(&key_count)
+            .and_then(|m| get_image_from_list(&m.note_images, col))
+            .map(|name| self.base_path.join(name))
+            .or_else(|| check_file(&self.base_path, "note.png"))
+    }
     pub fn get_font_path(&self) -> Option<PathBuf> {
-        self.config
-            .skin
-            .font
-            .as_ref()
-            .map(|font_name| self.get_image_path(font_name))
+        self.general.font.as_ref().map(|f| self.base_path.join(f))
     }
-    pub fn get_ui_positions(&self) -> &Option<UIPositions> {
-        &self.config.ui_positions
+}
+
+fn load_toml<T: serde::de::DeserializeOwned>(path: &Path) -> Result<T, String> {
+    let content = fs::read_to_string(path).map_err(|e| e.to_string())?;
+    toml::from_str(&content).map_err(|e| e.to_string())
+}
+fn check_file(base: &Path, name: &str) -> Option<PathBuf> {
+    let p = base.join(name);
+    if p.exists() { Some(p) } else { None }
+}
+fn get_image_from_list(list: &[String], idx: usize) -> Option<&String> {
+    if list.is_empty() {
+        return None;
     }
+    if idx < list.len() {
+        Some(&list[idx])
+    } else {
+        Some(&list[0])
+    }
+}
+
+fn default_white() -> [f32; 4] {
+    [1.0, 1.0, 1.0, 1.0]
+}
+fn default_selected() -> [f32; 4] {
+    [1.0, 0.0, 0.0, 1.0]
+}
+fn default_diff_selected() -> [f32; 4] {
+    [1.0, 1.0, 0.0, 1.0]
+}
+fn default_cyan() -> [f32; 4] {
+    [0.0, 1.0, 1.0, 1.0]
+}
+fn default_yellow() -> [f32; 4] {
+    [1.0, 1.0, 0.0, 1.0]
+}
+fn default_green() -> [f32; 4] {
+    [0.0, 1.0, 0.0, 1.0]
+}
+fn default_blue() -> [f32; 4] {
+    [0.0, 0.0, 0.5, 1.0]
+}
+fn default_pink() -> [f32; 4] {
+    [1.0, 0.41, 0.71, 1.0]
+}
+fn default_red() -> [f32; 4] {
+    [1.0, 0.0, 0.0, 1.0]
+}
+fn default_gray() -> [f32; 4] {
+    [0.5, 0.5, 0.5, 1.0]
+}
+fn default_note_size() -> f32 {
+    90.0
+}
+fn default_text_size() -> f32 {
+    20.0
+}
+fn default_hitbar_height() -> f32 {
+    20.0
 }
 
 pub fn init_skin_structure() -> Result<(), String> {
     let skins_dir = Path::new("skins");
     let default_dir = skins_dir.join("default");
     if !skins_dir.exists() {
-        fs::create_dir_all(&skins_dir)
-            .map_err(|e| format!("Failed to create skins directory: {}", e))?;
+        fs::create_dir_all(&skins_dir).map_err(|e| e.to_string())?;
     }
     if !default_dir.exists() {
-        fs::create_dir_all(&default_dir)
-            .map_err(|e| format!("Failed to create default skin directory: {}", e))?;
+        fs::create_dir_all(&default_dir).map_err(|e| e.to_string())?;
     }
-
-    for num_cols in 4..=10 {
-        let toml_name = format!("skin_{}k.toml", num_cols);
-        let toml_path = default_dir.join(&toml_name);
-        if !toml_path.exists() {
-            let toml_content = generate_toml_for_columns(num_cols);
-            fs::write(&toml_path, toml_content)
-                .map_err(|e| format!("Failed to create {}: {}", toml_name, e))?;
+    if !default_dir.join("general.toml").exists() {
+        fs::write(
+            default_dir.join("general.toml"),
+            "name=\"Default Skin\"\nversion=\"1.0\"\nauthor=\"System\"\nfont=\"font.ttf\"\n",
+        )
+        .map_err(|e| e.to_string())?;
+    }
+    if !default_dir.join("colors.toml").exists() {
+        fs::write(default_dir.join("colors.toml"), "receptor_color=[0.0,0.0,1.0,1.0]\nnote_color=[1.0,1.0,1.0,1.0]\nselected_color=[1.0,0.0,0.0,1.0]\ndifficulty_selected_color=[1.0,1.0,0.0,1.0]\nmarv=[0.0,1.0,1.0,1.0]\nperfect=[1.0,1.0,0.0,1.0]\ngreat=[0.0,1.0,0.0,1.0]\ngood=[0.0,0.0,0.5,1.0]\nbad=[1.0,0.41,0.71,1.0]\nmiss=[1.0,0.0,0.0,1.0]\nghost_tap=[0.5,0.5,0.5,1.0]\n").map_err(|e| e.to_string())?;
+    }
+    if !default_dir.join("conf.toml").exists() {
+        fs::write(default_dir.join("conf.toml"), "column_width_px=100.0\nreceptor_spacing_px=0.0\nnote_width_px=90.0\nnote_height_px=90.0\nreceptor_width_px=90.0\nreceptor_height_px=90.0\ncombo_text_size=48.0\nscore_text_size=24.0\naccuracy_text_size=20.0\njudgement_text_size=16.0\nhit_bar_height_px=20.0\n").map_err(|e| e.to_string())?;
+    }
+    for k in 4..=10 {
+        let path = default_dir.join(format!("{}k.toml", k));
+        if !path.exists() {
+            fs::write(&path, "receptor_images=[\"receptor.png\"]\nreceptor_pressed_images=[\"receptor_pressed.png\"]\nnote_images=[\"note.png\"]\n").map_err(|e| e.to_string())?;
         }
     }
     Ok(())
-}
-
-fn generate_toml_for_columns(num_columns: usize) -> String {
-    let mut toml = format!(
-        r#"# Configuration du skin pour {} colonnes
-    [skin]
-    name = "Default {}K"
-    version = "1.0.0"
-    author = "RVSRG"
-    
-    font = "font.ttf"
-    [images]
-    receptor = "receptor.png"
-    "#,
-        num_columns, num_columns
-    );
-
-    for i in 0..num_columns {
-        toml.push_str(&format!("# receptor_{} = \"receptor_col{}.png\"\n", i, i));
-    }
-    toml.push_str(r#"note = "note.png""#);
-    for i in 0..num_columns {
-        toml.push_str(&format!("# note_{} = \"note_col{}.png\"\n", i, i));
-    }
-
-    toml.push_str(
-        r#"
-    miss_note = "miss_note.png"
-    background = "background.png"
-    song_button = "song_button.png"
-    # song_button_selected = "song_button_selected.png"
-    # difficulty_button = "difficulty_button.png"
-    # difficulty_button_selected = "difficulty_button_selected.png"
-    
-    [colors]
-    receptor_color = [0.0, 0.0, 1.0, 1.0]
-    note_color = [1.0, 1.0, 1.0, 1.0]
-    marv = [0.0, 1.0, 1.0, 1.0]
-    perfect = [1.0, 1.0, 0.0, 1.0]
-    great = [0.0, 1.0, 0.0, 1.0]
-    good = [0.0, 0.0, 0.5, 1.0]
-    bad = [1.0, 0.41, 0.71, 1.0]
-    miss = [1.0, 0.0, 0.0, 1.0]
-    ghost_tap = [0.5, 0.5, 0.5, 1.0]
-    selected_color = [1.0, 0.0, 0.0, 1.0] # Rouge pour les musiques
-    difficulty_selected_color = [1.0, 1.0, 0.0, 1.0] # Jaune pour les difficultés
-    
-    [keys]
-    "#,
-    );
-
-    let default_keys = match num_columns {
-        4 => vec!["KeyD", "KeyF", "KeyJ", "KeyK"],
-        5 => vec!["KeyD", "KeyF", "Space", "KeyJ", "KeyK"],
-        6 => vec!["KeyS", "KeyD", "KeyF", "KeyJ", "KeyK", "KeyL"],
-        7 => vec!["KeyA", "KeyS", "KeyD", "KeyF", "KeyJ", "KeyK", "KeyL"],
-        8 => vec![
-            "KeyA", "KeyS", "KeyD", "KeyF", "KeyH", "KeyJ", "KeyK", "KeyL",
-        ],
-        9 => vec![
-            "KeyQ", "KeyA", "KeyS", "KeyD", "KeyF", "KeyH", "KeyJ", "KeyK", "KeyL",
-        ],
-        10 => vec![
-            "KeyQ", "KeyA", "KeyS", "KeyD", "KeyF", "KeyH", "KeyJ", "KeyK", "KeyL", "KeyP",
-        ],
-        _ => vec!["KeyD", "KeyF", "KeyJ", "KeyK"],
-    };
-
-    for (i, key) in default_keys.iter().enumerate().take(num_columns) {
-        toml.push_str(&format!("column_{} = [\"{}\"]\n", i, key));
-    }
-    toml.push_str(r#"[ui_positions]"#);
-    toml
-}
-
-fn build_keymap(config: &SkinConfig, max_columns: usize) -> HashMap<String, usize> {
-    let mut key_to_column = HashMap::new();
-    if let Some(keys) = &config.keys {
-        let column_keys = [
-            &keys.column_0,
-            &keys.column_1,
-            &keys.column_2,
-            &keys.column_3,
-            &keys.column_4,
-            &keys.column_5,
-            &keys.column_6,
-            &keys.column_7,
-            &keys.column_8,
-            &keys.column_9,
-        ];
-        for (col_idx, col_keys_opt) in column_keys.iter().enumerate() {
-            if col_idx >= max_columns {
-                break;
-            }
-            if let Some(col_keys) = col_keys_opt {
-                for key in col_keys {
-                    key_to_column.insert(key.clone(), col_idx);
-                }
-            }
-        }
-    }
-    key_to_column
 }

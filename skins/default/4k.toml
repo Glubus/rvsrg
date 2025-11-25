@@ -1,0 +1,3 @@
+receptor_images = ["receptors/leftReceptor.png","receptors/downReceptor.png","receptors/upReceptor.png","receptors/rightReceptor.png"]
+note_images = ["notes/left.png","notes/down.png","notes/up.png","notes/right.png"]
+receptor_pressed_images = ["receptors/leftReceptorD.png","receptors/downReceptorD.png","receptors/upReceptorD.png","receptors/rightReceptorD.png"]

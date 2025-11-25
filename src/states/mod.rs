@@ -1,13 +1,14 @@
+mod editor;
 mod menu;
 mod play;
 mod result;
 
+use crate::database::DbManager;
+use crate::renderer::Renderer;
+pub use editor::EditorStateController;
 pub use menu::MenuStateController;
 pub use play::PlayStateController;
 pub use result::ResultStateController;
-
-use crate::database::DbManager;
-use crate::renderer::Renderer;
 use winit::event::WindowEvent;
 
 pub enum StateTransition {

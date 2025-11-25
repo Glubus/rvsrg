@@ -2,19 +2,24 @@ use wgpu_text::glyph_brush::{Section, Text};
 
 pub struct ComboDisplay {
     position: (f32, f32),
+    text_size: f32, // Nouveau
     text_buffer: String,
 }
 
 impl ComboDisplay {
-    pub fn new(x_pixels: f32, y_pixels: f32) -> Self {
+    pub fn new(x: f32, y: f32) -> Self {
         Self {
-            position: (x_pixels, y_pixels),
+            position: (x, y),
+            text_size: 48.0,
             text_buffer: String::new(),
         }
     }
 
-    pub fn set_position(&mut self, x_pixels: f32, y_pixels: f32) {
-        self.position = (x_pixels, y_pixels);
+    pub fn set_position(&mut self, x: f32, y: f32) {
+        self.position = (x, y);
+    }
+    pub fn set_size(&mut self, size: f32) {
+        self.text_size = size;
     }
 
     pub fn render(
@@ -26,8 +31,8 @@ impl ComboDisplay {
         let scale_ratio = screen_height / 1080.0;
         self.text_buffer = combo.to_string();
 
-        // Estimation simple pour centrer le texte
-        let font_scale = 48.0 * scale_ratio;
+        // Utilise text_size du skin
+        let font_scale = self.text_size * scale_ratio;
         let text_width_estimate = self.text_buffer.len() as f32 * 0.6 * font_scale;
         let centered_x = self.position.0 - (text_width_estimate / 2.0);
 

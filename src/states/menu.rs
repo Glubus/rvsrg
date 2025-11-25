@@ -1,4 +1,4 @@
-use super::{GameState, PlayStateController, StateContext, StateTransition};
+use super::{GameState, PlayStateController, EditorStateController, StateContext, StateTransition};
 use crate::models::menu::MenuState;
 use std::sync::{Arc, Mutex};
 use winit::event::{ElementState, KeyEvent, WindowEvent};
@@ -26,7 +26,7 @@ impl MenuStateController {
         let _ = ctx.with_db_manager(|db| db.rescan());
     }
 
-    fn load_selected_map(&self, ctx: &mut StateContext) -> bool {
+    fn load_selected_map(&self, ctx: &mut StateContext, is_editor: bool) -> bool {
         let map_path = {
             if let Ok(state) = self.menu_state.lock() {
                 state.get_selected_beatmap_path()
@@ -40,6 +40,7 @@ impl MenuStateController {
                 .with_renderer(|renderer| {
                     if let Ok(mut menu_state) = self.menu_state.lock() {
                         menu_state.in_menu = false;
+                        menu_state.in_editor = is_editor; // On définit le mode ici
                     }
                     renderer.load_map(path);
                 })
@@ -52,9 +53,11 @@ impl MenuStateController {
 
 impl GameState for MenuStateController {
     fn on_enter(&mut self, ctx: &mut StateContext) {
-        self.with_menu_state(|state| state.in_menu = true);
+        self.with_menu_state(|state| {
+            state.in_menu = true;
+            state.in_editor = false;
+        });
 
-        // Réinitialiser le flag de chargement des scores pour forcer le rechargement
         ctx.with_renderer(|renderer| {
             renderer.leaderboard_scores_loaded = false;
             renderer.current_leaderboard_hash = None;
@@ -65,7 +68,7 @@ impl GameState for MenuStateController {
         if let WindowEvent::KeyboardInput {
             event:
                 KeyEvent {
-                    state,
+                    state: ElementState::Pressed,
                     physical_key: PhysicalKey::Code(key_code),
                     repeat,
                     ..
@@ -77,66 +80,65 @@ impl GameState for MenuStateController {
                 return StateTransition::None;
             }
 
-            let key_code = *key_code;
-            if let ElementState::Pressed = state {
-                match key_code {
-                    KeyCode::Escape => {
-                        return StateTransition::Exit;
-                    }
-                    KeyCode::F8 => {
-                        self.trigger_rescan(ctx);
-                    }
-                    KeyCode::ArrowUp => {
-                        self.with_menu_state(|state| state.move_up());
-                        // Réinitialiser le leaderboard pour recharger avec la nouvelle map
-                        ctx.with_renderer(|renderer| {
-                            renderer.leaderboard_scores_loaded = false;
-                            renderer.current_leaderboard_hash = None;
-                        });
-                    }
-                    KeyCode::ArrowDown => {
-                        self.with_menu_state(|state| state.move_down());
-                        // Réinitialiser le leaderboard pour recharger avec la nouvelle map
-                        ctx.with_renderer(|renderer| {
-                            renderer.leaderboard_scores_loaded = false;
-                            renderer.current_leaderboard_hash = None;
-                        });
-                    }
-                    KeyCode::ArrowLeft => {
-                        self.with_menu_state(|state| state.previous_difficulty());
-                        // Réinitialiser le leaderboard pour recharger avec la nouvelle difficulté
-                        ctx.with_renderer(|renderer| {
-                            renderer.leaderboard_scores_loaded = false;
-                            renderer.current_leaderboard_hash = None;
-                        });
-                    }
-                    KeyCode::ArrowRight => {
-                        self.with_menu_state(|state| state.next_difficulty());
-                        // Réinitialiser le leaderboard pour recharger avec la nouvelle difficulté
-                        ctx.with_renderer(|renderer| {
-                            renderer.leaderboard_scores_loaded = false;
-                            renderer.current_leaderboard_hash = None;
-                        });
-                    }
-                    KeyCode::Enter | KeyCode::NumpadEnter => {
-                        if self.load_selected_map(ctx) {
-                            return StateTransition::Replace(Box::new(PlayStateController::new(
-                                Arc::clone(&self.menu_state),
-                            )));
-                        }
-                    }
-                    KeyCode::PageUp => {
-                        self.with_menu_state(|state| {
-                            state.increase_rate();
-                        });
-                    }
-                    KeyCode::PageDown => {
-                        self.with_menu_state(|state| {
-                            state.decrease_rate();
-                        });
-                    }
-                    _ => {}
+            match key_code {
+                // MODIFICATION : Escape ne quitte plus le jeu
+                KeyCode::Escape => {
+                    // return StateTransition::Exit; // DÉSACTIVÉ
                 }
+                KeyCode::F8 => {
+                    self.trigger_rescan(ctx);
+                }
+                KeyCode::ArrowUp => {
+                    self.with_menu_state(|state| state.move_up());
+                    ctx.with_renderer(|renderer| {
+                        renderer.leaderboard_scores_loaded = false;
+                        renderer.current_leaderboard_hash = None;
+                    });
+                }
+                KeyCode::ArrowDown => {
+                    self.with_menu_state(|state| state.move_down());
+                    ctx.with_renderer(|renderer| {
+                        renderer.leaderboard_scores_loaded = false;
+                        renderer.current_leaderboard_hash = None;
+                    });
+                }
+                KeyCode::ArrowLeft => {
+                    self.with_menu_state(|state| state.previous_difficulty());
+                    ctx.with_renderer(|renderer| {
+                        renderer.leaderboard_scores_loaded = false;
+                        renderer.current_leaderboard_hash = None;
+                    });
+                }
+                KeyCode::ArrowRight => {
+                    self.with_menu_state(|state| state.next_difficulty());
+                    ctx.with_renderer(|renderer| {
+                        renderer.leaderboard_scores_loaded = false;
+                        renderer.current_leaderboard_hash = None;
+                    });
+                }
+                // PLAY MODE
+                KeyCode::Enter | KeyCode::NumpadEnter => {
+                    if self.load_selected_map(ctx, false) {
+                        return StateTransition::Replace(Box::new(PlayStateController::new(
+                            Arc::clone(&self.menu_state),
+                        )));
+                    }
+                }
+                // EDITOR MODE (Touche E)
+                KeyCode::KeyE => {
+                    if self.load_selected_map(ctx, true) {
+                        return StateTransition::Replace(Box::new(EditorStateController::new(
+                            Arc::clone(&self.menu_state),
+                        )));
+                    }
+                }
+                KeyCode::PageUp => {
+                    self.with_menu_state(|state| state.increase_rate());
+                }
+                KeyCode::PageDown => {
+                    self.with_menu_state(|state| state.decrease_rate());
+                }
+                _ => {}
             }
         }
         StateTransition::None

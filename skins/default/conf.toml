@@ -1,0 +1,39 @@
+note_width_px = 166.0
+note_height_px = 166.0
+receptor_width_px = 180.0
+receptor_height_px = 248.0
+column_width_px = 188.0
+receptor_spacing_px = 0.0
+combo_text_size = 92.0
+score_text_size = 20.0
+accuracy_text_size = 20.0
+judgement_text_size = 18.0
+hit_bar_height_px = 40.0
+
+[playfield_pos]
+x = 942.0
+y = -24.0
+
+[combo_pos]
+x = 976.0
+y = 324.0
+
+[score_pos]
+x = 50.0
+y = 58.0
+
+[accuracy_pos]
+x = 2.0
+y = 244.0
+
+[judgement_pos]
+x = 20.0
+y = 380.0
+
+[judgement_flash_pos]
+x = 984.0
+y = 424.0
+
+[hit_bar_pos]
+x = 678.0
+y = 470.0

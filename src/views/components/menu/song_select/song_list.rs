@@ -1,14 +1,14 @@
+use egui::{Align, Color32, ScrollArea, TextureId, scroll_area::ScrollBarVisibility};
 use std::sync::{Arc, Mutex};
-use egui::{Align, ScrollArea, scroll_area::ScrollBarVisibility, TextureId, Color32};
 
 use crate::models::menu::MenuState;
-use crate::views::components::menu::song_select::song_card::SongCard;
 use crate::views::components::menu::song_select::difficulty_card::DifficultyCard;
+use crate::views::components::menu::song_select::song_card::SongCard;
 
 // Hauteur Carte (80) + Marge (8)
 const ROW_HEIGHT: f32 = 88.0;
 // Hauteur Diff (30) + Marge interne (4) + Espace (4)
-const DIFFICULTY_HEIGHT: f32 = 38.0; 
+const DIFFICULTY_HEIGHT: f32 = 38.0;
 
 pub struct SongList {
     menu_state: Arc<Mutex<MenuState>>,
@@ -56,8 +56,10 @@ impl SongList {
         self.set_scroll_to(self.current.saturating_sub(1));
     }
 
-    pub fn render(&mut self, ui: &mut egui::Ui, 
-        btn_tex: Option<TextureId>, 
+    pub fn render(
+        &mut self,
+        ui: &mut egui::Ui,
+        btn_tex: Option<TextureId>,
         btn_sel_tex: Option<TextureId>,
         diff_tex: Option<TextureId>,
         diff_sel_tex: Option<TextureId>,
@@ -75,9 +77,9 @@ impl SongList {
                 menu_state_guard.selected_difficulty_index,
             )
         };
-        
+
         self.current = current_from_state;
-        
+
         let mut total_height = 0.0;
         for (i, (_, beatmaps)) in beatmapsets.iter().enumerate() {
             total_height += ROW_HEIGHT;
@@ -103,8 +105,12 @@ impl SongList {
 
                 if let Some(need_scroll_to) = self.need_scroll_to.take() {
                     if need_scroll_to < beatmapsets.len() {
-                        let current_y = cumulative_heights.get(self.current).copied().unwrap_or(0.0);
-                        let target_y = cumulative_heights.get(need_scroll_to).copied().unwrap_or(0.0);
+                        let current_y =
+                            cumulative_heights.get(self.current).copied().unwrap_or(0.0);
+                        let target_y = cumulative_heights
+                            .get(need_scroll_to)
+                            .copied()
+                            .unwrap_or(0.0);
                         let scroll_y = target_y - current_y;
                         self.current = need_scroll_to;
 
@@ -113,8 +119,14 @@ impl SongList {
                     }
                 }
 
-                let min_row = cumulative_heights.iter().position(|&h| h >= rect.min.y).unwrap_or(0);
-                let max_row = cumulative_heights.iter().position(|&h| h > rect.max.y).unwrap_or(beatmapsets.len());
+                let min_row = cumulative_heights
+                    .iter()
+                    .position(|&h| h >= rect.min.y)
+                    .unwrap_or(0);
+                let max_row = cumulative_heights
+                    .iter()
+                    .position(|&h| h > rect.max.y)
+                    .unwrap_or(beatmapsets.len());
 
                 let fill_top = cumulative_heights.get(min_row).copied().unwrap_or(0.0);
                 egui::Frame::NONE.show(ui, |ui| {
@@ -129,7 +141,15 @@ impl SongList {
                         let id = i;
                         let is_selected = self.current == id;
 
-                        let response = SongCard::render(ui, beatmapset, beatmaps, is_selected, btn_tex, btn_sel_tex, song_sel_color);
+                        let response = SongCard::render(
+                            ui,
+                            beatmapset,
+                            beatmaps,
+                            is_selected,
+                            btn_tex,
+                            btn_sel_tex,
+                            song_sel_color,
+                        );
 
                         let sense = response.interact(egui::Sense::click());
 
@@ -165,10 +185,17 @@ impl SongList {
                         if is_selected && beatmaps.len() > 1 {
                             for (diff_idx, beatmap) in beatmaps.iter().enumerate() {
                                 let is_diff_selected = diff_idx == selected_difficulty_index;
-                                let diff_response = DifficultyCard::render(ui, beatmap, is_diff_selected, diff_tex, diff_sel_tex, diff_sel_color);
-                                
+                                let diff_response = DifficultyCard::render(
+                                    ui,
+                                    beatmap,
+                                    is_diff_selected,
+                                    diff_tex,
+                                    diff_sel_tex,
+                                    diff_sel_color,
+                                );
+
                                 let diff_sense = diff_response.interact(egui::Sense::click());
-                                
+
                                 if diff_sense.clicked() {
                                     if let Ok(mut state) = self.menu_state.lock() {
                                         state.selected_difficulty_index = diff_idx;

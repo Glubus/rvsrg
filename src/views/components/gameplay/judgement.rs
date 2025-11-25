@@ -3,6 +3,7 @@ use wgpu_text::glyph_brush::{Section, Text};
 
 pub struct JudgementPanel {
     position: (f32, f32),
+    text_size: f32, // Nouveau
     colors: JudgementColors,
     judgement_lines: [String; 7],
     remaining_text: String,
@@ -10,9 +11,10 @@ pub struct JudgementPanel {
 }
 
 impl JudgementPanel {
-    pub fn new(x_pixels: f32, y_pixels: f32, colors: JudgementColors) -> Self {
+    pub fn new(x: f32, y: f32, colors: JudgementColors) -> Self {
         Self {
-            position: (x_pixels, y_pixels),
+            position: (x, y),
+            text_size: 16.0,
             colors,
             judgement_lines: std::array::from_fn(|_| String::new()),
             remaining_text: String::new(),
@@ -22,6 +24,9 @@ impl JudgementPanel {
 
     pub fn set_position(&mut self, x: f32, y: f32) {
         self.position = (x, y);
+    }
+    pub fn set_size(&mut self, size: f32) {
+        self.text_size = size;
     }
 
     pub fn render(
@@ -35,21 +40,20 @@ impl JudgementPanel {
         let mut sections = Vec::new();
         let (x, mut y) = self.position;
         let scale_ratio = screen_height / 1080.0;
-        let spacing_small = 25.0 * scale_ratio;
-        let spacing_large = 30.0 * scale_ratio;
+        let font_scale = self.text_size * scale_ratio;
+        let spacing = font_scale * 1.2;
 
         sections.push(Section {
             screen_position: (x, y),
             bounds: (screen_width, screen_height),
             text: vec![
                 Text::new("judgement:")
-                    .with_scale(18.0 * scale_ratio)
+                    .with_scale(font_scale * 1.1)
                     .with_color([1.0, 1.0, 1.0, 1.0]),
             ],
             ..Default::default()
         });
-
-        y += spacing_large;
+        y += spacing * 1.5;
 
         let lines = [
             ("Marv", self.colors.marv, stats.marv),
@@ -58,7 +62,7 @@ impl JudgementPanel {
             ("Good", self.colors.good, stats.good),
             ("Bad", self.colors.bad, stats.bad),
             ("Miss", self.colors.miss, stats.miss),
-            ("Ghost Tap", self.colors.ghost_tap, stats.ghost_tap),
+            ("Ghost", self.colors.ghost_tap, stats.ghost_tap),
         ];
 
         for (entry, (label, color, count)) in self.judgement_lines.iter_mut().zip(lines.iter()) {
@@ -69,37 +73,34 @@ impl JudgementPanel {
             sections.push(Section {
                 screen_position: (x, y),
                 bounds: (screen_width, screen_height),
-                text: vec![
-                    Text::new(entry)
-                        .with_scale(16.0 * scale_ratio)
-                        .with_color(*color),
-                ],
+                text: vec![Text::new(entry).with_scale(font_scale).with_color(*color)],
                 ..Default::default()
             });
-            y += spacing_small;
+            y += spacing;
         }
 
-        self.remaining_text = format!("Remaining notes: {}", remaining_notes);
+        // Info extra
+        self.remaining_text = format!("Notes: {}", remaining_notes);
         sections.push(Section {
             screen_position: (x, y),
             bounds: (screen_width, screen_height),
             text: vec![
                 Text::new(&self.remaining_text)
-                    .with_scale(16.0 * scale_ratio)
-                    .with_color([1.0, 1.0, 1.0, 1.0]),
+                    .with_scale(font_scale)
+                    .with_color([1., 1., 1., 1.]),
             ],
             ..Default::default()
         });
-        y += spacing_small;
+        y += spacing;
 
-        self.scroll_speed_text = format!("Speed: {:.1} ms", scroll_speed_ms);
+        self.scroll_speed_text = format!("Speed: {:.0}", scroll_speed_ms);
         sections.push(Section {
             screen_position: (x, y),
             bounds: (screen_width, screen_height),
             text: vec![
                 Text::new(&self.scroll_speed_text)
-                    .with_scale(16.0 * scale_ratio)
-                    .with_color([1.0, 1.0, 1.0, 1.0]),
+                    .with_scale(font_scale)
+                    .with_color([1., 1., 1., 1.]),
             ],
             ..Default::default()
         });
@@ -108,23 +109,23 @@ impl JudgementPanel {
     }
 }
 
+// Judgement Flash (Texte qui pop au milieu)
 pub struct JudgementFlash {
     position: (f32, f32),
     text_buffer: String,
 }
-
 impl JudgementFlash {
-    pub fn new(x_pixels: f32, y_pixels: f32) -> Self {
+    pub fn new(x: f32, y: f32) -> Self {
         Self {
-            position: (x_pixels, y_pixels),
+            position: (x, y),
             text_buffer: String::new(),
         }
     }
-
-    pub fn set_position(&mut self, x_pixels: f32, y_pixels: f32) {
-        self.position = (x_pixels, y_pixels);
+    pub fn set_position(&mut self, x: f32, y: f32) {
+        self.position = (x, y);
     }
-
+    // On n'a pas ajouté de config size spécifique pour le flash, mais on pourrait.
+    // Pour l'instant, on laisse hardcodé ou lié au combo.
     pub fn render(
         &mut self,
         last_judgement: Option<Judgement>,
@@ -134,7 +135,6 @@ impl JudgementFlash {
         let Some(judgement) = last_judgement else {
             return Vec::new();
         };
-
         let (label, color) = match judgement {
             Judgement::Marv => ("Marvelous", [0.0, 1.0, 1.0, 1.0]),
             Judgement::Perfect => ("Perfect", [1.0, 1.0, 0.0, 1.0]),
@@ -144,18 +144,14 @@ impl JudgementFlash {
             Judgement::Miss => ("Miss", [1.0, 0.0, 0.0, 1.0]),
             Judgement::GhostTap => ("Ghost Tap", [0.5, 0.5, 0.5, 1.0]),
         };
-
         let scale_ratio = screen_height / 1080.0;
-        let font_scale = 36.0 * scale_ratio;
-
+        let font_scale = 48.0 * scale_ratio; // Taille par défaut un peu grosse
         self.text_buffer.clear();
         self.text_buffer.push_str(label);
-
-        let text_width_estimate = self.text_buffer.len() as f32 * 0.6 * font_scale;
-        let centered_x = self.position.0 - (text_width_estimate / 2.0);
-
+        let text_width = self.text_buffer.len() as f32 * 0.6 * font_scale;
+        let cx = self.position.0 - (text_width / 2.0);
         vec![Section {
-            screen_position: (centered_x, self.position.1),
+            screen_position: (cx, self.position.1),
             bounds: (screen_width, screen_height),
             text: vec![
                 Text::new(&self.text_buffer)

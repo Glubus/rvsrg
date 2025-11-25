@@ -1,5 +1,6 @@
 use super::{GameState, MenuStateController, ResultStateController, StateContext, StateTransition};
 use crate::models::menu::MenuState;
+use crate::models::engine::NUM_COLUMNS; // Import nécessaire pour les keybinds
 use std::sync::{Arc, Mutex};
 use winit::event::{ElementState, KeyEvent, WindowEvent};
 use winit::keyboard::{KeyCode, PhysicalKey};
@@ -53,14 +54,18 @@ impl GameState for PlayStateController {
                 }
                 KeyCode::F3 => {
                     ctx.with_renderer(|renderer| {
-                        renderer.engine.scroll_speed_ms =
-                            (renderer.engine.scroll_speed_ms - 50.0).max(100.0);
+                        let new_speed = (renderer.engine.scroll_speed_ms - 50.0).max(100.0);
+                        renderer.engine.scroll_speed_ms = new_speed;
+                        // Synchroniser avec les settings pour la persistance/UI
+                        renderer.settings.scroll_speed = new_speed;
                     });
                 }
                 KeyCode::F4 => {
                     ctx.with_renderer(|renderer| {
-                        renderer.engine.scroll_speed_ms =
-                            (renderer.engine.scroll_speed_ms + 50.0).min(2000.0);
+                        let new_speed = (renderer.engine.scroll_speed_ms + 50.0).min(2000.0);
+                        renderer.engine.scroll_speed_ms = new_speed;
+                        // Synchroniser avec les settings pour la persistance/UI
+                        renderer.settings.scroll_speed = new_speed;
                     });
                 }
                 KeyCode::F5 => {
@@ -79,89 +84,56 @@ impl GameState for PlayStateController {
                 }
                 _ => {
                     let key_name = Self::keycode_to_string(*key_code);
+                    
                     ctx.with_renderer(|renderer| {
-                        // Chercher d'abord par KeyCode format
-                        let column = renderer.skin.get_column_for_key(&key_name);
-                        // Si pas trouvé, essayer de convertir le KeyCode en caractère possible
-                        // et chercher par caractère (pour AZERTY)
-                        let column = column.or_else(|| {
-                            // Mapping approximatif KeyCode -> caractère AZERTY
+                        // Récupérer les binds pour le nombre de colonnes actuel
+                        // On clone pour éviter les soucis d'emprunt avec renderer.engine.process_input
+                        let current_binds = renderer.settings.keybinds
+                            .get(NUM_COLUMNS.to_string().as_str())
+                            .cloned()
+                            .unwrap_or_default();
+
+                        // 1. Chercher par nom de touche exact (ex: "KeyD")
+                        let mut column = current_binds.iter().position(|k| k == &key_name);
+
+                        // 2. Si pas trouvé, essayer le mapping AZERTY / Caractères spéciaux
+                        if column.is_none() {
                             let mut char_keys = Vec::new();
                             match *key_code {
-                                KeyCode::Digit0 => {
-                                    char_keys.push("à");
-                                }
-                                KeyCode::Digit1 => {
-                                    char_keys.push("&");
-                                }
-                                KeyCode::Digit2 => {
-                                    char_keys.push("é");
-                                }
-                                KeyCode::Digit3 => {
-                                    char_keys.push("\"");
-                                }
-                                KeyCode::Digit4 => {
-                                    char_keys.push("'");
-                                }
-                                KeyCode::Digit5 => {
-                                    char_keys.push("(");
-                                }
-                                KeyCode::Digit6 => {
-                                    char_keys.push("-");
-                                }
-                                KeyCode::Digit7 => {
-                                    char_keys.push("è");
-                                }
-                                KeyCode::Digit8 => {
-                                    char_keys.push("_");
-                                }
-                                KeyCode::Digit9 => {
-                                    char_keys.push("ç");
-                                }
-                                KeyCode::KeyQ => {
-                                    char_keys.push("a");
-                                }
-                                KeyCode::KeyW => {
-                                    char_keys.push("z");
-                                }
-                                KeyCode::KeyA => {
-                                    char_keys.push("q");
-                                }
-                                KeyCode::KeyM => {
-                                    char_keys.push("?");
-                                }
-                                KeyCode::Comma => {
-                                    char_keys.push(";");
-                                }
-                                KeyCode::Period => {
-                                    char_keys.push(":");
-                                }
-                                KeyCode::Semicolon => {
-                                    char_keys.push("m");
-                                }
-                                KeyCode::Slash => {
-                                    char_keys.push("!");
-                                }
-                                // La touche grave/tilde produit "²" en AZERTY
-                                KeyCode::Backquote => {
-                                    char_keys.push("²");
-                                }
+                                KeyCode::Digit0 => char_keys.push("à"),
+                                KeyCode::Digit1 => char_keys.push("&"),
+                                KeyCode::Digit2 => char_keys.push("é"),
+                                KeyCode::Digit3 => char_keys.push("\""),
+                                KeyCode::Digit4 => char_keys.push("'"),
+                                KeyCode::Digit5 => char_keys.push("("),
+                                KeyCode::Digit6 => char_keys.push("-"),
+                                KeyCode::Digit7 => char_keys.push("è"),
+                                KeyCode::Digit8 => char_keys.push("_"),
+                                KeyCode::Digit9 => char_keys.push("ç"),
+                                KeyCode::KeyQ => char_keys.push("a"),
+                                KeyCode::KeyW => char_keys.push("z"),
+                                KeyCode::KeyA => char_keys.push("q"),
+                                KeyCode::KeyM => char_keys.push("?"),
+                                KeyCode::Comma => char_keys.push(";"),
+                                KeyCode::Period => char_keys.push(":"),
+                                KeyCode::Semicolon => char_keys.push("m"),
+                                KeyCode::Slash => char_keys.push("!"),
+                                KeyCode::Backquote => char_keys.push("²"),
                                 _ => {}
                             }
 
-                            // Essayer tous les caractères possibles pour cette touche
-                            let mut found_column = None;
+                            // Chercher si un des caractères correspond à un bind
                             for ch in char_keys {
-                                if let Some(col) = renderer.skin.get_column_for_key(ch) {
-                                    found_column = Some(col);
+                                // On cherche insensible à la casse pour être sympa
+                                if let Some(col) = current_binds.iter().position(|k| k.eq_ignore_ascii_case(ch)) {
+                                    column = Some(col);
                                     break;
                                 }
                             }
-                            found_column
-                        });
+                        }
 
-                        if let Some(column) = column {
-                            renderer.engine.process_input(column);
+                        if let Some(col) = column {
+                            renderer.engine.process_input(col);
                         }
                     });
                 }

@@ -1,4 +1,3 @@
-
 pub(super) mod beatmap_info;
 pub(super) mod difficulty_card;
 pub(super) mod leaderboard;
@@ -115,9 +114,9 @@ impl SongSelectScreen {
             .frame(egui::Frame::NONE)
             .show(ctx, |ui| {
                 StripBuilder::new(ui)
-                    .size(Size::relative(0.40))
+                    .size(Size::relative(0.25))
                     .size(Size::remainder())
-                    .size(Size::relative(0.30))
+                    .size(Size::relative(0.45))
                     .horizontal(|mut strip| {
                         strip.cell(|ui| {
                             let (beatmapset, beatmap, rate, diff_name) = {

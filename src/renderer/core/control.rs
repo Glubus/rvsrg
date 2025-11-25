@@ -3,12 +3,10 @@ use crate::models::engine::GameEngine;
 use crate::renderer::pipeline::create_bind_group_layout;
 use crate::renderer::texture::load_texture_from_path;
 use sqlx;
-use std::path::PathBuf;
-use winit::event::WindowEvent;
+use std::path::PathBuf; // Nécessaire pour load_leaderboard_scores
 
 impl Renderer {
     pub fn update_menu_background(&mut self) {
-        // ... (Code identique) ...
         let selected_beatmapset = {
             if let Ok(menu_state) = self.menu_state.lock() {
                 menu_state
@@ -23,7 +21,6 @@ impl Renderer {
             if self.current_background_path.as_ref() != Some(&image_path) {
                 self.current_background_path = Some(image_path.clone());
                 let path = std::path::Path::new(&image_path);
-
                 if path.exists() {
                     if let Some((texture, _, _)) =
                         load_texture_from_path(&self.device, &self.queue, path)
@@ -33,7 +30,7 @@ impl Renderer {
                         let bind_group_layout = create_bind_group_layout(&self.device);
                         let bind_group =
                             self.device.create_bind_group(&wgpu::BindGroupDescriptor {
-                                label: Some("Background Bind Group"),
+                                label: Some("BG BG"),
                                 layout: &bind_group_layout,
                                 entries: &[
                                     wgpu::BindGroupEntry {
@@ -48,7 +45,6 @@ impl Renderer {
                                     },
                                 ],
                             });
-
                         self.background_texture = Some(texture);
                         self.background_bind_group = Some(bind_group);
                     }
@@ -75,9 +71,9 @@ impl Renderer {
             self.settings.hit_window_mode,
             self.settings.hit_window_value,
         );
+        self.engine.scroll_speed_ms = self.settings.scroll_speed;
         let num_notes = self.engine.chart.len();
-        let required_quads = num_notes + 11;
-        self.resize_quad_buffer(required_quads);
+        self.resize_quad_buffer(num_notes + 50);
     }
 
     fn resize_quad_buffer(&mut self, num_quads: usize) {
@@ -97,14 +93,12 @@ impl Renderer {
             sink.clear();
         }
     }
-
     pub fn decrease_note_size(&mut self) {
         self.gameplay_view
             .playfield_component_mut()
             .config
             .decrease_note_size();
     }
-
     pub fn increase_note_size(&mut self) {
         self.gameplay_view
             .playfield_component_mut()
@@ -112,14 +106,12 @@ impl Renderer {
             .increase_note_size();
     }
 
-    /// Applique le ratio en fonction des settings et de la taille de fenêtre
     pub fn update_pixel_system_ratio(&mut self) {
         let forced_ratio = match self.settings.aspect_ratio_mode {
             crate::models::settings::AspectRatioMode::Auto => None,
             crate::models::settings::AspectRatioMode::Ratio16_9 => Some(16.0 / 9.0),
             crate::models::settings::AspectRatioMode::Ratio4_3 => Some(4.0 / 3.0),
         };
-
         self.pixel_system
             .update_size(self.config.width, self.config.height, forced_ratio);
         self.update_component_positions();
@@ -132,22 +124,144 @@ impl Renderer {
             self.surface.configure(&self.device, &self.config);
             self.text_brush
                 .resize_view(new_size.width as f32, new_size.height as f32, &self.queue);
-
-            // On appelle notre nouvelle méthode qui gère le ratio
             self.update_pixel_system_ratio();
         }
     }
 
+    pub(crate) fn update_component_positions(&mut self) {
+        let screen_width = self.config.width as f32;
+        let screen_height = self.config.height as f32;
+        let playfield_width_px = self
+            .gameplay_view
+            .playfield_component()
+            .get_total_width_pixels();
+
+        // 1. Positions
+        let playfield_center_x = if let Some(pos) = self.skin.config.playfield_pos {
+            pos.x
+        } else {
+            screen_width / 2.0
+        };
+        let playfield_offset_y = if let Some(pos) = self.skin.config.playfield_pos {
+            pos.y
+        } else {
+            0.0
+        };
+
+        // 2. Offsets
+        let x_offset = playfield_center_x - (screen_width / 2.0);
+        self.gameplay_view
+            .playfield_component_mut()
+            .config
+            .x_offset_pixels = x_offset;
+        self.gameplay_view
+            .playfield_component_mut()
+            .config
+            .y_offset_pixels = playfield_offset_y;
+
+        // 3. UI Positions & Sizes
+        let default_combo_y = (screen_height / 2.0) - 80.0;
+        let default_score_x = playfield_center_x + (playfield_width_px / 2.0) + 120.0;
+        let default_score_y = screen_height * 0.05;
+        let default_acc_x = playfield_center_x - (playfield_width_px / 2.0) - 150.0;
+
+        let score_pos = self
+            .skin
+            .config
+            .score_pos
+            .unwrap_or(crate::models::skin::UIElementPos {
+                x: default_score_x,
+                y: default_score_y,
+            });
+        self.score_display.set_position(score_pos.x, score_pos.y);
+        self.score_display
+            .set_size(self.skin.config.score_text_size);
+
+        let combo_pos = self
+            .skin
+            .config
+            .combo_pos
+            .unwrap_or(crate::models::skin::UIElementPos {
+                x: playfield_center_x,
+                y: default_combo_y,
+            });
+        self.combo_display.set_position(combo_pos.x, combo_pos.y);
+        self.combo_display
+            .set_size(self.skin.config.combo_text_size);
+
+        let acc_pos = self
+            .skin
+            .config
+            .accuracy_pos
+            .unwrap_or(crate::models::skin::UIElementPos {
+                x: default_acc_x,
+                y: screen_height * 0.1,
+            });
+        self.accuracy_panel.set_position(acc_pos.x, acc_pos.y);
+        self.accuracy_panel
+            .set_size(self.skin.config.accuracy_text_size);
+
+        let judge_pos =
+            self.skin
+                .config
+                .judgement_pos
+                .unwrap_or(crate::models::skin::UIElementPos {
+                    x: default_acc_x,
+                    y: screen_height * 0.15,
+                });
+        self.judgements_panel.set_position(judge_pos.x, judge_pos.y);
+        self.judgements_panel
+            .set_size(self.skin.config.judgement_text_size);
+
+        let hitbar_width = playfield_width_px * 0.8;
+        let hitbar_pos =
+            self.skin
+                .config
+                .hit_bar_pos
+                .unwrap_or(crate::models::skin::UIElementPos {
+                    x: playfield_center_x - hitbar_width / 2.0,
+                    y: combo_pos.y + 60.0,
+                });
+        self.hit_bar.set_geometry(
+            hitbar_pos.x,
+            hitbar_pos.y,
+            hitbar_width,
+            self.skin.config.hit_bar_height_px,
+        );
+
+        let flash_pos =
+            self.skin
+                .config
+                .judgement_flash_pos
+                .unwrap_or(crate::models::skin::UIElementPos {
+                    x: playfield_center_x,
+                    y: combo_pos.y + 30.0,
+                });
+        self.judgement_flash.set_position(flash_pos.x, flash_pos.y);
+    }
+
+    // --- MÉTHODES MANQUANTES ---
+
+    pub fn handle_event(
+        &mut self,
+        window: &winit::window::Window,
+        event: &winit::event::WindowEvent,
+    ) {
+        let _ = self.egui_state.on_window_event(window, event);
+    }
+
+    pub fn toggle_settings(&mut self) {
+        self.settings.is_open = !self.settings.is_open;
+    }
+
     pub fn load_leaderboard_scores(&mut self) {
-        // ... (Code identique) ...
         let selected_hash = if let Ok(menu_state) = self.menu_state.lock() {
             menu_state.get_selected_beatmap_hash()
         } else {
             None
         };
-
         let needs_reload = match (&self.current_leaderboard_hash, &selected_hash) {
-            (Some(current), Some(selected)) => current != selected,
+            (Some(c), Some(s)) => c != s,
             (None, Some(_)) => true,
             (_, None) => false,
         };
@@ -155,7 +269,6 @@ impl Renderer {
         if needs_reload || !self.leaderboard_scores_loaded {
             let rt = tokio::runtime::Runtime::new().unwrap();
             let db_path = std::path::PathBuf::from("main.db");
-
             if let Ok(db) = rt.block_on(crate::database::connection::Database::new(&db_path)) {
                 let (scores, note_count_map) = if let Some(hash) = &selected_hash {
                     let replays = rt
@@ -163,9 +276,8 @@ impl Renderer {
                             db.pool(),
                             hash,
                         ))
-                        .unwrap_or_else(|_| Vec::new());
-
-                    let note_count = rt
+                        .unwrap_or_default();
+                    let count = rt
                         .block_on(
                             sqlx::query_scalar::<_, i32>(
                                 "SELECT note_count FROM beatmap WHERE hash = ?1",
@@ -176,32 +288,29 @@ impl Renderer {
                         .ok()
                         .flatten()
                         .unwrap_or(0);
-
-                    let mut note_count_map = std::collections::HashMap::new();
-                    note_count_map.insert(hash.clone(), note_count);
-                    (replays, note_count_map)
+                    let mut map = std::collections::HashMap::new();
+                    map.insert(hash.clone(), count);
+                    (replays, map)
                 } else {
                     let replays = rt
                         .block_on(crate::database::query::get_top_scores(db.pool(), 10))
-                        .unwrap_or_else(|_| Vec::new());
-
-                    let mut note_count_map = std::collections::HashMap::new();
-                    for replay in &replays {
-                        if !note_count_map.contains_key(&replay.beatmap_hash) {
-                            if let Ok(Some(note_count)) = rt.block_on(
+                        .unwrap_or_default();
+                    let mut map = std::collections::HashMap::new();
+                    for r in &replays {
+                        if !map.contains_key(&r.beatmap_hash) {
+                            if let Ok(Some(c)) = rt.block_on(
                                 sqlx::query_scalar::<_, i32>(
                                     "SELECT note_count FROM beatmap WHERE hash = ?1",
                                 )
-                                .bind(&replay.beatmap_hash)
+                                .bind(&r.beatmap_hash)
                                 .fetch_optional(db.pool()),
                             ) {
-                                note_count_map.insert(replay.beatmap_hash.clone(), note_count);
+                                map.insert(r.beatmap_hash.clone(), c);
                             }
                         }
                     }
-                    (replays, note_count_map)
+                    (replays, map)
                 };
-
                 if let Some(ref mut song_select) = self.song_select_screen {
                     song_select.update_leaderboard(scores, note_count_map);
                     song_select.set_current_beatmap_hash(selected_hash.clone());
@@ -210,66 +319,6 @@ impl Renderer {
                 self.current_leaderboard_hash = selected_hash;
             }
         }
-    }
-
-    pub(crate) fn update_component_positions(&mut self) {
-        // Ici, on utilise get_bounds qui utilise maintenant le nouveau ratio X
-        let screen_width = self.config.width as f32;
-        let screen_height = self.config.height as f32;
-
-        // get_bounds retourne une largeur en coordonnées normalisées (-1 à 1)
-        // Mais pixel_system.pixels_to_normalized utilise maintenant le ratio.
-        // On veut positionner les éléments en pixels écran.
-
-        let (_, playfield_width_norm) = self
-            .gameplay_view
-            .playfield_component()
-            .get_bounds(&self.pixel_system);
-
-        // Pour convertir la largeur normalisée en pixels écran :
-        // width_norm = width_px * (2.0 / height) / aspect
-        // width_px = width_norm * height / 2.0 * aspect
-
-        // Ceci est la largeur VISUELLE en pixels sur l'écran.
-        // Si aspect = 16/9, playfield_width_norm est plus petit que si aspect = 4/3.
-
-        let playfield_screen_width =
-            playfield_width_norm * (screen_height / 2.0) * self.pixel_system.aspect_ratio;
-
-        let playfield_center_x = screen_width / 2.0;
-        let left_x =
-            ((screen_width / 2.0) - playfield_screen_width - (screen_width * 0.15).min(200.0))
-                .max(20.0);
-        let playfield_right_x = playfield_center_x + (playfield_screen_width / 2.0);
-        let score_x = playfield_right_x + 20.0;
-        let combo_y = (screen_height / 2.0) - 80.0;
-        let judgement_y = combo_y + 30.0;
-        let hitbar_y = combo_y + 60.0;
-        let hitbar_width = playfield_screen_width * 0.8;
-
-        self.combo_display.set_position(playfield_center_x, combo_y);
-        self.judgement_flash
-            .set_position(playfield_center_x, judgement_y);
-        self.hit_bar.set_geometry(
-            playfield_center_x - hitbar_width / 2.0,
-            hitbar_y,
-            hitbar_width,
-            20.0,
-        );
-        self.score_display
-            .set_position(score_x, screen_height * 0.05);
-        self.accuracy_panel
-            .set_position(left_x, screen_height * 0.1);
-        self.judgements_panel
-            .set_position(left_x, screen_height * 0.15);
-    }
-
-    pub fn handle_event(&mut self, window: &winit::window::Window, event: &WindowEvent) {
-        let _ = self.egui_state.on_window_event(window, event);
-    }
-
-    pub fn toggle_settings(&mut self) {
-        self.settings.is_open = !self.settings.is_open;
     }
 
     #[allow(dead_code)]
