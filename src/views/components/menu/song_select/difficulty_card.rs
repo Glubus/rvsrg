@@ -13,32 +13,27 @@ impl DifficultyCard {
         texture_selected: Option<TextureId>,
         selected_color: Color32,
     ) -> egui::Response {
-        // Hauteur fine
-        let card_height = 30.0; 
-        
-        // On réduit la largeur visuelle en ajoutant des espaces virtuels
-        // Au lieu de prendre tout ui.available_width(), on réduit
+        let card_height = 35.0; 
         let full_width = ui.available_width();
-        let margin_side = 40.0; // Rétrécissement latéral ("moins long")
-        let visual_width = (full_width - margin_side * 2.0).max(100.0);
         
-        // Espace total alloué (doit inclure les marges pour que la souris ne clique pas dans le vide)
-        // Mais pour le dessin, on centrera.
+        // --- LOGIQUE D'ALIGNEMENT ---
+        // SongCard a : left=10, right=10.
+        // Ici on veut aligner à droite (right=10) mais indenter à gauche (left=60).
+        let margin_right = 0.0;
+        let margin_left = 40.0; 
         
-        // 1. Allocation de la zone CLIQUABLE (Toute la largeur pour ergonomie, ou juste la zone visuelle ?)
-        // Généralement, on préfère cliquer n'importe où sur la ligne.
-        // Si vous voulez que seule la "barre" soit cliquable, on utilise allocate_rect sur la zone réduite.
-        // Essayons de centrer la zone cliquable.
+        let visual_width = (full_width - margin_left - margin_right).max(50.0);
         
-        // On se déplace manuellement pour centrer
+        // Calcul de la position (X de départ + marge gauche)
         let start_pos = ui.cursor().min;
-        let centered_start = Pos2::new(start_pos.x + margin_side, start_pos.y);
-        let centered_rect = Rect::from_min_size(centered_start, Vec2::new(visual_width, card_height));
+        let card_pos = Pos2::new(start_pos.x + margin_left, start_pos.y);
+        let card_rect = Rect::from_min_size(card_pos, Vec2::new(visual_width, card_height));
         
-        // On alloue cet espace précis
-        let response = ui.allocate_rect(centered_rect, Sense::click());
+        // Allocation sur la zone précise calculée
+        let response = ui.allocate_rect(card_rect, Sense::click());
 
-        if ui.is_rect_visible(centered_rect) {
+        // Rendu graphique
+        if ui.is_rect_visible(card_rect) {
             let painter = ui.painter();
             
             let texture_id = if is_selected { 
@@ -51,7 +46,7 @@ impl DifficultyCard {
                 let base_tint = if is_selected { Color32::WHITE } else { Color32::from_gray(200) };
                 painter.image(
                     tex_id,
-                    centered_rect,
+                    card_rect,
                     Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0)),
                     base_tint
                 );
@@ -60,21 +55,21 @@ impl DifficultyCard {
                     let overlay_color = Color32::from_rgba_unmultiplied(
                         selected_color.r(), selected_color.g(), selected_color.b(), 100 
                     );
-                    painter.rect_filled(centered_rect, 0.0, overlay_color);
+                    painter.rect_filled(card_rect, 0.0, overlay_color);
                 }
             } else {
                 let fill_color = Color32::from_rgba_unmultiplied(30, 30, 30, 250);
-                painter.rect_filled(centered_rect, 0.0, fill_color);
+                painter.rect_filled(card_rect, 0.0, fill_color);
                 
                 let stroke_color = if is_selected { selected_color } else { Color32::from_rgba_unmultiplied(60, 60, 60, 255) };
-                painter.rect_stroke(centered_rect, 0.0, Stroke::new(1.0, stroke_color), StrokeKind::Inside);
+                painter.rect_stroke(card_rect, 0.0, Stroke::new(1.0, stroke_color), StrokeKind::Inside);
             }
         }
 
-        // Contenu texte centré
+        // Contenu texte (centré dans la carte elle-même)
         let mut content_ui = ui.new_child(
             UiBuilder::new()
-                .max_rect(centered_rect)
+                .max_rect(card_rect)
                 .layout(*ui.layout())
         );
 
@@ -88,14 +83,8 @@ impl DifficultyCard {
             });
         });
         
-        // Important : Avancer le curseur de l'UI parent pour la prochaine ligne
-        // (allocate_rect l'a fait, mais vérifions si on doit ajouter de l'espace vertical si nécessaire)
-        // Comme on a alloué 'centered_rect', le curseur de l'ui parent a avancé. 
-        // Mais comme on a décalé X, il faut s'assurer que le curseur est bien revenu à la ligne suivante.
-        // Egui gère ça normalement avec allocate_rect.
-        
-        // Petit espace vertical manuel si besoin pour séparer les diffs
-        ui.add_space(4.0); 
+        // Espace vertical entre les difficultés
+        ui.add_space(0.0); 
 
         response
     }

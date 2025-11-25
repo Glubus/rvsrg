@@ -10,7 +10,7 @@ impl PlayfieldConfig {
         Self {
             column_width_pixels: 100.0,
             note_width_pixels: 90.0,
-            note_height_pixels: 20.0,
+            note_height_pixels: 90.0, // CHANGÉ de 20.0 à 90.0 pour être carré par défaut
         }
     }
 
