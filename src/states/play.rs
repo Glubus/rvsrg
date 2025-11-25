@@ -37,7 +37,7 @@ impl GameState for PlayStateController {
         if let WindowEvent::KeyboardInput {
             event:
                 KeyEvent {
-                    state: input_state, // Capture l'état (Pressed/Released)
+                    state: input_state, 
                     physical_key: PhysicalKey::Code(key_code),
                     repeat,
                     ..

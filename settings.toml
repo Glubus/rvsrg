@@ -1,25 +1,23 @@
 master_volume = 0.6499999761581421
-scroll_speed = 470.0
-hit_window_mode = "OsuOD"
-hit_window_value = 5.0
+scroll_speed = 430.0
+hit_window_mode = "EtternaJudge"
+hit_window_value = 8.8
 aspect_ratio_mode = "Auto"
 current_skin = "default"
 
 [keybinds]
+4 = [
+    "²",
+    "&",
+    "Home",
+    "PageUp",
+]
 5 = [
     "KeyD",
     "KeyF",
     "Space",
     "KeyJ",
     "KeyK",
-]
-6 = [
-    "KeyS",
-    "KeyD",
-    "KeyF",
-    "KeyJ",
-    "KeyK",
-    "KeyL",
 ]
 7 = [
     "KeyS",
@@ -30,9 +28,11 @@ current_skin = "default"
     "KeyK",
     "KeyL",
 ]
-4 = [
+6 = [
+    "KeyS",
     "KeyD",
     "KeyF",
     "KeyJ",
     "KeyK",
+    "KeyL",
 ]

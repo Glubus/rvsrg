@@ -12,7 +12,7 @@ pub struct GameplayRenderContext<'a> {
     pub receptor_buffer: &'a Buffer,
     pub note_bind_groups: &'a [BindGroup],
     pub receptor_bind_groups: &'a [BindGroup],
-    pub receptor_pressed_bind_groups: &'a [BindGroup], // AJOUTÉ
+    pub receptor_pressed_bind_groups: &'a [BindGroup],
     pub view: &'a TextureView,
     pub pixel_system: &'a PixelSystem,
     pub screen_width: f32,

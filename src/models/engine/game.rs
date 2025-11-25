@@ -10,7 +10,7 @@ use crate::models::replay::ReplayData;
 use crate::models::stats::{HitStats, Judgement};
 use md5::Context;
 use rand::Rng;
-use rodio::source::SeekError; // Import nécessaire pour try_seek
+use rodio::source::SeekError; 
 use rodio::{Decoder, OutputStream, Sink, Source};
 use std::fs::File;
 use std::io::{BufReader, Read};
@@ -53,7 +53,6 @@ where
     fn total_duration(&self) -> Option<Duration> {
         self.inner.total_duration()
     }
-    // CORRECTION CRITIQUE : Il faut déléguer le try_seek à la source interne
     fn try_seek(&mut self, pos: Duration) -> Result<(), SeekError> {
         self.inner.try_seek(pos)
     }
@@ -84,7 +83,7 @@ pub struct GameEngine {
     pub rate: f64,
     pub replay_data: ReplayData,
     beatmap_hash: Option<String>,
-    pub intro_skipped: bool, // Nouveau champ pour empêcher le spam
+    pub intro_skipped: bool, 
 }
 
 impl GameEngine {
@@ -202,8 +201,16 @@ impl GameEngine {
         }
 
         if let Some(first_note) = self.chart.first() {
-            // Cible : 1 seconde avant la première note
-            let target_ms = (first_note.timestamp_ms - 1000.0).max(0.0);
+            let target_ms_before_note = first_note.timestamp_ms - 3000.0;
+            let current_time = self.get_audio_time();
+            
+            // Nouvelle condition: Ne pas skipper si nous sommes déjà proche (moins de 1000ms) de la première note.
+            if current_time >= target_ms_before_note {
+                return;
+            }
+
+            // Calcul de la cible réelle (minimum 0.0ms)
+            let target_ms = target_ms_before_note.max(0.0);
             let target_duration = Duration::from_secs_f64(target_ms / 1000.0);
 
             // Mise à jour physique de l'audio

@@ -215,9 +215,9 @@ impl GameplayView {
                         let is_pressed = engine.keys_held.get(col).copied().unwrap_or(false);
                         
                         let bind_group = if is_pressed && col < ctx.receptor_pressed_bind_groups.len() {
-                            &ctx.receptor_pressed_bind_groups[col] // Utilise la texture PRESSÉE
+                            &ctx.receptor_pressed_bind_groups[col]
                         } else {
-                            &ctx.receptor_bind_groups[col]         // Utilise la texture NORMALE
+                            &ctx.receptor_bind_groups[col]
                         };
 
                         render_pass.set_bind_group(0, bind_group, &[]);
