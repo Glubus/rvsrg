@@ -2,7 +2,7 @@ use super::{
     constants::{HIT_LINE_Y, NUM_COLUMNS, VISIBLE_DISTANCE},
     hit_window::HitWindow,
     instance::InstanceRaw,
-    note::{NoteData, load_map},
+    note::{load_map, NoteData},
     pixel_system::PixelSystem,
     playfield::PlayfieldConfig,
 };
@@ -10,6 +10,7 @@ use crate::models::replay::ReplayData;
 use crate::models::stats::{HitStats, Judgement};
 use md5::Context;
 use rand::Rng;
+use rodio::source::SeekError; // Import nécessaire pour try_seek
 use rodio::{Decoder, OutputStream, Sink, Source};
 use std::fs::File;
 use std::io::{BufReader, Read};
@@ -52,6 +53,10 @@ where
     fn total_duration(&self) -> Option<Duration> {
         self.inner.total_duration()
     }
+    // CORRECTION CRITIQUE : Il faut déléguer le try_seek à la source interne
+    fn try_seek(&mut self, pos: Duration) -> Result<(), SeekError> {
+        self.inner.try_seek(pos)
+    }
 }
 
 pub struct GameEngine {
@@ -79,6 +84,7 @@ pub struct GameEngine {
     pub rate: f64,
     pub replay_data: ReplayData,
     beatmap_hash: Option<String>,
+    pub intro_skipped: bool, // Nouveau champ pour empêcher le spam
 }
 
 impl GameEngine {
@@ -122,6 +128,7 @@ impl GameEngine {
             rate: 1.0,
             replay_data: ReplayData::new(),
             beatmap_hash: None,
+            intro_skipped: false,
         }
     }
 
@@ -175,6 +182,7 @@ impl GameEngine {
             rate,
             replay_data: ReplayData::new(),
             beatmap_hash,
+            intro_skipped: false,
         }
     }
 
@@ -185,6 +193,59 @@ impl GameEngine {
         let mut context = Context::new();
         context.consume(buffer.as_bytes());
         Ok(format!("{:x}", context.finalize()))
+    }
+
+    pub fn skip_intro(&mut self) {
+        // Empêcher le spam
+        if self.intro_skipped {
+            return;
+        }
+
+        if let Some(first_note) = self.chart.first() {
+            // Cible : 1 seconde avant la première note
+            let target_ms = (first_note.timestamp_ms - 1000.0).max(0.0);
+            let target_duration = Duration::from_secs_f64(target_ms / 1000.0);
+
+            // Mise à jour physique de l'audio
+            if let Ok(sink) = self.audio_sink.lock() {
+                if let Err(e) = sink.try_seek(target_duration) {
+                    eprintln!("Seek error: {}", e);
+                }
+            }
+
+            // Mise à jour des horloges logiques
+            let now = Instant::now();
+            
+            if self.audio_started {
+                let elapsed_needed = target_ms / self.rate;
+                let adjustment = Duration::from_secs_f64(elapsed_needed / 1000.0);
+                self.audio_start_instant = Some(now - adjustment);
+            } else {
+                if target_ms >= 0.0 {
+                    // Forcer le démarrage si on saute après 0.0
+                    if let Ok(sink) = self.audio_sink.lock() {
+                        sink.play();
+                    }
+                    self.audio_started = true;
+                    
+                    let elapsed_needed = target_ms / self.rate;
+                    let adjustment = Duration::from_secs_f64(elapsed_needed / 1000.0);
+                    self.audio_start_instant = Some(now - adjustment);
+                } else {
+                    // Toujours dans le pré-compte
+                    let elapsed_needed = (target_ms + 5000.0) / self.rate;
+                    let adjustment = Duration::from_secs_f64(elapsed_needed / 1000.0);
+                    self.engine_start_time = now - adjustment;
+                }
+            }
+            
+            // Reset visuel
+            self.last_hit_timing = None;
+            self.last_hit_judgement = None;
+            
+            // Marquer comme sauté pour désactiver la touche
+            self.intro_skipped = true;
+        }
     }
 
     pub fn set_key_held(&mut self, col: usize, state: bool) {
@@ -255,6 +316,7 @@ impl GameEngine {
             }
         }
         self.replay_data = ReplayData::new();
+        self.intro_skipped = false;
     }
     pub async fn save_replay(
         &self,

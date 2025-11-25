@@ -1,0 +1,38 @@
+master_volume = 0.6499999761581421
+scroll_speed = 470.0
+hit_window_mode = "OsuOD"
+hit_window_value = 5.0
+aspect_ratio_mode = "Auto"
+current_skin = "default"
+
+[keybinds]
+5 = [
+    "KeyD",
+    "KeyF",
+    "Space",
+    "KeyJ",
+    "KeyK",
+]
+6 = [
+    "KeyS",
+    "KeyD",
+    "KeyF",
+    "KeyJ",
+    "KeyK",
+    "KeyL",
+]
+7 = [
+    "KeyS",
+    "KeyD",
+    "KeyF",
+    "Space",
+    "KeyJ",
+    "KeyK",
+    "KeyL",
+]
+4 = [
+    "KeyD",
+    "KeyF",
+    "KeyJ",
+    "KeyK",
+]

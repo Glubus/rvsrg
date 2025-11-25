@@ -211,7 +211,17 @@ impl GameplayView {
                 render_pass.set_pipeline(ctx.render_pipeline);
                 for (col, _) in receptor_instances.iter().enumerate() {
                     if col < ctx.receptor_bind_groups.len() {
-                        render_pass.set_bind_group(0, &ctx.receptor_bind_groups[col], &[]);
+                        
+                        let is_pressed = engine.keys_held.get(col).copied().unwrap_or(false);
+                        
+                        let bind_group = if is_pressed && col < ctx.receptor_pressed_bind_groups.len() {
+                            &ctx.receptor_pressed_bind_groups[col] // Utilise la texture PRESSÉE
+                        } else {
+                            &ctx.receptor_bind_groups[col]         // Utilise la texture NORMALE
+                        };
+
+                        render_pass.set_bind_group(0, bind_group, &[]);
+                        
                         let offset = (col * std::mem::size_of::<InstanceRaw>()) as u64;
                         let size = std::mem::size_of::<InstanceRaw>() as u64;
                         render_pass

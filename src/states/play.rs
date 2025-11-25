@@ -37,107 +37,123 @@ impl GameState for PlayStateController {
         if let WindowEvent::KeyboardInput {
             event:
                 KeyEvent {
-                    state: ElementState::Pressed,
+                    state: input_state, // Capture l'état (Pressed/Released)
                     physical_key: PhysicalKey::Code(key_code),
+                    repeat,
                     ..
                 },
             ..
         } = event
         {
-            match key_code {
-                KeyCode::Escape => {
-                    ctx.with_renderer(|renderer| renderer.stop_audio());
-                    self.with_menu_state(|state| state.in_menu = true);
-                    return StateTransition::Replace(Box::new(MenuStateController::new(
-                        Arc::clone(&self.menu_state),
-                    )));
-                }
-                KeyCode::F3 => {
-                    ctx.with_renderer(|renderer| {
-                        let new_speed = (renderer.engine.scroll_speed_ms - 50.0).max(100.0);
-                        renderer.engine.scroll_speed_ms = new_speed;
-                        // Synchroniser avec les settings pour la persistance/UI
-                        renderer.settings.scroll_speed = new_speed;
-                    });
-                }
-                KeyCode::F4 => {
-                    ctx.with_renderer(|renderer| {
-                        let new_speed = (renderer.engine.scroll_speed_ms + 50.0).min(2000.0);
-                        renderer.engine.scroll_speed_ms = new_speed;
-                        // Synchroniser avec les settings pour la persistance/UI
-                        renderer.settings.scroll_speed = new_speed;
-                    });
-                }
-                KeyCode::F5 => {
-                    ctx.with_renderer(|renderer| {
-                        renderer.engine.reset_time();
-                    });
-                }
-                KeyCode::F8 => {
-                    let _ = ctx.with_db_manager(|db| db.rescan());
-                }
-                KeyCode::F11 => {
-                    ctx.with_renderer(|renderer| renderer.decrease_note_size());
-                }
-                KeyCode::F12 => {
-                    ctx.with_renderer(|renderer| renderer.increase_note_size());
-                }
-                _ => {
-                    let key_name = Self::keycode_to_string(*key_code);
-                    
-                    ctx.with_renderer(|renderer| {
-                        // Récupérer les binds pour le nombre de colonnes actuel
-                        // On clone pour éviter les soucis d'emprunt avec renderer.engine.process_input
-                        let current_binds = renderer.settings.keybinds
-                            .get(NUM_COLUMNS.to_string().as_str())
-                            .cloned()
-                            .unwrap_or_default();
+            let is_pressed = *input_state == ElementState::Pressed;
 
-                        // 1. Chercher par nom de touche exact (ex: "KeyD")
-                        let mut column = current_binds.iter().position(|k| k == &key_name);
-
-                        // 2. Si pas trouvé, essayer le mapping AZERTY / Caractères spéciaux
-                        if column.is_none() {
-                            let mut char_keys = Vec::new();
-                            match *key_code {
-                                KeyCode::Digit0 => char_keys.push("à"),
-                                KeyCode::Digit1 => char_keys.push("&"),
-                                KeyCode::Digit2 => char_keys.push("é"),
-                                KeyCode::Digit3 => char_keys.push("\""),
-                                KeyCode::Digit4 => char_keys.push("'"),
-                                KeyCode::Digit5 => char_keys.push("("),
-                                KeyCode::Digit6 => char_keys.push("-"),
-                                KeyCode::Digit7 => char_keys.push("è"),
-                                KeyCode::Digit8 => char_keys.push("_"),
-                                KeyCode::Digit9 => char_keys.push("ç"),
-                                KeyCode::KeyQ => char_keys.push("a"),
-                                KeyCode::KeyW => char_keys.push("z"),
-                                KeyCode::KeyA => char_keys.push("q"),
-                                KeyCode::KeyM => char_keys.push("?"),
-                                KeyCode::Comma => char_keys.push(";"),
-                                KeyCode::Period => char_keys.push(":"),
-                                KeyCode::Semicolon => char_keys.push("m"),
-                                KeyCode::Slash => char_keys.push("!"),
-                                KeyCode::Backquote => char_keys.push("²"),
-                                _ => {}
-                            }
-
-                            // Chercher si un des caractères correspond à un bind
-                            for ch in char_keys {
-                                // On cherche insensible à la casse pour être sympa
-                                if let Some(col) = current_binds.iter().position(|k| k.eq_ignore_ascii_case(ch)) {
-                                    column = Some(col);
-                                    break;
-                                }
-                            }
-                        }
-
-                        if let Some(col) = column {
-                            renderer.engine.process_input(col);
-                        }
-                    });
+            // 1. Gérer les actions spéciales (Escape, F-keys, Space) uniquement sur PRESSED non répété
+            if is_pressed && !*repeat {
+                match key_code {
+                    KeyCode::Escape => {
+                        ctx.with_renderer(|renderer| renderer.stop_audio());
+                        self.with_menu_state(|state| state.in_menu = true);
+                        return StateTransition::Replace(Box::new(MenuStateController::new(
+                            Arc::clone(&self.menu_state),
+                        )));
+                    }
+                    KeyCode::Space => {
+                        ctx.with_renderer(|renderer| {
+                            renderer.engine.skip_intro();
+                        });
+                    }
+                    KeyCode::F3 => {
+                        ctx.with_renderer(|renderer| {
+                            let new_speed = (renderer.engine.scroll_speed_ms - 50.0).max(100.0);
+                            renderer.engine.scroll_speed_ms = new_speed;
+                            // Synchroniser avec les settings pour la persistance/UI
+                            renderer.settings.scroll_speed = new_speed;
+                        });
+                    }
+                    KeyCode::F4 => {
+                        ctx.with_renderer(|renderer| {
+                            let new_speed = (renderer.engine.scroll_speed_ms + 50.0).min(2000.0);
+                            renderer.engine.scroll_speed_ms = new_speed;
+                            // Synchroniser avec les settings pour la persistance/UI
+                            renderer.settings.scroll_speed = new_speed;
+                        });
+                    }
+                    KeyCode::F5 => {
+                        ctx.with_renderer(|renderer| {
+                            renderer.engine.reset_time();
+                        });
+                    }
+                    KeyCode::F8 => {
+                        let _ = ctx.with_db_manager(|db| db.rescan());
+                    }
+                    KeyCode::F11 => {
+                        ctx.with_renderer(|renderer| renderer.decrease_note_size());
+                    }
+                    KeyCode::F12 => {
+                        ctx.with_renderer(|renderer| renderer.increase_note_size());
+                    }
+                    _ => {}
                 }
             }
+
+            // 2. Gérer l'état des colonnes (Pressed OU Released)
+            let key_name = Self::keycode_to_string(*key_code);
+            
+            ctx.with_renderer(|renderer| {
+                // Récupérer les binds pour le nombre de colonnes actuel
+                let current_binds = renderer.settings.keybinds
+                    .get(NUM_COLUMNS.to_string().as_str())
+                    .cloned()
+                    .unwrap_or_default();
+
+                // 1. Chercher par nom de touche exact (ex: "KeyD")
+                let mut column = current_binds.iter().position(|k| k == &key_name);
+
+                // 2. Si pas trouvé, essayer le mapping AZERTY / Caractères spéciaux
+                if column.is_none() {
+                    let mut char_keys = Vec::new();
+                    match *key_code {
+                        KeyCode::Digit0 => char_keys.push("à"),
+                        KeyCode::Digit1 => char_keys.push("&"),
+                        KeyCode::Digit2 => char_keys.push("é"),
+                        KeyCode::Digit3 => char_keys.push("\""),
+                        KeyCode::Digit4 => char_keys.push("'"),
+                        KeyCode::Digit5 => char_keys.push("("),
+                        KeyCode::Digit6 => char_keys.push("-"),
+                        KeyCode::Digit7 => char_keys.push("è"),
+                        KeyCode::Digit8 => char_keys.push("_"),
+                        KeyCode::Digit9 => char_keys.push("ç"),
+                        KeyCode::KeyQ => char_keys.push("a"),
+                        KeyCode::KeyW => char_keys.push("z"),
+                        KeyCode::KeyA => char_keys.push("q"),
+                        KeyCode::KeyM => char_keys.push("?"),
+                        KeyCode::Comma => char_keys.push(";"),
+                        KeyCode::Period => char_keys.push(":"),
+                        KeyCode::Semicolon => char_keys.push("m"),
+                        KeyCode::Slash => char_keys.push("!"),
+                        KeyCode::Backquote => char_keys.push("²"),
+                        _ => {}
+                    }
+
+                    // Chercher si un des caractères correspond à un bind
+                    for ch in char_keys {
+                        if let Some(col) = current_binds.iter().position(|k| k.eq_ignore_ascii_case(ch)) {
+                            column = Some(col);
+                            break;
+                        }
+                    }
+                }
+
+                if let Some(col) = column {
+                    // Mettre à jour keys_held (pour le rendu du récepteur)
+                    renderer.engine.set_key_held(col, is_pressed);
+
+                    // Traiter l'input de jeu (seulement sur PRESSED non répété)
+                    if is_pressed && !*repeat {
+                        renderer.engine.process_input(col);
+                    }
+                }
+            });
         }
         StateTransition::None
     }

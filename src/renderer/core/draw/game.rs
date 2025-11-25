@@ -67,6 +67,7 @@ impl Renderer {
             receptor_buffer: &self.receptor_buffer,
             note_bind_groups: &self.note_bind_groups,
             receptor_bind_groups: &self.receptor_bind_groups,
+            receptor_pressed_bind_groups: &self.receptor_pressed_bind_groups, // PASSÉ AU CONTEXTE
             view,
             pixel_system: &self.pixel_system,
             screen_width: self.config.width as f32,
