@@ -1,10 +1,10 @@
 use super::{GameState, MenuStateController, StateContext, StateTransition};
+use crate::core::input::actions::{KeyAction, UIAction};
 use crate::models::menu::{GameResultData, MenuState};
 use crate::models::replay::ReplayData;
 use crate::models::stats::HitStats;
 use std::sync::{Arc, Mutex};
-use winit::event::{ElementState, KeyEvent, WindowEvent};
-use winit::keyboard::{Key, NamedKey}; // Import correct pour les touches logiques
+use winit::event::WindowEvent;
 
 pub struct ResultStateController {
     menu_state: Arc<Mutex<MenuState>>,
@@ -100,20 +100,16 @@ impl GameState for ResultStateController {
         StateTransition::None
     }
 
-    fn handle_input(&mut self, event: &WindowEvent, _ctx: &mut StateContext) -> StateTransition {
-        if let WindowEvent::KeyboardInput {
-            event:
-                KeyEvent {
-                    state: ElementState::Pressed,
-                    logical_key, // Utilisation de la touche logique (layout-independent)
-                    ..
-                },
-            ..
-        } = event
-        {
-            // Détection robuste de Entrée et Echap
-            match logical_key {
-                Key::Named(NamedKey::Enter) | Key::Named(NamedKey::Escape) => {
+    fn handle_input(
+        &mut self,
+        _event: &WindowEvent,
+        action: Option<KeyAction>,
+        _ctx: &mut StateContext,
+    ) -> StateTransition {
+        if let Some(KeyAction::UI(ui_action)) = action {
+            match ui_action {
+                // Select (Entrée) ou Back (Echap) pour quitter l'écran
+                UIAction::Select | UIAction::Back => {
                     return StateTransition::Replace(Box::new(MenuStateController::new(
                         Arc::clone(&self.menu_state),
                     )));

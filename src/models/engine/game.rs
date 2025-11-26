@@ -8,6 +8,8 @@ use super::{
 };
 use crate::models::replay::ReplayData;
 use crate::models::stats::{HitStats, Judgement};
+use crate::shared::snapshot::GameplaySnapshot; // NOUVEAU
+
 use md5::Context;
 use rand::Rng;
 use rodio::source::SeekError;
@@ -19,6 +21,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
+// ... (AudioMonitor struct et impl restent inchangés) ...
 pub struct AudioMonitor<I> {
     inner: I,
     pub played_samples: Arc<AtomicUsize>,
@@ -87,6 +90,7 @@ pub struct GameEngine {
 }
 
 impl GameEngine {
+    // ... (Méthodes new, from_map, calculate_file_hash, skip_intro, set_key_held, get_audio_time restent inchangées) ...
     pub fn new() -> Self {
         let mut rng = rand::rng();
         let mut chart = Vec::new();
@@ -184,7 +188,7 @@ impl GameEngine {
             intro_skipped: false,
         }
     }
-
+    
     fn calculate_file_hash(file_path: &PathBuf) -> Result<String, std::io::Error> {
         let mut file = File::open(file_path)?;
         let mut buffer = String::new();
@@ -193,64 +197,40 @@ impl GameEngine {
         context.consume(buffer.as_bytes());
         Ok(format!("{:x}", context.finalize()))
     }
-
+    
     pub fn skip_intro(&mut self) {
-        // Empêcher le spam
-        if self.intro_skipped {
-            return;
-        }
-
+        if self.intro_skipped { return; }
         if let Some(first_note) = self.chart.first() {
             let target_ms_before_note = first_note.timestamp_ms - 3000.0;
             let current_time = self.get_audio_time();
-
-            // Nouvelle condition: Ne pas skipper si nous sommes déjà proche (moins de 1000ms) de la première note.
-            if current_time >= target_ms_before_note {
-                return;
-            }
-
-            // Calcul de la cible réelle (minimum 0.0ms)
+            if current_time >= target_ms_before_note { return; }
             let target_ms = target_ms_before_note.max(0.0);
             let target_duration = Duration::from_secs_f64(target_ms / 1000.0);
-
-            // Mise à jour physique de l'audio
             if let Ok(sink) = self.audio_sink.lock() {
                 if let Err(e) = sink.try_seek(target_duration) {
                     eprintln!("Seek error: {}", e);
                 }
             }
-
-            // Mise à jour des horloges logiques
             let now = Instant::now();
-
             if self.audio_started {
                 let elapsed_needed = target_ms / self.rate;
                 let adjustment = Duration::from_secs_f64(elapsed_needed / 1000.0);
                 self.audio_start_instant = Some(now - adjustment);
             } else {
                 if target_ms >= 0.0 {
-                    // Forcer le démarrage si on saute après 0.0
-                    if let Ok(sink) = self.audio_sink.lock() {
-                        sink.play();
-                    }
+                    if let Ok(sink) = self.audio_sink.lock() { sink.play(); }
                     self.audio_started = true;
-
                     let elapsed_needed = target_ms / self.rate;
                     let adjustment = Duration::from_secs_f64(elapsed_needed / 1000.0);
                     self.audio_start_instant = Some(now - adjustment);
                 } else {
-                    // Toujours dans le pré-compte
                     let elapsed_needed = (target_ms + 5000.0) / self.rate;
                     let adjustment = Duration::from_secs_f64(elapsed_needed / 1000.0);
                     self.engine_start_time = now - adjustment;
                 }
             }
-
-            // Reset visuel
             self.last_hit_timing = None;
             self.last_hit_judgement = None;
-
-            // Marquer comme sauté pour désactiver la touche
             self.intro_skipped = true;
         }
     }
@@ -270,6 +250,7 @@ impl GameEngine {
             -5000.0 + (elapsed * self.rate)
         }
     }
+
     pub fn start_audio_if_needed(&mut self, master_volume: f32) {
         if !self.audio_started {
             let current_musical_time = self.get_audio_time();
@@ -283,6 +264,65 @@ impl GameEngine {
             }
         }
     }
+
+    // NOUVEAU : Méthode unifiée pour mettre à jour la logique du jeu
+    pub fn update(&mut self, master_volume: f32) {
+        self.update_active_notes();
+        self.detect_misses();
+        self.start_audio_if_needed(master_volume);
+        self.set_volume(master_volume);
+
+        // Optimisation du head_index (déplacé depuis la vue)
+        let song_time = self.get_audio_time();
+        // On considère qu'une note n'est plus visible si elle est passée de 200ms (window arbitraire)
+        let min_past_time = song_time - (200.0 * self.rate);
+        
+        while self.head_index < self.chart.len() {
+            if self.chart[self.head_index].timestamp_ms < min_past_time && self.chart[self.head_index].hit {
+                // On avance seulement si la note est "finie" (hit ou miss déjà traité)
+                // Note : detect_misses() marque les notes non-hit comme hit=true (miss)
+                 self.head_index += 1;
+            } else if self.chart[self.head_index].timestamp_ms < min_past_time && !self.chart[self.head_index].hit {
+                // Cas de sécurité : si detect_misses a raté quelque chose (ne devrait pas arriver)
+                self.head_index += 1;
+            } else {
+                break;
+            }
+        }
+    }
+
+    // NOUVEAU : Produit un snapshot pour le renderer
+    pub fn get_snapshot(&self) -> GameplaySnapshot {
+        let song_time = self.get_audio_time();
+        let effective_scroll_speed = self.scroll_speed_ms * self.rate;
+        let max_future_time = song_time + effective_scroll_speed;
+
+        // Récupération des notes visibles (Optimisation pour le thread de rendu)
+        // On clone uniquement les notes nécessaires pour l'affichage
+        let visible_notes: Vec<_> = self.chart
+            .iter()
+            .skip(self.head_index)
+            .take_while(|note| note.timestamp_ms <= max_future_time)
+            .cloned()
+            .collect();
+
+        GameplaySnapshot {
+            audio_time: song_time,
+            rate: self.rate,
+            scroll_speed: self.scroll_speed_ms,
+            visible_notes,
+            keys_held: self.keys_held.clone(),
+            score: self.notes_passed,
+            accuracy: self.hit_stats.calculate_accuracy(),
+            combo: self.combo,
+            hit_stats: self.hit_stats.clone(),
+            last_hit_judgement: self.last_hit_judgement,
+            last_hit_timing: self.last_hit_timing,
+            remaining_notes: self.get_remaining_notes(),
+        }
+    }
+
+    // ... (Reste des méthodes : reset_time, save_replay, set_volume, update_hit_window, etc.) ...
     pub fn reset_time(&mut self) {
         let now = Instant::now();
         self.engine_start_time = now;
@@ -325,47 +365,33 @@ impl GameEngine {
         self.replay_data = ReplayData::new();
         self.intro_skipped = false;
     }
-    pub async fn save_replay(
-        &self,
-        db: &crate::database::connection::Database,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    
+    pub async fn save_replay(&self, db: &crate::database::connection::Database) -> Result<(), Box<dyn std::error::Error>> {
         if let Some(ref hash) = self.beatmap_hash {
             let mut replay_data_with_stats = self.replay_data.clone();
             replay_data_with_stats.hit_stats = Some(self.hit_stats.clone());
             let json_data = replay_data_with_stats.to_json()?;
-            let timestamp = std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)?
-                .as_secs() as i64;
-            db.insert_replay(
-                hash,
-                timestamp,
-                self.notes_passed as i32,
-                self.hit_stats.calculate_accuracy(),
-                self.max_combo as i32,
-                self.rate,
-                &json_data,
-            )
-            .await?;
+            let timestamp = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH)?.as_secs() as i64;
+            db.insert_replay(hash, timestamp, self.notes_passed as i32, self.hit_stats.calculate_accuracy(), self.max_combo as i32, self.rate, &json_data).await?;
             Ok(())
         } else {
             Err("No hash".into())
         }
     }
+    
     pub fn set_volume(&self, volume: f32) {
         if let Ok(sink) = self.audio_sink.lock() {
             sink.set_volume(volume);
         }
     }
+    
     pub fn update_hit_window(&mut self, mode: crate::models::settings::HitWindowMode, value: f64) {
         self.hit_window = match mode {
-            crate::models::settings::HitWindowMode::OsuOD => {
-                HitWindow::from_osu_od(value.clamp(0.0, 10.0))
-            }
-            crate::models::settings::HitWindowMode::EtternaJudge => {
-                HitWindow::from_etterna_judge(value.clamp(1.0, 9.0) as u8)
-            }
+            crate::models::settings::HitWindowMode::OsuOD => HitWindow::from_osu_od(value.clamp(0.0, 10.0)),
+            crate::models::settings::HitWindowMode::EtternaJudge => HitWindow::from_etterna_judge(value.clamp(1.0, 9.0) as u8),
         };
     }
+    
     pub fn process_input(&mut self, column: usize) -> Option<Judgement> {
         let audio_time = self.get_audio_time();
         let mut best_note: Option<(usize, f64)> = None;
@@ -395,53 +421,26 @@ impl GameEngine {
                 self.replay_data.add_hit(note_idx, normalized_diff);
             }
             match judgement {
-                Judgement::Marv => {
-                    self.hit_stats.marv += 1;
-                    self.combo += 1;
-                }
-                Judgement::Perfect => {
-                    self.hit_stats.perfect += 1;
-                    self.combo += 1;
-                }
-                Judgement::Great => {
-                    self.hit_stats.great += 1;
-                    self.combo += 1;
-                }
-                Judgement::Good => {
-                    self.hit_stats.good += 1;
-                    self.combo += 1;
-                }
-                Judgement::Bad => {
-                    self.hit_stats.bad += 1;
-                    self.combo += 1;
-                }
-                Judgement::Miss => {
-                    self.hit_stats.miss += 1;
-                    self.combo = 0;
-                }
-                Judgement::GhostTap => {
-                    self.hit_stats.ghost_tap += 1;
-                }
+                Judgement::Marv => { self.hit_stats.marv += 1; self.combo += 1; }
+                Judgement::Perfect => { self.hit_stats.perfect += 1; self.combo += 1; }
+                Judgement::Great => { self.hit_stats.great += 1; self.combo += 1; }
+                Judgement::Good => { self.hit_stats.good += 1; self.combo += 1; }
+                Judgement::Bad => { self.hit_stats.bad += 1; self.combo += 1; }
+                Judgement::Miss => { self.hit_stats.miss += 1; self.combo = 0; }
+                Judgement::GhostTap => { self.hit_stats.ghost_tap += 1; }
             }
-            if self.combo > self.max_combo {
-                self.max_combo = self.combo;
-            }
-            if judgement != Judgement::GhostTap {
-                self.notes_passed += 1;
-            }
+            if self.combo > self.max_combo { self.max_combo = self.combo; }
+            if judgement != Judgement::GhostTap { self.notes_passed += 1; }
             return Some(judgement);
         }
-        let has_notes_in_column = self
-            .chart
-            .iter()
-            .skip(self.head_index)
-            .any(|note| note.column == column && !note.hit);
+        let has_notes_in_column = self.chart.iter().skip(self.head_index).any(|note| note.column == column && !note.hit);
         self.hit_stats.ghost_tap += 1;
         self.last_hit_timing = None;
         self.last_hit_judgement = Some(Judgement::GhostTap);
         self.replay_data.add_key_press(audio_time, column);
         Some(Judgement::GhostTap)
     }
+    
     pub fn update_active_notes(&mut self) {
         let audio_time = self.get_audio_time();
         self.active_notes.clear();
@@ -456,6 +455,7 @@ impl GameEngine {
             }
         }
     }
+    
     pub fn detect_misses(&mut self) {
         let audio_time = self.get_audio_time();
         for (idx, note) in self.chart.iter_mut().enumerate().skip(self.head_index) {
@@ -472,26 +472,21 @@ impl GameEngine {
             }
         }
     }
+    
     pub fn get_remaining_notes(&self) -> usize {
-        self.chart
-            .iter()
-            .skip(self.head_index)
-            .filter(|note| !note.hit)
-            .count()
+        self.chart.iter().skip(self.head_index).filter(|note| !note.hit).count()
     }
+    
     pub fn is_game_finished(&self) -> bool {
-        if self.head_index >= self.chart.len() {
-            return true;
-        }
+        if self.head_index >= self.chart.len() { return true; }
         self.chart.iter().skip(self.head_index).all(|note| note.hit)
     }
-    pub fn get_visible_notes(
-        &mut self,
-        _pixel_system: &PixelSystem,
-        _playfield_config: &PlayfieldConfig,
-        _playfield_x: f32,
-        _playfield_width: f32,
-    ) -> Vec<InstanceRaw> {
-        vec![]
+    
+    pub fn get_visible_notes(&mut self, _pixel_system: &PixelSystem, _playfield_config: &PlayfieldConfig, _playfield_x: f32, _playfield_width: f32) -> Vec<InstanceRaw> { vec![] }
+
+    pub fn stop_audio(&self) {
+        if let Ok(sink) = self.audio_sink.lock() {
+            sink.stop();
+        }
     }
 }

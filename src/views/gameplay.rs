@@ -1,4 +1,5 @@
-use crate::models::engine::{GameEngine, InstanceRaw, NUM_COLUMNS};
+use crate::models::engine::{InstanceRaw, NUM_COLUMNS};
+use crate::shared::snapshot::GameplaySnapshot; // NOUVEAU
 use crate::views::components::{
     AccuracyDisplay, ComboDisplay, HitBarDisplay, JudgementFlash, JudgementPanel, PlayfieldDisplay,
     ScoreDisplay,
@@ -10,14 +11,12 @@ use wgpu_text::glyph_brush::Section;
 
 pub struct GameplayView {
     playfield_component: PlayfieldDisplay,
-    // Optimisation: Cache pour éviter les allocations à chaque frame
     instance_cache: Vec<InstanceRaw>,
     column_instances_cache: Vec<Vec<InstanceRaw>>,
 }
 
 impl GameplayView {
     pub fn new(playfield_component: PlayfieldDisplay) -> Self {
-        // Pré-allouer les vecteurs de cache
         let mut column_instances_cache = Vec::with_capacity(NUM_COLUMNS);
         for _ in 0..NUM_COLUMNS {
             column_instances_cache.push(Vec::with_capacity(100));
@@ -41,7 +40,7 @@ impl GameplayView {
     pub fn render(
         &mut self,
         ctx: &mut GameplayRenderContext<'_>,
-        engine: &mut GameEngine,
+        snapshot: &GameplaySnapshot, // CHANGEMENT : On reçoit un snapshot, plus le moteur
         score_display: &mut ScoreDisplay,
         accuracy_panel: &mut AccuracyDisplay,
         judgements_panel: &mut JudgementPanel,
@@ -49,48 +48,18 @@ impl GameplayView {
         judgement_flash: &mut JudgementFlash,
         hit_bar: &mut HitBarDisplay,
     ) -> Result<CommandBuffer, SurfaceError> {
-        // Mises à jour logiques
-        engine.update_active_notes();
-        engine.detect_misses();
-        engine.start_audio_if_needed(ctx.master_volume);
-        engine.set_volume(ctx.master_volume);
+        
+        // --- LOGIQUE SUPPRIMÉE ICI (Déplacée dans Engine::update) ---
+        // Le renderer est maintenant "stupide" et ne fait qu'afficher ce qu'on lui donne
 
-        // --- CORRECTION AUDIO MASTER ---
-        let song_time = engine.get_audio_time();
-
-        let rate = engine.rate;
-
-        // On calcule la vitesse de défilement effective.
-        let effective_scroll_speed = engine.scroll_speed_ms * rate;
-
-        let max_future_time = song_time + effective_scroll_speed;
-
-        // On recule aussi le temps de disparition pour les notes ratées (proportionnel au rate)
-        let min_past_time = song_time - (200.0 * rate);
-
-        // Optimisation du Head Index
-        while engine.head_index < engine.chart.len() {
-            if engine.chart[engine.head_index].timestamp_ms < min_past_time {
-                engine.head_index += 1;
-                engine.notes_passed += 1;
-            } else {
-                break;
-            }
-        }
-
-        // Récupération des notes visibles
-        let visible_notes: Vec<_> = engine
-            .chart
-            .iter()
-            .skip(engine.head_index)
-            .take_while(|note| note.timestamp_ms <= max_future_time)
-            .cloned()
-            .collect();
+        // On calcule la vitesse de défilement effective pour l'affichage
+        let effective_scroll_speed = snapshot.scroll_speed * snapshot.rate;
 
         // --- RENDU DU PLAYFIELD ---
+        // On utilise les notes visibles fournies par le snapshot
         let instances_with_columns = self.playfield_component.render_notes(
-            &visible_notes,
-            song_time,
+            &snapshot.visible_notes,
+            snapshot.audio_time,
             effective_scroll_speed,
             ctx.pixel_system,
         );
@@ -140,34 +109,37 @@ impl GameplayView {
             ..Default::default()
         });
 
-        score_display.set_score(engine.notes_passed);
+        score_display.set_score(snapshot.score);
         text_sections.extend(score_display.render(ctx.screen_width, ctx.screen_height));
+        
         text_sections.extend(accuracy_panel.render(
-            engine.hit_stats.calculate_accuracy(),
+            snapshot.accuracy,
             ctx.screen_width,
             ctx.screen_height,
         ));
 
         text_sections.extend(judgements_panel.render(
-            &engine.hit_stats,
-            engine.get_remaining_notes(),
-            engine.scroll_speed_ms,
+            &snapshot.hit_stats,
+            snapshot.remaining_notes,
+            snapshot.scroll_speed,
             ctx.screen_width,
             ctx.screen_height,
         ));
 
         text_sections.extend(combo_display.render(
-            engine.combo,
+            snapshot.combo,
             ctx.screen_width,
             ctx.screen_height,
         ));
+        
         text_sections.extend(judgement_flash.render(
-            engine.last_hit_judgement,
+            snapshot.last_hit_judgement,
             ctx.screen_width,
             ctx.screen_height,
         ));
+        
         text_sections.extend(hit_bar.render(
-            engine.last_hit_timing.zip(engine.last_hit_judgement),
+            snapshot.last_hit_timing.zip(snapshot.last_hit_judgement),
             ctx.screen_width,
             ctx.screen_height,
         ));
@@ -211,7 +183,8 @@ impl GameplayView {
                 render_pass.set_pipeline(ctx.render_pipeline);
                 for (col, _) in receptor_instances.iter().enumerate() {
                     if col < ctx.receptor_bind_groups.len() {
-                        let is_pressed = engine.keys_held.get(col).copied().unwrap_or(false);
+                        // Utilisation du snapshot pour l'état des touches
+                        let is_pressed = snapshot.keys_held.get(col).copied().unwrap_or(false);
 
                         let bind_group =
                             if is_pressed && col < ctx.receptor_pressed_bind_groups.len() {

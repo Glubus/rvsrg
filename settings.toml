@@ -1,0 +1,38 @@
+master_volume = 0.6200000047683716
+scroll_speed = 450.0
+hit_window_mode = "EtternaJudge"
+hit_window_value = 3.8
+aspect_ratio_mode = "Auto"
+current_skin = "default"
+
+[keybinds]
+7 = [
+    "KeyS",
+    "KeyD",
+    "KeyF",
+    "Space",
+    "KeyJ",
+    "KeyK",
+    "KeyL",
+]
+4 = [
+    "KeyZ",
+    "KeyX",
+    "KeyC",
+    "KeyV",
+]
+6 = [
+    "KeyS",
+    "KeyD",
+    "KeyF",
+    "KeyJ",
+    "KeyK",
+    "KeyL",
+]
+5 = [
+    "KeyD",
+    "KeyF",
+    "Space",
+    "KeyJ",
+    "KeyK",
+]

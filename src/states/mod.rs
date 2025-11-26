@@ -3,8 +3,12 @@ mod menu;
 mod play;
 mod result;
 
+use crate::core::input::actions::KeyAction;
 use crate::database::DbManager;
 use crate::renderer::Renderer;
+use crate::shared::messages::MainToLogic;
+use std::sync::mpsc::Sender; // NOUVEAU
+
 pub use editor::EditorStateController;
 pub use menu::MenuStateController;
 pub use play::PlayStateController;
@@ -22,13 +26,21 @@ pub enum StateTransition {
 pub struct StateContext {
     renderer: Option<*mut Renderer>,
     db_manager: Option<*mut DbManager>,
+    // NOUVEAU : Canal pour parler au cerveau (Logic)
+    pub logic_tx: Option<Sender<MainToLogic>>, 
 }
 
 impl StateContext {
-    pub fn new(renderer: Option<*mut Renderer>, db_manager: Option<*mut DbManager>) -> Self {
+    // Mise à jour du constructeur
+    pub fn new(
+        renderer: Option<*mut Renderer>, 
+        db_manager: Option<*mut DbManager>,
+        logic_tx: Option<Sender<MainToLogic>>
+    ) -> Self {
         Self {
             renderer,
             db_manager,
+            logic_tx,
         }
     }
 
@@ -53,13 +65,25 @@ impl StateContext {
             None
         }
     }
+    
+    // NOUVEAU : Helper pour envoyer un message
+    pub fn send_to_logic(&self, msg: MainToLogic) {
+        if let Some(tx) = &self.logic_tx {
+            let _ = tx.send(msg);
+        }
+    }
 }
 
 pub trait GameState {
     fn on_enter(&mut self, _ctx: &mut StateContext) {}
     fn on_exit(&mut self, _ctx: &mut StateContext) {}
 
-    fn handle_input(&mut self, _event: &WindowEvent, _ctx: &mut StateContext) -> StateTransition {
+    fn handle_input(
+        &mut self,
+        _event: &WindowEvent,
+        _action: Option<KeyAction>,
+        _ctx: &mut StateContext,
+    ) -> StateTransition {
         StateTransition::None
     }
 

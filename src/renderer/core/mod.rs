@@ -1,7 +1,7 @@
-use crate::models::engine::{GameEngine, PixelSystem};
-use crate::models::menu::MenuState;
-use crate::models::settings::SettingsState;
+use crate::models::engine::PixelSystem;
 use crate::models::skin::Skin;
+use crate::models::settings::SettingsState;
+use crate::shared::snapshot::RenderState;
 use crate::views::components::menu::result_screen::ResultScreen;
 use crate::views::components::menu::song_select::SongSelectScreen;
 use crate::views::components::{
@@ -10,9 +10,9 @@ use crate::views::components::{
 use crate::views::gameplay::GameplayView;
 use egui_wgpu::Renderer as EguiRenderer;
 use egui_winit::State as EguiState;
-use std::sync::{Arc, Mutex};
 use std::time::Instant;
 use wgpu_text::TextBrush;
+use winit::keyboard::KeyCode;
 
 pub mod control;
 pub mod draw;
@@ -29,7 +29,9 @@ pub struct Renderer {
     pub(crate) receptor_pressed_bind_groups: Vec<wgpu::BindGroup>,
     pub(crate) instance_buffer: wgpu::Buffer,
     pub(crate) receptor_buffer: wgpu::Buffer,
-    pub engine: GameEngine,
+    
+    pub current_state: RenderState,
+
     pub(crate) text_brush: TextBrush,
     pub(crate) last_fps_update: Instant,
     pub(crate) fps: f64,
@@ -42,7 +44,7 @@ pub struct Renderer {
     pub(crate) combo_display: ComboDisplay,
     pub(crate) judgement_flash: JudgementFlash,
     pub(crate) hit_bar: HitBarDisplay,
-    pub menu_state: Arc<Mutex<MenuState>>,
+    
     pub(crate) background_texture: Option<wgpu::Texture>,
     pub(crate) background_bind_group: Option<wgpu::BindGroup>,
     pub(crate) background_pipeline: Option<wgpu::RenderPipeline>,
@@ -54,6 +56,10 @@ pub struct Renderer {
     pub(crate) egui_state: EguiState,
     pub(crate) egui_renderer: EguiRenderer,
     pub settings: SettingsState,
+    
+    // Stockage de la dernière touche physique pressée pour le remapping
+    pub last_key_pressed: Option<KeyCode>,
+    
     pub editor_status_text: Option<String>,
     pub editor_values_text: Option<String>,
     pub(crate) leaderboard_scores_loaded: bool,
@@ -65,4 +71,3 @@ pub struct Renderer {
     pub(crate) difficulty_button_texture: Option<egui::TextureHandle>,
     pub(crate) difficulty_button_selected_texture: Option<egui::TextureHandle>,
 }
-impl Renderer {}

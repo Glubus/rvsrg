@@ -4,7 +4,7 @@ use crate::models::stats::HitStats;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct GameResultData {
     pub hit_stats: HitStats,
     pub replay_data: ReplayData,
@@ -16,7 +16,7 @@ pub struct GameResultData {
     pub judge_text: String,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct MenuState {
     pub beatmapsets: Vec<(Beatmapset, Vec<Beatmap>)>,
     pub start_index: usize,
@@ -27,9 +27,11 @@ pub struct MenuState {
     pub in_menu: bool,
     pub in_editor: bool,
     pub show_result: bool,
+    // NOUVEAU : Source de vérité pour l'affichage des settings
+    pub show_settings: bool, 
     pub rate: f64,
     pub last_result: Option<GameResultData>,
-    pub should_close_result: bool, // Nouveau champ pour le signal de fermeture
+    pub should_close_result: bool,
 }
 
 impl MenuState {
@@ -44,6 +46,7 @@ impl MenuState {
             in_menu: true,
             in_editor: false,
             show_result: false,
+            show_settings: false, // Par défaut fermé
             rate: 1.0,
             last_result: None,
             should_close_result: false,

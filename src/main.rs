@@ -1,8 +1,11 @@
 mod app;
+mod core;    // NOUVEAU
 mod database;
+mod logic;   // NOUVEAU
 mod models;
 mod renderer;
 mod shaders;
+mod shared;  // NOUVEAU
 mod states;
 mod views;
 
@@ -12,17 +15,16 @@ use winit::event_loop::{ControlFlow, EventLoop};
 fn main() {
     env_logger::init();
 
-    // Créer un runtime tokio global pour les opérations async
-    // On doit le garder en vie pendant toute la durée de l'application
+    // Créer un runtime tokio global pour les opérations async (Database, etc.)
     let rt = tokio::runtime::Runtime::new().unwrap();
     let _enter = rt.enter(); // Entrer dans le contexte du runtime
 
     let event_loop = EventLoop::new().unwrap();
-    event_loop.set_control_flow(ControlFlow::Poll); // Pour un jeu, on veut Poll (max FPS)
+    // Pour un jeu de rythme, Poll est essentiel pour une latence minimale
+    event_loop.set_control_flow(ControlFlow::Poll); 
 
     let mut app = App::new();
 
-    // Winit 0.30 utilise run_app
-    // Le runtime tokio reste actif grâce à rt qui n'est pas drop
+    // Winit 0.30 lance l'application
     let _ = event_loop.run_app(&mut app);
 }

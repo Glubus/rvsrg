@@ -1,7 +1,7 @@
 use rosu_map::section::hit_objects::{HitObject, HitObjectKind};
 use std::path::PathBuf;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct NoteData {
     pub timestamp_ms: f64,
     pub column: usize,

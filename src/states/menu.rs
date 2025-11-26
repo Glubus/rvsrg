@@ -1,8 +1,9 @@
-use super::{EditorStateController, GameState, PlayStateController, StateContext, StateTransition};
+use super::{GameState, PlayStateController, StateContext, StateTransition};
+use crate::core::input::actions::{KeyAction, UIAction};
 use crate::models::menu::MenuState;
+use crate::shared::messages::MainToLogic; // NOUVEAU
 use std::sync::{Arc, Mutex};
-use winit::event::{ElementState, KeyEvent, WindowEvent};
-use winit::keyboard::{KeyCode, PhysicalKey};
+use winit::event::WindowEvent;
 
 pub struct MenuStateController {
     menu_state: Arc<Mutex<MenuState>>,
@@ -22,11 +23,8 @@ impl MenuStateController {
         }
     }
 
-    fn trigger_rescan(&self, ctx: &mut StateContext) {
-        let _ = ctx.with_db_manager(|db| db.rescan());
-    }
-
-    fn load_selected_map(&self, ctx: &mut StateContext, is_editor: bool) -> bool {
+    // NOUVEAU : On envoie juste le chemin, la logique se débrouille pour charger
+    fn request_load_map(&self, ctx: &mut StateContext, is_editor: bool) -> bool {
         let map_path = {
             if let Ok(state) = self.menu_state.lock() {
                 state.get_selected_beatmap_path()
@@ -36,16 +34,8 @@ impl MenuStateController {
         };
 
         if let Some(path) = map_path {
-            let loaded = ctx
-                .with_renderer(|renderer| {
-                    if let Ok(mut menu_state) = self.menu_state.lock() {
-                        menu_state.in_menu = false;
-                        menu_state.in_editor = is_editor; // On définit le mode ici
-                    }
-                    renderer.load_map(path);
-                })
-                .is_some();
-            return loaded;
+            ctx.send_to_logic(MainToLogic::LoadMap { path, is_editor });
+            return true; // On assume que ça va charger
         }
         false
     }
@@ -57,90 +47,39 @@ impl GameState for MenuStateController {
             state.in_menu = true;
             state.in_editor = false;
         });
-
+        
+        // Reset visuel local (optionnel, le snapshot écrasera ça vite)
         ctx.with_renderer(|renderer| {
             renderer.leaderboard_scores_loaded = false;
             renderer.current_leaderboard_hash = None;
         });
     }
 
-    fn handle_input(&mut self, event: &WindowEvent, ctx: &mut StateContext) -> StateTransition {
-        if let WindowEvent::KeyboardInput {
-            event:
-                KeyEvent {
-                    state: ElementState::Pressed,
-                    physical_key: PhysicalKey::Code(key_code),
-                    repeat,
-                    ..
-                },
-            ..
-        } = event
-        {
-            if *repeat {
-                return StateTransition::None;
-            }
-
-            match key_code {
-                // MODIFICATION : Escape ne quitte plus le jeu
-                KeyCode::Escape => {
-                    // return StateTransition::Exit; // DÉSACTIVÉ
-                }
-                KeyCode::F8 => {
-                    self.trigger_rescan(ctx);
-                }
-                KeyCode::ArrowUp => {
-                    self.with_menu_state(|state| state.move_up());
-                    ctx.with_renderer(|renderer| {
-                        renderer.leaderboard_scores_loaded = false;
-                        renderer.current_leaderboard_hash = None;
-                    });
-                }
-                KeyCode::ArrowDown => {
-                    self.with_menu_state(|state| state.move_down());
-                    ctx.with_renderer(|renderer| {
-                        renderer.leaderboard_scores_loaded = false;
-                        renderer.current_leaderboard_hash = None;
-                    });
-                }
-                KeyCode::ArrowLeft => {
-                    self.with_menu_state(|state| state.previous_difficulty());
-                    ctx.with_renderer(|renderer| {
-                        renderer.leaderboard_scores_loaded = false;
-                        renderer.current_leaderboard_hash = None;
-                    });
-                }
-                KeyCode::ArrowRight => {
-                    self.with_menu_state(|state| state.next_difficulty());
-                    ctx.with_renderer(|renderer| {
-                        renderer.leaderboard_scores_loaded = false;
-                        renderer.current_leaderboard_hash = None;
-                    });
-                }
-                // PLAY MODE
-                KeyCode::Enter | KeyCode::NumpadEnter => {
-                    if self.load_selected_map(ctx, false) {
+    fn handle_input(
+        &mut self,
+        _event: &WindowEvent,
+        action: Option<KeyAction>,
+        ctx: &mut StateContext,
+    ) -> StateTransition {
+        // La logique reçoit déjà les inputs via App.
+        // Ici on gère UNIQUEMENT les transitions d'état locales (Main Thread).
+        
+        if let Some(KeyAction::UI(action)) = action {
+            match action {
+                UIAction::Select => {
+                    if self.request_load_map(ctx, false) {
+                        // On passe en PlayState. Note : PlayState n'a plus de logique lourde.
                         return StateTransition::Replace(Box::new(PlayStateController::new(
                             Arc::clone(&self.menu_state),
                         )));
                     }
                 }
-                // EDITOR MODE (Touche E)
-                KeyCode::KeyE => {
-                    if self.load_selected_map(ctx, true) {
-                        return StateTransition::Replace(Box::new(EditorStateController::new(
-                            Arc::clone(&self.menu_state),
-                        )));
-                    }
-                }
-                KeyCode::PageUp => {
-                    self.with_menu_state(|state| state.increase_rate());
-                }
-                KeyCode::PageDown => {
-                    self.with_menu_state(|state| state.decrease_rate());
-                }
                 _ => {}
             }
         }
+        
+        // Le thread logique met à jour MenuState, le Renderer l'affiche.
+        // On laisse le MenuStateController minimaliste.
         StateTransition::None
     }
 }

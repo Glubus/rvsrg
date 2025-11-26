@@ -9,7 +9,6 @@ use egui::{Color32, Direction, Label, RichText, TextureId};
 use egui_extras::{Size, StripBuilder};
 use image::DynamicImage;
 use md5::Digest;
-use std::sync::{Arc, Mutex};
 use wgpu::TextureView;
 use winit::dpi::PhysicalSize;
 
@@ -17,6 +16,7 @@ use crate::models::menu::MenuState;
 use crate::views::components::menu::song_select::beatmap_info::BeatmapInfo;
 use crate::views::components::menu::song_select::leaderboard::{Leaderboard, ScoreCard};
 use crate::views::components::menu::song_select::song_list::SongList;
+use crate::core::input::actions::UIAction;
 
 pub struct CurrentBackground {
     pub image: DynamicImage,
@@ -24,7 +24,6 @@ pub struct CurrentBackground {
 }
 
 pub struct SongSelectScreen {
-    menu_state: Arc<Mutex<MenuState>>,
     song_list: SongList,
     leaderboard: Leaderboard,
     beatmap_info: BeatmapInfo,
@@ -33,10 +32,9 @@ pub struct SongSelectScreen {
 }
 
 impl SongSelectScreen {
-    pub fn new(menu_state: Arc<Mutex<MenuState>>) -> Self {
+    pub fn new() -> Self {
         Self {
-            menu_state: Arc::clone(&menu_state),
-            song_list: SongList::new(Arc::clone(&menu_state)),
+            song_list: SongList::new(),
             leaderboard: Leaderboard::new(),
             beatmap_info: BeatmapInfo::new(),
             current_background_image: None,
@@ -49,11 +47,11 @@ impl SongSelectScreen {
     }
 
     pub fn increment_beatmap(&mut self) {
-        self.song_list.increment();
+        // self.song_list.increment();
     }
 
     pub fn decrement_beatmap(&mut self) {
-        self.song_list.decrement();
+        // self.song_list.decrement();
     }
 
     pub fn set_background(&mut self, image: DynamicImage, md5: Digest) {
@@ -93,6 +91,7 @@ impl SongSelectScreen {
     pub fn render(
         &mut self,
         ctx: &egui::Context,
+        menu_state: &MenuState, // Immutable
         _view: &TextureView,
         _screen_width: f32,
         _screen_height: f32,
@@ -103,12 +102,12 @@ impl SongSelectScreen {
         btn_sel_tex: Option<TextureId>,
         diff_tex: Option<TextureId>,
         diff_sel_tex: Option<TextureId>,
-        song_sel_color: Color32, // Couleur 1
-        diff_sel_color: Color32, // Couleur 2
-    ) {
-        if let Ok(state) = self.menu_state.lock() {
-            self.song_list.set_current(state.selected_index);
-        }
+        song_sel_color: Color32,
+        diff_sel_color: Color32,
+    ) -> Option<UIAction> {
+        self.song_list.set_current(menu_state.selected_index);
+        
+        let mut action_triggered = None;
 
         egui::CentralPanel::default()
             .frame(egui::Frame::NONE)
@@ -120,17 +119,12 @@ impl SongSelectScreen {
                     .horizontal(|mut strip| {
                         strip.cell(|ui| {
                             let (beatmapset, beatmap, rate, diff_name) = {
-                                if let Ok(state) = self.menu_state.lock() {
-                                    if let Some((bs, beatmaps)) =
-                                        state.beatmapsets.get(state.selected_index)
-                                    {
-                                        let bm = beatmaps.get(state.selected_difficulty_index);
-                                        let diff_name =
-                                            bm.and_then(|bm| bm.difficulty_name.clone());
-                                        (Some(bs.clone()), bm.cloned(), state.rate, diff_name)
-                                    } else {
-                                        (None, None, 1.0, None)
-                                    }
+                                if let Some((bs, beatmaps)) =
+                                    menu_state.beatmapsets.get(menu_state.selected_index)
+                                {
+                                    let bm = beatmaps.get(menu_state.selected_difficulty_index);
+                                    let diff_name = bm.and_then(|bm| bm.difficulty_name.clone());
+                                    (Some(bs.clone()), bm.cloned(), menu_state.rate, diff_name)
                                 } else {
                                     (None, None, 1.0, None)
                                 }
@@ -152,11 +146,8 @@ impl SongSelectScreen {
                                 self.leaderboard
                                     .render(ui, diff_name.as_deref(), hit_window);
 
-                            if let Some(result_data) = clicked_result {
-                                if let Ok(mut state) = self.menu_state.lock() {
-                                    state.last_result = Some(result_data);
-                                    state.show_result = true;
-                                }
+                            if let Some(_result_data) = clicked_result {
+                                // TODO: Action pour voir le replay
                             }
                         });
 
@@ -168,8 +159,10 @@ impl SongSelectScreen {
                                 .size(Size::relative(0.1))
                                 .vertical(|mut strip| {
                                     strip.cell(|ui| {
-                                        self.song_list.render(
+                                        // On propage l'action
+                                        action_triggered = self.song_list.render(
                                             ui,
+                                            menu_state,
                                             btn_tex,
                                             btn_sel_tex,
                                             diff_tex,
@@ -192,24 +185,22 @@ impl SongSelectScreen {
                                                 ui.set_height(
                                                     ui.available_rect_before_wrap().height(),
                                                 );
-                                                self.render_beatmap_footer(ui);
+                                                self.render_beatmap_footer(ui, menu_state);
                                             });
                                     })
                                 });
                         });
                     })
             });
+            
+        action_triggered
     }
 
-    fn render_beatmap_footer(&mut self, ui: &mut egui::Ui) {
+    fn render_beatmap_footer(&mut self, ui: &mut egui::Ui, menu_state: &MenuState) {
         ui.with_layout(
             egui::Layout::centered_and_justified(Direction::LeftToRight),
             |ui| {
-                let beatmap_count = if let Ok(state) = self.menu_state.lock() {
-                    state.beatmapsets.len()
-                } else {
-                    0
-                };
+                let beatmap_count = menu_state.beatmapsets.len();
                 let text = format!("Beatmaps: {}", beatmap_count);
                 ui.add(Label::new(RichText::new(text).heading()).selectable(false));
             },
