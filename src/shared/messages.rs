@@ -10,6 +10,9 @@ pub enum MainToLogic {
     Shutdown,
     LoadMap { path: PathBuf, is_editor: bool },
     EditorCommand(EditorCommand),
+    // AJOUT DES VARIANTES MANQUANTES
+    TransitionToResult(crate::models::menu::GameResultData),
+    TransitionToMenu,
 }
 
 #[derive(Debug)]
@@ -19,7 +22,6 @@ pub enum LogicToMain {
     ExitApp,
     TransitionToResult(crate::models::menu::GameResultData),
     TransitionToMenu,
-    // NOUVEAU : Le Logic demande au Main de changer d'écran
     TransitionToEditor, 
     ToggleSettings,     
 }

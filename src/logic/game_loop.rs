@@ -9,7 +9,6 @@ use crate::models::menu::MenuState;
 use crate::shared::messages::{LogicToMain, MainToLogic, EditorCommand};
 use crate::shared::snapshot::{RenderState};
 
-// NOUVEAU : Import des handlers
 use crate::logic::input::{InputContext, InputHandler};
 use crate::logic::input::menu::MenuInputHandler;
 use crate::logic::input::game::GameInputHandler;
@@ -27,7 +26,6 @@ pub struct LogicLoop {
     master_volume: f32,
     last_db_beatmap_count: usize,
     
-    // Instanciation des handlers
     menu_handler: MenuInputHandler,
     game_handler: GameInputHandler,
     editor_handler: EditorInputHandler,
@@ -42,7 +40,6 @@ impl LogicLoop {
                 game_engine: None,
                 master_volume: 0.5,
                 last_db_beatmap_count: 0,
-                // Initialisation simple
                 menu_handler: MenuInputHandler,
                 game_handler: GameInputHandler,
                 editor_handler: EditorInputHandler,
@@ -92,7 +89,6 @@ impl LogicLoop {
     fn handle_message(&mut self, msg: MainToLogic) -> bool {
         match msg {
             MainToLogic::Shutdown => return false,
-            // Appel du dispatch
             MainToLogic::Input(action) => self.process_input_with_handlers(action),
             MainToLogic::SettingsChanged => {}, 
             MainToLogic::Resize { .. } => {},
@@ -106,14 +102,35 @@ impl LogicLoop {
                 self.menu_state.in_editor = is_editor;
                 self.menu_state.show_settings = false;
             },
-            MainToLogic::EditorCommand(_) => {}
+            MainToLogic::EditorCommand(_) => {},
+            
+            // --- GESTION DES NOUVELLES VARIANTES ---
+            MainToLogic::TransitionToMenu => {
+                self.menu_state.in_menu = true;
+                self.menu_state.in_editor = false;
+                self.menu_state.show_result = false;
+                // On s'assure que le moteur de jeu est éteint
+                if let Some(engine) = &self.game_engine {
+                    engine.stop_audio();
+                }
+                self.game_engine = None;
+                
+                // On prévient l'App pour qu'elle change l'écran (GameState)
+                let _ = self.tx.send(LogicToMain::TransitionToMenu);
+            },
+            MainToLogic::TransitionToResult(data) => {
+                self.menu_state.in_menu = true;
+                self.menu_state.show_result = true;
+                self.menu_state.last_result = Some(data.clone());
+                
+                // On prévient l'App pour qu'elle change l'écran (GameState)
+                let _ = self.tx.send(LogicToMain::TransitionToResult(data));
+            }
         }
         true
     }
 
-    // NOUVEAU : Méthode de dispatch propre
     fn process_input_with_handlers(&mut self, action: KeyAction) {
-        // On prépare le contexte
         let mut ctx = InputContext {
             menu_state: &mut self.menu_state,
             game_engine: &mut self.game_engine,
@@ -121,8 +138,6 @@ impl LogicLoop {
             tx: &self.tx,
         };
 
-        // On choisit le bon handler selon l'état
-        // L'ordre des conditions est important : Editor > Menu (car in_menu = false en editor)
         let consumed = if ctx.menu_state.in_editor {
             self.editor_handler.handle(action, &mut ctx)
         } else if ctx.menu_state.in_menu {
@@ -133,7 +148,6 @@ impl LogicLoop {
 
         if !consumed {
             // Debug: Input non géré
-            // println!("Input ignoré : {:?}", action);
         }
     }
 
@@ -151,9 +165,19 @@ impl LogicLoop {
                     rate: engine.rate,
                     judge_text: "Judge".to_string(),
                 };
+                
+                // Sauvegarde du replay si possible (asynchrone, on lance juste)
+                // Note: Ici on n'attend pas la DB, c'est fait en background via db_manager normalement
+                // ou on pourrait le faire ici si on avait accès au Runtime Tokio.
+                // Pour l'instant, on se contente de la transition.
+                
                 engine.stop_audio();
                 self.game_engine = None;
+                
                 self.menu_state.in_menu = true;
+                self.menu_state.show_result = true;
+                self.menu_state.last_result = Some(result_data.clone());
+                
                 let _ = self.tx.send(LogicToMain::TransitionToResult(result_data));
             }
         }

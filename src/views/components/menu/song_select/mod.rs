@@ -12,7 +12,7 @@ use md5::Digest;
 use wgpu::TextureView;
 use winit::dpi::PhysicalSize;
 
-use crate::models::menu::MenuState;
+use crate::models::menu::{MenuState, GameResultData}; // Ajout de GameResultData
 use crate::views::components::menu::song_select::beatmap_info::BeatmapInfo;
 use crate::views::components::menu::song_select::leaderboard::{Leaderboard, ScoreCard};
 use crate::views::components::menu::song_select::song_list::SongList;
@@ -88,6 +88,7 @@ impl SongSelectScreen {
 
     pub fn on_resize(&mut self, _new_size: &PhysicalSize<u32>) {}
 
+    // Signature modifiée pour retourner aussi GameResultData
     pub fn render(
         &mut self,
         ctx: &egui::Context,
@@ -104,10 +105,11 @@ impl SongSelectScreen {
         diff_sel_tex: Option<TextureId>,
         song_sel_color: Color32,
         diff_sel_color: Color32,
-    ) -> Option<UIAction> {
+    ) -> (Option<UIAction>, Option<GameResultData>) {
         self.song_list.set_current(menu_state.selected_index);
         
         let mut action_triggered = None;
+        let mut result_data_triggered = None;
 
         egui::CentralPanel::default()
             .frame(egui::Frame::NONE)
@@ -142,12 +144,13 @@ impl SongSelectScreen {
                                 ui.add_space(10.0);
                             }
 
+                            // On récupère le résultat du clic leaderboard
                             let clicked_result =
                                 self.leaderboard
                                     .render(ui, diff_name.as_deref(), hit_window);
 
-                            if let Some(_result_data) = clicked_result {
-                                // TODO: Action pour voir le replay
+                            if let Some(result_data) = clicked_result {
+                                result_data_triggered = Some(result_data);
                             }
                         });
 
@@ -193,7 +196,7 @@ impl SongSelectScreen {
                     })
             });
             
-        action_triggered
+        (action_triggered, result_data_triggered)
     }
 
     fn render_beatmap_footer(&mut self, ui: &mut egui::Ui, menu_state: &MenuState) {

@@ -74,7 +74,10 @@ impl Renderer {
                         crate::models::settings::HitWindowMode::EtternaJudge => crate::models::engine::hit_window::HitWindow::from_etterna_judge(hit_window_value as u8),
                     };
                     if let Some(ref mut screen) = self.result_screen {
-                        screen.render(ctx, data, &current_hit_window);
+                        let should_close = screen.render(ctx, data, &current_hit_window);
+                        if should_close {
+                             ui_messages.push(MainToLogic::TransitionToMenu);
+                        }
                     }
                 },
                 RenderState::Menu(menu_state) => {
@@ -84,12 +87,43 @@ impl Renderer {
                         crate::models::settings::HitWindowMode::OsuOD => crate::models::engine::hit_window::HitWindow::from_osu_od(hit_window_value),
                         crate::models::settings::HitWindowMode::EtternaJudge => crate::models::engine::hit_window::HitWindow::from_etterna_judge(hit_window_value as u8),
                     };
-                    if let Some(ref mut song_select) = self.song_select_screen {
-                         let action_opt = song_select.render(ctx, menu_state, view, self.config.width as f32, self.config.height as f32, &current_hit_window, hit_window_mode, hit_window_value, btn_tex, btn_sel_tex, diff_tex, diff_sel_tex, song_selected_color, difficulty_selected_color);
-                         
-                         if let Some(action) = action_opt {
-                             ui_messages.push(MainToLogic::Input(KeyAction::UI(action)));
-                         }
+
+                    // Vérification : Doit-on afficher le résultat ou le menu standard ?
+                    if menu_state.show_result {
+                        if let Some(result_data) = &menu_state.last_result {
+                            if self.result_screen.is_none() {
+                                self.result_screen = Some(crate::views::components::menu::result_screen::ResultScreen::new());
+                            }
+                            if let Some(ref mut screen) = self.result_screen {
+                                // Afficher l'écran de résultat
+                                let should_close = screen.render(ctx, result_data, &current_hit_window);
+                                if should_close {
+                                    // Demander à la logique de fermer le résultat (retour menu standard)
+                                    ui_messages.push(MainToLogic::TransitionToMenu);
+                                }
+                            }
+                        }
+                    } else {
+                        // Affichage standard du Song Select
+                        if let Some(ref mut song_select) = self.song_select_screen {
+                             // On récupère maintenant un tuple (Action UI, Données Resultat si clic leaderboard)
+                             let (action_opt, result_opt) = song_select.render(
+                                ctx, menu_state, view, 
+                                self.config.width as f32, self.config.height as f32, 
+                                &current_hit_window, hit_window_mode, hit_window_value, 
+                                btn_tex, btn_sel_tex, diff_tex, diff_sel_tex, 
+                                song_selected_color, difficulty_selected_color
+                             );
+                             
+                             if let Some(action) = action_opt {
+                                 ui_messages.push(MainToLogic::Input(KeyAction::UI(action)));
+                             }
+                             
+                             // Si on a cliqué sur un score dans le leaderboard
+                             if let Some(result_data) = result_opt {
+                                 ui_messages.push(MainToLogic::TransitionToResult(result_data));
+                             }
+                        }
                     }
                 },
                 _ => {
