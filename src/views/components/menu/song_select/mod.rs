@@ -143,6 +143,16 @@ impl SongSelectScreen {
                                 }
                             };
 
+                            if let Some(bm) = beatmap.as_ref() {
+                                self.refresh_leaderboard(
+                                    menu_state,
+                                    &bm.beatmap.hash,
+                                    bm.beatmap.note_count as usize,
+                                );
+                            } else {
+                                self.leaderboard.update_scores(Vec::new());
+                            }
+
                             if let Some(bs) = &beatmapset {
                                 let rate_specific_ratings = beatmap.as_ref().and_then(|bm| {
                                     menu_state.get_cached_ratings_for(&bm.beatmap.hash, rate)
@@ -232,5 +242,23 @@ impl SongSelectScreen {
                 ui.add(Label::new(RichText::new(text).heading()).selectable(false));
             },
         );
+    }
+
+    fn refresh_leaderboard(
+        &mut self,
+        menu_state: &MenuState,
+        beatmap_hash: &str,
+        total_notes: usize,
+    ) {
+        if menu_state.leaderboard_hash.as_deref() == Some(beatmap_hash) {
+            let cards = menu_state
+                .leaderboard_scores
+                .iter()
+                .filter_map(|replay| ScoreCard::from_replay(replay, total_notes))
+                .collect();
+            self.leaderboard.update_scores(cards);
+        } else {
+            self.leaderboard.update_scores(Vec::new());
+        }
     }
 }

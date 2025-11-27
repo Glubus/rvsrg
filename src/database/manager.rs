@@ -1,5 +1,5 @@
 use crate::database::connection::Database;
-use crate::database::models::{BeatmapWithRatings, Beatmapset};
+use crate::database::models::{BeatmapWithRatings, Beatmapset, Replay};
 use crate::database::query::{clear_all, get_all_beatmapsets};
 use crate::database::scanner::scan_songs_directory;
 use crate::models::search::MenuSearchFilters;
@@ -24,6 +24,9 @@ pub struct DbState {
     pub beatmapsets: Vec<(Beatmapset, Vec<BeatmapWithRatings>)>,
     pub error: Option<String>,
     pub version: u64,
+    pub leaderboard: Vec<Replay>,
+    pub leaderboard_hash: Option<String>,
+    pub leaderboard_version: u64,
 }
 
 impl DbState {
@@ -33,8 +36,22 @@ impl DbState {
             beatmapsets: Vec::new(),
             error: None,
             version: 0,
+            leaderboard: Vec::new(),
+            leaderboard_hash: None,
+            leaderboard_version: 0,
         }
     }
+}
+
+#[derive(Debug, Clone)]
+pub struct SaveReplayCommand {
+    pub beatmap_hash: String,
+    pub timestamp: i64,
+    pub score: i32,
+    pub accuracy: f64,
+    pub max_combo: i32,
+    pub rate: f64,
+    pub data: String,
 }
 
 #[derive(Debug)]
@@ -43,6 +60,8 @@ pub enum DbCommand {
     Load,
     Rescan,
     Search(MenuSearchFilters),
+    SaveReplay(SaveReplayCommand),
+    FetchLeaderboard(String),
     Shutdown,
 }
 
@@ -123,6 +142,16 @@ impl DbManager {
                         Self::search_maps(&state, d, filters).await;
                     }
                 }
+                Ok(DbCommand::SaveReplay(payload)) => {
+                    if let Some(ref d) = db {
+                        Self::persist_replay(&state, d, payload).await;
+                    }
+                }
+                Ok(DbCommand::FetchLeaderboard(hash)) => {
+                    if let Some(ref d) = db {
+                        Self::load_leaderboard(&state, d, &hash).await;
+                    }
+                }
                 Ok(DbCommand::Shutdown) => {
                     break;
                 }
@@ -154,6 +183,9 @@ impl DbManager {
                 s.status = DbStatus::Idle;
                 s.error = None;
                 s.version = s.version.wrapping_add(1);
+                s.leaderboard.clear();
+                s.leaderboard_hash = None;
+                s.leaderboard_version = s.leaderboard_version.wrapping_add(1);
             }
             Err(e) => {
                 let mut s = state.lock().unwrap();
@@ -215,11 +247,58 @@ impl DbManager {
                 s.status = DbStatus::Idle;
                 s.error = None;
                 s.version = s.version.wrapping_add(1);
+                s.leaderboard.clear();
+                s.leaderboard_hash = None;
+                s.leaderboard_version = s.leaderboard_version.wrapping_add(1);
             }
             Err(e) => {
                 let mut s = state.lock().unwrap();
                 s.status = DbStatus::Error(format!("Search error: {}", e));
                 s.error = Some(format!("{}", e));
+            }
+        }
+    }
+
+    async fn persist_replay(
+        state: &Arc<Mutex<DbState>>,
+        db: &Database,
+        payload: SaveReplayCommand,
+    ) {
+        match db
+            .insert_replay(
+                &payload.beatmap_hash,
+                payload.timestamp,
+                payload.score,
+                payload.accuracy,
+                payload.max_combo,
+                payload.rate,
+                &payload.data,
+            )
+            .await
+        {
+            Ok(_) => {
+                Self::load_leaderboard(state, db, &payload.beatmap_hash).await;
+            }
+            Err(e) => {
+                log::error!(
+                    "DB: failed to insert replay for {}: {}",
+                    payload.beatmap_hash,
+                    e
+                );
+            }
+        }
+    }
+
+    async fn load_leaderboard(state: &Arc<Mutex<DbState>>, db: &Database, beatmap_hash: &str) {
+        match db.get_replays_for_beatmap(beatmap_hash).await {
+            Ok(replays) => {
+                let mut s = state.lock().unwrap();
+                s.leaderboard = replays;
+                s.leaderboard_hash = Some(beatmap_hash.to_string());
+                s.leaderboard_version = s.leaderboard_version.wrapping_add(1);
+            }
+            Err(e) => {
+                log::error!("DB: failed to load leaderboard for {}: {}", beatmap_hash, e);
             }
         }
     }
@@ -249,5 +328,13 @@ impl DbManager {
 
     pub fn search(&self, filters: MenuSearchFilters) {
         let _ = self.send_command(DbCommand::Search(filters));
+    }
+
+    pub fn save_replay(&self, payload: SaveReplayCommand) {
+        let _ = self.send_command(DbCommand::SaveReplay(payload));
+    }
+
+    pub fn fetch_leaderboard(&self, beatmap_hash: &str) {
+        let _ = self.send_command(DbCommand::FetchLeaderboard(beatmap_hash.to_string()));
     }
 }

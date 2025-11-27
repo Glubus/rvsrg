@@ -30,16 +30,19 @@ pub struct GameEngine {
     pub hit_window: HitWindow,
 
     pub replay_data: ReplayData,
+    pub beatmap_hash: Option<String>,
+    started_audio: bool,
 }
 
 impl GameEngine {
-    pub fn new(map_path: PathBuf, rate: f64) -> Self {
+    const PRE_ROLL_MS: f64 = 3000.0;
+
+    pub fn new(map_path: PathBuf, rate: f64, beatmap_hash: Option<String>) -> Self {
         let (audio_path, chart) = load_map(map_path);
 
         let mut audio_manager = AudioManager::new();
         audio_manager.load_music(&audio_path);
         audio_manager.set_speed(rate as f32);
-        audio_manager.play();
 
         Self {
             chart,
@@ -53,11 +56,13 @@ impl GameEngine {
             last_hit_timing: None,
             last_hit_judgement: None,
             audio_manager,
-            audio_clock: 0.0,
+            audio_clock: -Self::PRE_ROLL_MS,
+            replay_data: ReplayData::new(),
+            beatmap_hash,
+            started_audio: false,
             rate,
             scroll_speed_ms: 500.0,
             hit_window: HitWindow::new(),
-            replay_data: ReplayData::new(),
         }
     }
 
@@ -65,14 +70,23 @@ impl GameEngine {
         // 1. Avancer l'horloge lisse
         self.audio_clock += dt_seconds * 1000.0 * self.rate;
 
+        if !self.started_audio {
+            if self.audio_clock >= 0.0 {
+                self.audio_manager.play();
+                self.started_audio = true;
+            } else {
+                return;
+            }
+        }
+
         // 2. Synchronisation
         let raw_audio_time = self.audio_manager.get_position_seconds() * 1000.0;
         let drift = raw_audio_time - self.audio_clock;
 
-        if drift.abs() > 100.0 {
+        if drift.abs() > 80.0 {
             self.audio_clock = raw_audio_time;
-        } else if drift > 10.0 {
-            self.audio_clock += drift * 0.1;
+        } else if drift.abs() > 5.0 {
+            self.audio_clock += drift * 0.35;
         }
 
         let current_time = self.audio_clock;

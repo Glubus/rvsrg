@@ -1,3 +1,4 @@
+use crate::database::models::Replay;
 use crate::database::{BeatmapRating, BeatmapWithRatings, Beatmapset, Database};
 use crate::difficulty;
 use crate::models::replay::ReplayData;
@@ -37,6 +38,8 @@ pub struct MenuState {
     pub should_close_result: bool,
     pub rate_cache: HashMap<String, RateCacheEntry>,
     pub search_filters: MenuSearchFilters,
+    pub leaderboard_scores: Vec<Replay>,
+    pub leaderboard_hash: Option<String>,
 }
 
 impl MenuState {
@@ -57,6 +60,8 @@ impl MenuState {
             should_close_result: false,
             rate_cache: HashMap::new(),
             search_filters: MenuSearchFilters::default(),
+            leaderboard_scores: Vec::new(),
+            leaderboard_hash: None,
         }
     }
 
@@ -162,6 +167,8 @@ impl MenuState {
             state.rate_cache.clear();
             state.rate = 1.0;
             state.search_filters = MenuSearchFilters::default();
+            state.leaderboard_scores.clear();
+            state.leaderboard_hash = None;
         }
         Ok(())
     }
@@ -268,6 +275,11 @@ impl MenuState {
     pub fn get_selected_beatmap_hash(&self) -> Option<String> {
         self.get_selected_beatmap()
             .map(|bm| bm.beatmap.hash.clone())
+    }
+
+    pub fn set_leaderboard(&mut self, hash: Option<String>, scores: Vec<Replay>) {
+        self.leaderboard_hash = hash;
+        self.leaderboard_scores = scores;
     }
 }
 
