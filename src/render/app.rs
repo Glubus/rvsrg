@@ -96,7 +96,7 @@ impl ApplicationHandler for App {
             }
             WindowEvent::RedrawRequested => {
                 if let Some(_window) = self.window.as_ref() {
-                    // Mise à jour de l'état depuis la logique
+                    // Apply the latest state snapshot from the logic thread.
                     if let Some(snapshot) = self.bus.render_rx.try_iter().last() {
                         if let Some(renderer) = self.renderer.as_mut() {
                             renderer.update_state(snapshot);

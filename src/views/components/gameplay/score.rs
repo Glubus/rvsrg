@@ -1,8 +1,11 @@
+//! Simple score label shown during gameplay.
+
 use wgpu_text::glyph_brush::{Section, Text};
 
 pub struct ScoreDisplay {
     position: (f32, f32),
-    text_size: f32, // Nouveau
+    /// Configurable text size.
+    text_size: f32,
     current_score: u32,
     score_text: String,
 }

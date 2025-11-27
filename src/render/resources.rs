@@ -365,16 +365,16 @@ impl RenderResources {
         res
     }
 
-    // LA MÉTHODE MANQUANTE QUI PROVOQUAIT L'ERREUR
+    // Helper that previously lived out-of-line, now embedded to avoid linker issues.
     pub fn apply_skin_config(&mut self, screen_width: f32, screen_height: f32) {
-        // Même implémentation que précédemment, mais incluse dans le fichier
+        // Same implementation as before, just included directly here.
         self.update_component_positions(screen_width, screen_height);
     }
 
     pub fn update_component_positions(&mut self, screen_width: f32, screen_height: f32) {
         let config = &self.skin.config;
 
-        // 1. Mise à jour Playfield
+        // 1. Update playfield assets.
         let pf = self.gameplay_view.playfield_component_mut();
         pf.config.note_width_pixels = config.note_width_px;
         pf.config.note_height_pixels = config.note_height_px;
@@ -398,7 +398,7 @@ impl RenderResources {
         pf.config.x_offset_pixels = x_offset;
         pf.config.y_offset_pixels = playfield_offset_y;
 
-        // 2. Mise à jour HUD
+        // 2. Update HUD resources.
         let default_combo_y = (screen_height / 2.0) - 80.0;
         let default_score_x = playfield_center_x + (playfield_width_px / 2.0) + 120.0;
         let default_score_y = screen_height * 0.05;

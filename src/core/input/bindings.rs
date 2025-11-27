@@ -40,14 +40,13 @@ impl KeyBindings {
     }
 
     pub fn apply_column_bindings(&mut self, column_count: usize) {
-        // On nettoie seulement les actions de HIT/RELEASE
         self.game_binds
             .retain(|_, action| !matches!(action, GameAction::Hit(_) | GameAction::Release(_)));
 
         if let Some(keys) = self.column_maps.get(&column_count) {
             for (i, &keycode) in keys.iter().enumerate() {
-                // Si l'utilisateur bind une touche qui était déjà prise (ex: 'E'), ça l'écrase ici.
-                // C'est le comportement voulu pour le jeu, mais c'est pour ça qu'on a ajouté F2 en backup.
+                // If a user rebinds a key already in use (e.g. 'E'), overwrite it here.
+                // That's intentional for gameplay, hence the F2 safety fallback.
                 self.game_binds.insert(keycode, GameAction::Hit(i));
             }
         }
@@ -77,10 +76,10 @@ impl KeyBindings {
         self.game_binds
             .insert(KeyCode::F12, GameAction::IncreaseNoteSize);
 
-        // KeyE est le raccourci standard
+        // KeyE is the default shortcut.
         self.game_binds
             .insert(KeyCode::KeyE, GameAction::ToggleEditor);
-        // F2 est le raccourci de secours (si E est bindé)
+        // F2 serves as the backup shortcut if E is remapped.
         self.game_binds
             .insert(KeyCode::F2, GameAction::ToggleEditor);
     }
@@ -96,7 +95,7 @@ impl KeyBindings {
         map.insert(KeyCode::Escape, UIAction::Back);
         map.insert(KeyCode::PageUp, UIAction::TabNext);
         map.insert(KeyCode::PageDown, UIAction::TabPrev);
-        // F12 est aussi utilisé pour Screenshot dans certains contextes
+        // F12 is also used for screenshots in some contexts.
         // map.insert(KeyCode::F12, UIAction::Screenshot);
         map
     }

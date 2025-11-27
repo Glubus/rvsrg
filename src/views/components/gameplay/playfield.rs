@@ -1,3 +1,5 @@
+//! Generates mesh instances for notes, receptors and HUD playfield elements.
+
 use crate::models::engine::{
     HIT_LINE_Y, InstanceRaw, NUM_COLUMNS, NoteData, PixelSystem, PlayfieldConfig, VISIBLE_DISTANCE,
 };
@@ -20,7 +22,7 @@ impl PlayfieldDisplay {
     pub fn get_bounds(&self, pixel_system: &PixelSystem) -> (f32, f32) {
         let total_width_px = self.get_total_width_pixels();
         let width_norm = pixel_system.x_pixels_to_normalized(total_width_px);
-        let x = -width_norm / 2.0; // Centré
+        let x = -width_norm / 2.0; // Center align
         (x, width_norm)
     }
 
@@ -34,14 +36,14 @@ impl PlayfieldDisplay {
     ) -> Vec<(usize, InstanceRaw)> {
         let (playfield_left_x, _) = self.get_bounds(pixel_system);
 
-        // Conversion pixels -> normalisé GPU
+        // Convert pixel coordinates to normalized device coordinates.
         let column_width_norm =
             pixel_system.x_pixels_to_normalized(self.config.column_width_pixels);
         let spacing_norm = pixel_system.x_pixels_to_normalized(self.config.receptor_spacing_pixels);
         let note_width_norm = pixel_system.x_pixels_to_normalized(self.config.note_width_pixels);
         let note_height_norm = pixel_system.y_pixels_to_normalized(self.config.note_height_pixels);
 
-        // Offsets globaux (ex: config pour déplacer le playfield)
+        // Apply global offsets (e.g. config-driven playfield shift).
         let x_offset_norm = pixel_system.x_pixels_to_normalized(self.config.x_offset_pixels);
         let y_offset_norm = pixel_system.y_pixels_to_normalized(self.config.y_offset_pixels);
 
@@ -52,7 +54,7 @@ impl PlayfieldDisplay {
                 continue;
             }
 
-            // Physique de défilement : Distance = Temps / Vitesse
+            // Scroll physics: distance = time / speed.
             let time_to_hit = note.timestamp_ms - song_time;
             let progress = time_to_hit / scroll_speed_ms; // 0 = sur la ligne, 1 = en haut
 
@@ -75,7 +77,7 @@ impl PlayfieldDisplay {
         instances
     }
 
-    /// Génère les instances pour les récepteurs fixes (en bas)
+    /// Generates instances for the fixed receptors at the bottom of the lane.
     pub fn render_receptors(&self, pixel_system: &PixelSystem) -> Vec<InstanceRaw> {
         let (playfield_left_x, _) = self.get_bounds(pixel_system);
 

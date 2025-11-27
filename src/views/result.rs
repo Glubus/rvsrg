@@ -37,7 +37,7 @@ impl ResultView {
         max_combo: u32,
         hit_window: &crate::models::engine::hit_window::HitWindow,
     ) -> Result<(), SurfaceError> {
-        // Créer les quads pour le background et les panneaux
+        // Build quads for the background and panels.
         let mut quads = Vec::new();
 
         // Panneau gauche (stats)
@@ -120,7 +120,7 @@ impl ResultView {
             queue.submit(std::iter::once(encoder.finish()));
         }
 
-        // Créer les sections de texte
+        // Generate text sections.
         let mut text_sections = Vec::new();
 
         // Titre
@@ -135,7 +135,7 @@ impl ResultView {
             ..Default::default()
         });
 
-        // Stats à gauche
+        // Left-hand stats column.
         let left_x = 40.0;
         let mut y = 120.0;
 
@@ -236,7 +236,7 @@ impl ResultView {
             (Judgement::Miss, hit_stats.miss, [1.0, 0.0, 0.0, 1.0]),
         ];
 
-        // Stocker les labels dans un Vec pour éviter les problèmes de lifetime
+        // Store labels in a Vec to keep lifetimes simple.
         let mut judgement_labels = Vec::new();
         for (judgement, count, _) in judgements.iter() {
             let label = format!("{:?}: {}", judgement, count);
@@ -257,7 +257,7 @@ impl ResultView {
             y += 35.0;
         }
 
-        // Graphique à droite
+        // Graph on the right.
         let graph_area_x = graph_x + 20.0;
         let graph_area_y = 40.0;
         let graph_area_width = graph_width - 40.0;
@@ -272,7 +272,7 @@ impl ResultView {
             replay_data,
         );
         
-        // Info sur les points (créer la Section ici pour éviter les problèmes de lifetime)
+        // Configure point labels (building Section here avoids lifetime juggling).
         let hits_text = format!("{} hits recorded", replay_data.hits.len());
         let graph_y = graph_area_y + 50.0;
         let graph_height = graph_area_height - 100.0;
@@ -367,7 +367,7 @@ impl ResultView {
         let graph_height = height - 100.0;
         let graph_padding = 40.0;
 
-        // Légende des axes
+        // Axis legend.
         text_sections.push(Section {
             screen_position: (x, graph_y + graph_height + 10.0),
             bounds: (width, height),
@@ -391,7 +391,7 @@ impl ResultView {
         });
     }
 
-    /// Crée les quads pour le graphe de timing
+    /// Creates quads for the timing graph background.
     pub fn create_graph_quads(
         &self,
         x: f32,
@@ -418,8 +418,7 @@ impl ResultView {
             return quads;
         }
 
-        // Dédupliquer les hits par note_index (garder seulement le premier hit pour chaque note)
-        // Cela évite d'afficher plusieurs points pour la même note
+        // Deduplicate hits per note_index (keep the earliest) to avoid duplicate points.
         use std::collections::HashMap;
         let mut unique_hits: HashMap<usize, &crate::models::replay::ReplayHit> = HashMap::new();
         for hit in &replay_data.hits {
@@ -427,7 +426,7 @@ impl ResultView {
         }
         let deduplicated_hits: Vec<_> = unique_hits.values().cloned().collect();
 
-        // Trouver les valeurs min/max pour normaliser (utiliser note_index pour la position X)
+        // Find min/max indices to normalize the X axis using note_index.
         let (min_time, max_time) = deduplicated_hits.iter().fold(
             (deduplicated_hits[0].note_index, deduplicated_hits[0].note_index),
             |(min, max), hit| {
@@ -435,11 +434,11 @@ impl ResultView {
             },
         );
 
-        let timing_range = 200.0; // -100ms à +100ms
+        let timing_range = 200.0; // Covers -100ms to +100ms.
         let timing_min = -timing_range;
         let timing_max = timing_range;
 
-        // Ligne centrale (timing = 0)
+        // Draw the center line representing 0 ms offset.
         let center_y = graph_y + graph_height / 2.0;
         quads.push(quad_from_rect(
             graph_x,
@@ -451,7 +450,7 @@ impl ResultView {
             self.screen_height,
         ));
 
-        // Couleurs pour les jugements - utiliser les mêmes seuils que HitWindow
+        // Colors for each judgement, matching the HitWindow thresholds.
         let get_color_for_timing = |timing: f64| -> [f32; 4] {
             let abs_timing = timing.abs();
             if abs_timing <= hit_window.marv_ms {
@@ -469,11 +468,11 @@ impl ResultView {
             }
         };
 
-        // Dessiner chaque point du graphe (utiliser les hits dédupliqués)
+        // Render each point using the deduplicated hits.
         let point_size = 3.0;
         
         for hit in &deduplicated_hits {
-            // Normaliser la position X (temps)
+            // Normalize X position (time axis).
             let time_ratio = if max_time > min_time {
                 (hit.note_index - min_time) as f32 / (max_time - min_time) as f32
             } else {
@@ -481,7 +480,7 @@ impl ResultView {
             };
             let point_x = graph_x + time_ratio * graph_width;
 
-            // Normaliser la position Y (timing)
+            // Normalize Y position (timing offset).
             let timing_ratio = ((hit.timing_ms - timing_min) / (timing_max - timing_min)) as f32;
             let timing_ratio = timing_ratio.clamp(0.0, 1.0);
             let point_y = graph_y + (1.0 - timing_ratio) * graph_height;

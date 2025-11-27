@@ -1,7 +1,10 @@
+//! Canvas-based graphs for the result screen (histogram + timeline).
+
 use crate::models::engine::hit_window::HitWindow;
 use crate::models::replay::ReplayData;
 use egui::{Align2, Color32, FontId, Painter, Pos2, Rect, Stroke, Ui, Vec2};
 
+/// Renders both histogram and timeline graphs for a replay.
 pub fn render_graphs(ui: &mut Ui, replay_data: &ReplayData, hit_window: &HitWindow) {
     ui.vertical(|ui| {
         ui.label(egui::RichText::new("Hit Deviation Distribution").strong());
@@ -26,6 +29,7 @@ pub fn render_graphs(ui: &mut Ui, replay_data: &ReplayData, hit_window: &HitWind
     });
 }
 
+/// Draws the hit deviation histogram centered around zero.
 fn render_hit_histogram(
     painter: &Painter,
     rect: &Rect,
@@ -108,6 +112,7 @@ fn render_hit_histogram(
     );
 }
 
+/// Draws the per-note timeline of hit offsets.
 fn render_timeline_graph(
     painter: &Painter,
     rect: &Rect,

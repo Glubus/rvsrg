@@ -1,3 +1,5 @@
+//! Song select UI: beatmap carousel, leaderboard, and metadata panels.
+
 pub(super) mod beatmap_info;
 pub(super) mod difficulty_card;
 pub(super) mod leaderboard;
@@ -14,18 +16,20 @@ use wgpu::TextureView;
 use winit::dpi::PhysicalSize;
 
 use crate::core::input::actions::UIAction;
-use crate::models::menu::{GameResultData, MenuState}; // Ajout de GameResultData
+use crate::models::menu::{GameResultData, MenuState};
 use crate::models::search::MenuSearchFilters;
 use crate::views::components::menu::song_select::beatmap_info::BeatmapInfo;
 use crate::views::components::menu::song_select::leaderboard::{Leaderboard, ScoreCard};
 use crate::views::components::menu::song_select::search_panel::{SearchPanel, SearchPanelEvent};
 use crate::views::components::menu::song_select::song_list::SongList;
 
+/// Cached background image for the currently highlighted beatmapset.
 pub struct CurrentBackground {
     pub image: DynamicImage,
     pub image_hash: md5::Digest,
 }
 
+/// High-level song select layout orchestrating list, info pane, and leaderboard.
 pub struct SongSelectScreen {
     song_list: SongList,
     leaderboard: Leaderboard,
@@ -93,7 +97,7 @@ impl SongSelectScreen {
 
     pub fn on_resize(&mut self, _new_size: &PhysicalSize<u32>) {}
 
-    // Signature modifiée pour retourner aussi GameResultData
+    // Signature extended to optionally bubble up GameResultData.
     pub fn render(
         &mut self,
         ctx: &egui::Context,
@@ -169,7 +173,7 @@ impl SongSelectScreen {
                                 ui.add_space(10.0);
                             }
 
-                            // On récupère le résultat du clic leaderboard
+                            // Capture the leaderboard click result if any.
                             let clicked_result =
                                 self.leaderboard
                                     .render(ui, diff_name.as_deref(), hit_window);

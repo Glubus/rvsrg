@@ -1,3 +1,5 @@
+//! Data structures mirroring the SQLite tables.
+
 use sqlx::FromRow;
 
 #[derive(Debug, Clone, FromRow)]
@@ -11,7 +13,7 @@ pub struct Beatmapset {
 
 #[derive(Debug, Clone, FromRow)]
 pub struct Beatmap {
-    pub hash: String, // MD5 hash comme clé primaire
+    pub hash: String, // MD5 hash acting as primary key
     pub beatmapset_id: i64,
     pub path: String,
     pub difficulty_name: Option<String>,
@@ -50,11 +52,11 @@ impl BeatmapWithRatings {
 #[derive(Debug, Clone, FromRow)]
 pub struct Replay {
     pub hash: String,
-    pub beatmap_hash: String, // Référence vers beatmap.hash
-    pub timestamp: i64,       // Timestamp Unix de la partie
+    pub beatmap_hash: String, // Reference to beatmap.hash
+    pub timestamp: i64,       // Unix timestamp recorded at completion
     pub score: i32,
     pub accuracy: f64,
     pub max_combo: i32,
-    pub rate: f64,    // Rate de la partie (1.0 = normal, 1.5 = 1.5x, etc.)
-    pub data: String, // JSON ou autre format pour les données de replay
+    pub rate: f64,    // Playback rate (1.0 = normal, 1.5 = 1.5x, etc.)
+    pub data: String, // JSON or other encoded replay payload
 }

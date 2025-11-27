@@ -72,7 +72,7 @@ impl EditorStateController {
         } else {
             self.current_target = Some(target);
             self.current_mode = match target {
-                // Certains éléments comme Notes ont du sens à être redimensionnés par défaut
+                // Some targets (e.g. Notes) default to resize mode.
                 EditTarget::Notes | EditTarget::Receptors | EditTarget::HitBar => EditMode::Resize,
                 _ => EditMode::Move,
             };
@@ -90,9 +90,9 @@ impl EditorStateController {
                 0.0
             } else {
                 2.0
-            }; // Bloquer si settings ouverts (sécurité)
+            }; // Block input while settings are open for safety.
 
-            // Logique de modification selon le target
+            // Apply modifications depending on the selected target.
             match (target, self.current_mode) {
                 (EditTarget::Notes, EditMode::Resize) => {
                     config.note_width_px += dx * speed;
@@ -103,7 +103,7 @@ impl EditorStateController {
                     config.receptor_height_px += dy * speed;
                 }
 
-                // Déplacement générique
+                // Generic translation handler.
                 (_, EditMode::Move) => {
                     let pos_opt = match target {
                         EditTarget::Notes | EditTarget::Lanes | EditTarget::Receptors => {
@@ -123,7 +123,7 @@ impl EditorStateController {
                     p.y += dy * speed;
                 }
 
-                // Resize Text
+                // Resize text overlays.
                 (EditTarget::Combo, EditMode::Resize) => config.combo_text_size += dy * speed,
                 (EditTarget::Score, EditMode::Resize) => config.score_text_size += dy * speed,
                 (EditTarget::Accuracy, EditMode::Resize) => config.accuracy_text_size += dy * speed,
@@ -135,7 +135,7 @@ impl EditorStateController {
                 _ => {}
             }
 
-            // Important : Mise à jour des positions réelles à l'écran
+            // Important: update the real on-screen positions.
             renderer.resources.update_component_positions(
                 renderer.ctx.config.width as f32,
                 renderer.ctx.config.height as f32,
@@ -158,24 +158,22 @@ impl GameState for EditorStateController {
         action: Option<KeyAction>,
         ctx: &mut StateContext,
     ) -> StateTransition {
-        // 1. Gestion des Actions mappées (Flèches, Back)
+        // 1. Handle mapped actions (arrows, Back, etc.).
         if let Some(KeyAction::UI(ui_action)) = action {
             match ui_action {
-                // On inverse DY pour UIAction::Up car dans le repère écran, Up = Y négatif souvent,
-                // mais pour l'utilisateur "Monter" = augmenter Y ou diminuer Y selon la convention.
-                // Ici on fait : Haut = -Y, Bas = +Y.
+                // Invert dy for UIAction::Up because screen coordinates use negative Y for up.
                 UIAction::Up => self.apply_change(ctx, 0.0, -1.0),
                 UIAction::Down => self.apply_change(ctx, 0.0, 1.0),
                 UIAction::Left => self.apply_change(ctx, -1.0, 0.0),
                 UIAction::Right => self.apply_change(ctx, 1.0, 0.0),
 
                 UIAction::Back => {
-                    // Quitter proprement
+                    // Cleanly exit the editor overlay.
                     ctx.with_renderer(|r| {
                         r.resources.editor_status_text = None;
                         r.resources.editor_values_text = None;
                     });
-                    // On signale au logic de revenir au menu
+                    // Notify the logic thread to return to the menu.
                     ctx.send_to_logic(MainToLogic::Input(KeyAction::UI(UIAction::Back)));
                     return StateTransition::Replace(Box::new(MenuStateController::new(
                         Arc::clone(&self.menu_state),
@@ -185,7 +183,7 @@ impl GameState for EditorStateController {
             }
         }
 
-        // 2. Gestion des Touches Brutes pour la sélection
+        // 2. Handle raw key presses for selection shortcuts.
         if let WindowEvent::KeyboardInput {
             event:
                 KeyEvent {
@@ -232,7 +230,7 @@ impl GameState for EditorStateController {
                 renderer.resources.editor_status_text =
                     Some(format!("EDIT: {} [{}]", target, mode_copy));
 
-                // CORRECTION : On lit et formate les vraies valeurs
+                // Format the live values for the selected component.
                 let values_str = match target {
                     EditTarget::Notes => format!(
                         "W: {:.1} H: {:.1}",

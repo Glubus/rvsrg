@@ -1,3 +1,5 @@
+//! Entry point for the logic thread (input handling, ticking, DB sync).
+
 pub mod audio;
 pub mod engine;
 pub mod state;
@@ -16,9 +18,9 @@ pub fn start_thread(bus: SystemBus, db_manager: DbManager) {
         .spawn(move || {
             log::info!("LOGIC: Thread started");
 
-            // 1. Connexion DB
+            // 1. Initialize the database connection.
             db_manager.init();
-            // 2. Force Rescan au démarrage pour peupler la DB
+            // 2. Force a rescan at startup to populate the DB.
             db_manager.rescan();
 
             let input_cmd_tx = bus.input_cmd_tx.clone();
@@ -29,12 +31,12 @@ pub fn start_thread(bus: SystemBus, db_manager: DbManager) {
             let target_dt = Duration::from_secs_f64(1.0 / TPS as f64);
 
             loop {
-                // 1. Inputs
+                // 1. Consume input actions.
                 while let Ok(action) = bus.action_rx.try_recv() {
                     state.handle_action(action);
                 }
 
-                // 2. Système
+                // 2. Process system events.
                 while let Ok(sys_evt) = bus.sys_rx.try_recv() {
                     match sys_evt {
                         SystemEvent::Quit => {
@@ -49,7 +51,7 @@ pub fn start_thread(bus: SystemBus, db_manager: DbManager) {
                     }
                 }
 
-                // 3. Physique
+                // 3. Fixed-step simulation.
                 let current_time = Instant::now();
                 let delta = current_time - last_time;
                 last_time = current_time;
@@ -62,7 +64,7 @@ pub fn start_thread(bus: SystemBus, db_manager: DbManager) {
                     loops += 1;
                 }
 
-                // 4. Rendu
+                // 4. Produce a render snapshot.
                 let snapshot = state.create_snapshot();
                 let _ = bus.render_tx.try_send(snapshot);
                 state.frame_end();

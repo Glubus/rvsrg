@@ -1,9 +1,10 @@
+//! Displays judgement panels, combo text, and the center flash overlay.
 use crate::models::stats::{HitStats, Judgement, JudgementColors};
 use wgpu_text::glyph_brush::{Section, Text};
 
 pub struct JudgementPanel {
     position: (f32, f32),
-    text_size: f32, // Nouveau
+    text_size: f32,
     colors: JudgementColors,
     judgement_lines: [String; 7],
     remaining_text: String,
@@ -79,7 +80,7 @@ impl JudgementPanel {
             y += spacing;
         }
 
-        // Info extra
+        // Display remaining notes and scroll speed underneath the judgement list.
         self.remaining_text = format!("Notes: {}", remaining_notes);
         sections.push(Section {
             screen_position: (x, y),
@@ -109,7 +110,7 @@ impl JudgementPanel {
     }
 }
 
-// Judgement Flash (Texte qui pop au milieu)
+// Judgement flash text displayed at the center.
 pub struct JudgementFlash {
     position: (f32, f32),
     text_buffer: String,
@@ -124,8 +125,7 @@ impl JudgementFlash {
     pub fn set_position(&mut self, x: f32, y: f32) {
         self.position = (x, y);
     }
-    // On n'a pas ajouté de config size spécifique pour le flash, mais on pourrait.
-    // Pour l'instant, on laisse hardcodé ou lié au combo.
+    // No dedicated config for the flash size yet; currently tied to combo scale.
     pub fn render(
         &mut self,
         last_judgement: Option<Judgement>,
@@ -145,7 +145,7 @@ impl JudgementFlash {
             Judgement::GhostTap => ("Ghost Tap", [0.5, 0.5, 0.5, 1.0]),
         };
         let scale_ratio = screen_height / 1080.0;
-        let font_scale = 48.0 * scale_ratio; // Taille par défaut un peu grosse
+        let font_scale = 48.0 * scale_ratio; // Slightly larger default size.
         self.text_buffer.clear();
         self.text_buffer.push_str(label);
         let text_width = self.text_buffer.len() as f32 * 0.6 * font_scale;

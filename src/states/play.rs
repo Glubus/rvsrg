@@ -1,7 +1,7 @@
 use super::{GameState, StateContext, StateTransition};
 use crate::core::input::actions::{KeyAction, UIAction};
 use crate::models::menu::MenuState;
-use crate::shared::messages::MainToLogic; // NOUVEAU
+use crate::shared::messages::MainToLogic; // Hook into logic thread signaling
 use std::sync::{Arc, Mutex};
 use winit::event::WindowEvent;
 
@@ -17,7 +17,7 @@ impl PlayStateController {
 
 impl GameState for PlayStateController {
     fn on_enter(&mut self, _ctx: &mut StateContext) {
-        // On signale juste qu'on est plus dans le menu (pour l'UI)
+        // Mark that we are no longer in the menu so the UI can react.
         if let Ok(mut state) = self.menu_state.lock() {
             state.in_menu = false;
         }
@@ -29,24 +29,24 @@ impl GameState for PlayStateController {
         action: Option<KeyAction>,
         ctx: &mut StateContext,
     ) -> StateTransition {
-        // Les inputs de jeu (Hit, etc.) sont envoyés directement au Logic Thread par App.
-        // On ne gère ici que la sortie forcée (Echap).
+        // Gameplay inputs (Hit, etc.) go straight to the logic thread via App.
+        // This layer only cares about forced exits (Escape).
 
         if let Some(KeyAction::UI(UIAction::Back)) = action {
-            // Demander au moteur de s'arrêter
+            // Ask the logic thread to stop the engine.
             ctx.send_to_logic(MainToLogic::Input(KeyAction::UI(UIAction::Back)));
 
-            // Revenir au menu (le state visuel suivra via le snapshot)
-            // Note : App gère la transition si Logic renvoie TransitionToMenu,
-            // mais on peut forcer ici pour réactivité immédiate de l'UI.
-            // Pour l'instant, on laisse Logic gérer le shutdown audio.
+            // Move back to the menu (the visual state will follow the snapshot).
+            // App handles transitions when logic sends TransitionToMenu, but we can
+            // preemptively request it for faster UI feedback. Logic keeps owning the
+            // audio shutdown for now.
         }
         StateTransition::None
     }
 
     fn update(&mut self, _ctx: &mut StateContext) -> StateTransition {
-        // Plus de logique ici !
-        // La transition vers ResultScreen se fera via un message reçu dans App
+        // Nothing to do each frame here—the logic thread drives the flow.
+        // Transition to the result screen happens via a message from App.
         StateTransition::None
     }
 }

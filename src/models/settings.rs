@@ -24,7 +24,7 @@ pub struct SettingsState {
     pub aspect_ratio_mode: AspectRatioMode,
     pub current_skin: String,
 
-    // CORRECTION : Les clés TOML doivent être des Strings
+    // Keys stored inside TOML are Strings.
     pub keybinds: HashMap<String, Vec<String>>,
 
     #[serde(skip)]

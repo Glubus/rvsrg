@@ -8,6 +8,7 @@ use crate::models::stats::{HitStats, Judgement};
 use crate::shared::snapshot::GameplaySnapshot;
 use std::path::PathBuf;
 
+/// Core gameplay runtime handling timing, scoring, and replay capture.
 pub struct GameEngine {
     pub chart: Vec<NoteData>,
     pub head_index: usize,
@@ -37,6 +38,7 @@ pub struct GameEngine {
 impl GameEngine {
     const PRE_ROLL_MS: f64 = 3000.0;
 
+    /// Loads a beatmap, audio, and initializes runtime state.
     pub fn new(map_path: PathBuf, rate: f64, beatmap_hash: Option<String>) -> Self {
         let (audio_path, chart) = load_map(map_path);
 
@@ -66,8 +68,9 @@ impl GameEngine {
         }
     }
 
+    /// Advances the simulation, handles drift correction, and marks misses.
     pub fn update(&mut self, dt_seconds: f64) {
-        // 1. Avancer l'horloge lisse
+        // 1. Advance the smoothed clock.
         self.audio_clock += dt_seconds * 1000.0 * self.rate;
 
         if !self.started_audio {
@@ -79,7 +82,7 @@ impl GameEngine {
             }
         }
 
-        // 2. Synchronisation
+        // 2. Re-synchronize with the audio device if we drifted.
         let raw_audio_time = self.audio_manager.get_position_seconds() * 1000.0;
         let drift = raw_audio_time - self.audio_clock;
 
@@ -91,31 +94,31 @@ impl GameEngine {
 
         let current_time = self.audio_clock;
 
-        // --- Gestion des Miss ---
+        // --- Miss handling ---
         let miss_threshold = self.hit_window.miss_ms;
         let mut new_head = self.head_index;
 
         while new_head < self.chart.len() {
-            // CORRECTION : On ne prend pas de référence mutable 'note' ici qui bloquerait 'self'
-            // On vérifie juste si la note est déjà touchée
+            // FIX: avoid taking a mutable ref to note that would lock `self`.
+            // Only check whether the note has already been hit.
             if self.chart[new_head].hit {
                 new_head += 1;
                 continue;
             }
 
-            // On copie le timestamp (c'est un f64, c'est léger)
+            // Copy the timestamp locally (f64 is cheap).
             let note_timestamp = self.chart[new_head].timestamp_ms;
 
             if current_time > (note_timestamp + miss_threshold) {
-                // La note est manquée. On modifie 'self' séquentiellement sans conflit.
+                // Note missed; mutate `self` sequentially.
 
-                // 1. Marquer comme hit
+                // 1. Flag it as processed.
                 self.chart[new_head].hit = true;
 
-                // 2. Appliquer le jugement (emprunte self)
+                // 2. Apply the judgement (mutates self).
                 self.apply_judgement(Judgement::Miss);
 
-                // 3. Ajouter au replay (emprunte self)
+                // 3. Add the event to the replay (mutates self).
                 self.replay_data
                     .add_hit(new_head, (note_timestamp - current_time) / self.rate);
 
@@ -127,6 +130,7 @@ impl GameEngine {
         self.head_index = new_head;
     }
 
+    /// Applies a user action (tap/release/etc.) to the engine.
     pub fn handle_input(&mut self, action: GameAction) {
         match action {
             GameAction::Hit { column } => {
@@ -145,13 +149,14 @@ impl GameEngine {
         }
     }
 
+    /// Finds the best matching note for a tap and applies the resulting judgement.
     fn process_hit(&mut self, column: usize) {
         let current_time = self.audio_clock;
         let mut best_note_idx = None;
         let mut min_diff = f64::MAX;
         let search_limit = current_time + self.hit_window.miss_ms;
 
-        // Ici on itère avec une référence immuable, c'est ok car on ne modifie rien dans la boucle
+        // Iterate with an immutable borrow; nothing mutates inside the loop.
         for (i, note) in self.chart.iter().enumerate().skip(self.head_index) {
             if note.timestamp_ms > search_limit {
                 break;
@@ -165,7 +170,7 @@ impl GameEngine {
             }
         }
 
-        // Une fois la boucle finie, l'emprunt immuable est terminé. On peut modifier self.
+        // Once the loop ends the borrow is over; we can mutate self.
         if let Some(idx) = best_note_idx {
             let diff = self.chart[idx].timestamp_ms - current_time;
             let (judgement, _) = self.hit_window.judge(diff);
@@ -183,6 +188,7 @@ impl GameEngine {
         }
     }
 
+    /// Mutates score/combo/stats for the supplied judgement.
     fn apply_judgement(&mut self, j: Judgement) {
         match j {
             Judgement::Miss => {
@@ -230,6 +236,7 @@ impl GameEngine {
         true
     }
 
+    /// Captures a render-ready snapshot (playfield notes + HUD stats).
     pub fn get_snapshot(&self) -> GameplaySnapshot {
         let effective_speed = self.scroll_speed_ms * self.rate;
         let max_visible_time = self.audio_clock + effective_speed;
@@ -260,6 +267,7 @@ impl GameEngine {
         }
     }
 
+    /// Applies user settings to rebuild the active hit window thresholds.
     pub fn update_hit_window(&mut self, mode: crate::models::settings::HitWindowMode, value: f64) {
         self.hit_window = match mode {
             crate::models::settings::HitWindowMode::OsuOD => HitWindow::from_osu_od(value),

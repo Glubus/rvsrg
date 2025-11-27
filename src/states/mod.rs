@@ -1,3 +1,5 @@
+//! Runtime state machine orchestration for menus, gameplay, editor and result screens.
+
 mod editor;
 mod menu;
 mod play;
@@ -7,7 +9,7 @@ use crate::core::input::actions::KeyAction;
 use crate::database::DbManager;
 use crate::render::renderer::Renderer;
 use crate::shared::messages::MainToLogic;
-use std::sync::mpsc::Sender; // NOUVEAU
+use std::sync::mpsc::Sender; // Channel to talk to the logic thread
 
 pub use editor::EditorStateController;
 pub use menu::MenuStateController;
@@ -26,12 +28,12 @@ pub enum StateTransition {
 pub struct StateContext {
     renderer: Option<*mut Renderer>,
     db_manager: Option<*mut DbManager>,
-    // NOUVEAU : Canal pour parler au cerveau (Logic)
+    // Channel used to forward events to the logic brain.
     pub logic_tx: Option<Sender<MainToLogic>>,
 }
 
 impl StateContext {
-    // Mise à jour du constructeur
+    // Updated constructor to inject new dependencies.
     pub fn new(
         renderer: Option<*mut Renderer>,
         db_manager: Option<*mut DbManager>,
@@ -66,7 +68,7 @@ impl StateContext {
         }
     }
 
-    // NOUVEAU : Helper pour envoyer un message
+    // Convenience helper to forward a message to the logic thread.
     pub fn send_to_logic(&self, msg: MainToLogic) {
         if let Some(tx) = &self.logic_tx {
             let _ = tx.send(msg);

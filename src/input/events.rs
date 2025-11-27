@@ -45,7 +45,7 @@ pub enum EditorTarget {
     Lanes,
 }
 
-// NOUVEAU : Le mode d'édition
+// Editor mode toggles between resize/move behaviors.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EditMode {
     Resize,
@@ -68,17 +68,17 @@ pub enum GameAction {
     Release { column: usize },
     Restart,
 
-    // Système / UI
+    // System / UI
     TogglePause,
     Back,
     Confirm,
     Navigation { x: i32, y: i32 },
 
-    // Souris
+    // Mouse interactions
     SetSelection(usize),
     SetDifficulty(usize),
 
-    // Onglets / Settings
+    // Tabs / Settings
     TabNext,
     TabPrev,
     ToggleSettings,

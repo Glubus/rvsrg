@@ -1,25 +1,26 @@
+//! Serializable replay structures and helpers.
 use serde::{Deserialize, Serialize};
 
-/// Représente un hit sur une note
+/// Represents a hit on a specific note.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ReplayHit {
-    pub note_index: usize, // Numéro de la note dans l'ordre
-    pub timing_ms: f64,    // Distance en ms (peut être négatif si en avance)
+    pub note_index: usize, // Sequential note index
+    pub timing_ms: f64,    // Offset in ms (negative means early)
 }
 
-/// Représente une pression standard de l'utilisateur (touche pressée sans note)
+/// Represents a raw key press (no specific note).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ReplayKeyPress {
-    pub timestamp_ms: f64, // Temps absolu en ms depuis le début
-    pub column: usize,     // Colonne pressée
+    pub timestamp_ms: f64, // Absolute time in ms since song start
+    pub column: usize,     // Column index
 }
 
-/// Structure complète d'un replay
+/// Full replay payload including hits and key presses.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ReplayData {
-    pub hits: Vec<ReplayHit>,             // Tous les hits dans l'ordre
-    pub key_presses: Vec<ReplayKeyPress>, // Toutes les pressions standard
-    pub hit_stats: Option<crate::models::stats::HitStats>, // Stats de hits pour affichage rapide
+    pub hits: Vec<ReplayHit>,             // Hits in chronological order
+    pub key_presses: Vec<ReplayKeyPress>, // Raw key presses
+    pub hit_stats: Option<crate::models::stats::HitStats>, // Cached stats for fast display
 }
 
 impl ReplayData {
@@ -36,7 +37,7 @@ impl ReplayData {
         self
     }
 
-    /// Ajoute un hit au replay
+    /// Appends a hit to the replay.
     pub fn add_hit(&mut self, note_index: usize, timing_ms: f64) {
         self.hits.push(ReplayHit {
             note_index,
@@ -44,7 +45,7 @@ impl ReplayData {
         });
     }
 
-    /// Ajoute une pression de touche standard
+    /// Appends a raw key press entry.
     pub fn add_key_press(&mut self, timestamp_ms: f64, column: usize) {
         self.key_presses.push(ReplayKeyPress {
             timestamp_ms,
@@ -52,12 +53,12 @@ impl ReplayData {
         });
     }
 
-    /// Sérialise en JSON
+    /// Serializes to JSON.
     pub fn to_json(&self) -> Result<String, serde_json::Error> {
         serde_json::to_string(self)
     }
 
-    /// Désérialise depuis JSON
+    /// Deserializes from JSON.
     pub fn from_json(json: &str) -> Result<Self, serde_json::Error> {
         serde_json::from_str(json)
     }
@@ -69,15 +70,15 @@ impl Default for ReplayData {
     }
 }
 
-/// Recalcule les hit_stats et l'accuracy en utilisant la hit window actuelle
+/// Recomputes hit stats and accuracy using the provided hit window.
 ///
 /// # Arguments
-/// * `replay_data` - Les données du replay avec les timings des hits
-/// * `total_notes` - Le nombre total de notes dans la map
-/// * `hit_window` - La hit window actuelle à utiliser pour rejuger
+/// * `replay_data` - Replay payload containing hit timings
+/// * `total_notes` - Total number of notes in the chart
+/// * `hit_window` - Hit window configuration used for rejudging
 ///
 /// # Returns
-/// Un tuple (HitStats, accuracy)
+/// `(HitStats, accuracy_percentage)`
 pub fn recalculate_accuracy_with_hit_window(
     replay_data: &ReplayData,
     total_notes: usize,
@@ -87,13 +88,12 @@ pub fn recalculate_accuracy_with_hit_window(
 
     let mut stats = HitStats::new();
 
-    // Créer un set des notes qui ont été hit
+    // Track which notes were hit.
     let mut hit_notes = std::collections::HashSet::new();
     for hit in &replay_data.hits {
         hit_notes.insert(hit.note_index);
 
-        // Rejuger avec la nouvelle hit window
-        // Le timing_ms est déjà normalisé (divisé par le rate lors de la sauvegarde)
+        // Rejudge using the new hit window (timing_ms is already rate-normalized).
         let (judgement, _) = hit_window.judge(hit.timing_ms);
 
         match judgement {
@@ -107,7 +107,7 @@ pub fn recalculate_accuracy_with_hit_window(
         }
     }
 
-    // Les notes non hit sont des miss
+    // Notes never hit count as misses.
     for note_index in 0..total_notes {
         if !hit_notes.contains(&note_index) {
             stats.miss += 1;

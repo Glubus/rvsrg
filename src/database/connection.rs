@@ -1,3 +1,5 @@
+//! Database connection helpers built on top of sqlx/SQLite.
+
 use crate::database::models::{BeatmapRating, BeatmapWithRatings, Beatmapset};
 use crate::database::query;
 use sqlx::{SqlitePool, sqlite::SqliteConnectOptions};
@@ -14,9 +16,9 @@ pub struct Database {
 }
 
 impl Database {
-    /// Ouvre ou crée la base de données
+    /// Opens (or creates) the SQLite database file.
     pub async fn new(db_path: &Path) -> Result<Self, sqlx::Error> {
-        // S'assurer que le répertoire parent existe
+        // Ensure the parent directory exists.
         if let Some(parent) = db_path.parent() {
             if !parent.exists() {
                 if let Err(e) = std::fs::create_dir_all(parent) {
@@ -28,18 +30,17 @@ impl Database {
             }
         }
 
-        // Pour sqlx avec SQLite, convertir le chemin en chemin absolu
+        // sqlx prefers absolute paths for SQLite.
         let absolute_path = if db_path.is_absolute() {
             db_path.to_path_buf()
         } else {
-            // Convertir en chemin absolu depuis le répertoire de travail courant
+            // Derive an absolute path from the current working directory.
             std::env::current_dir()
                 .unwrap_or_else(|_| PathBuf::from("."))
                 .join(db_path)
         };
 
-        // Utiliser SqliteConnectOptions directement avec le chemin du fichier
-        // create_if_missing(true) crée automatiquement le fichier s'il n'existe pas
+        // Use SqliteConnectOptions directly on the resolved file path and auto-create.
         let options = SqliteConnectOptions::new()
             .filename(&absolute_path)
             .create_if_missing(true);
@@ -50,7 +51,7 @@ impl Database {
         Ok(db)
     }
 
-    /// Initialise les tables si elles n'existent pas
+    /// Creates missing tables by replaying the embedded migrations.
     async fn init_schema(&self) -> Result<(), sqlx::Error> {
         for migration in [
             MIGRATION_CREATE_BEATMAPSET,
@@ -64,17 +65,17 @@ impl Database {
         Ok(())
     }
 
-    /// Retourne une référence au pool pour les requêtes
+    /// Returns the underlying sqlx connection pool.
     pub fn pool(&self) -> &SqlitePool {
         &self.pool
     }
 
-    /// Vide toutes les tables (pour rescan)
+    /// Clears all tables (used during rescans).
     pub async fn clear_all(&self) -> Result<(), sqlx::Error> {
         query::clear_all(&self.pool).await
     }
 
-    /// Insère ou met à jour un beatmapset
+    /// Inserts or updates a beatmapset row.
     pub async fn insert_beatmapset(
         &self,
         path: &str,
@@ -85,7 +86,7 @@ impl Database {
         query::insert_beatmapset(&self.pool, path, image_path, artist, title).await
     }
 
-    /// Insère ou met à jour une beatmap
+    /// Inserts or updates a beatmap row.
     pub async fn insert_beatmap(
         &self,
         beatmapset_id: i64,
@@ -109,7 +110,7 @@ impl Database {
         .await
     }
 
-    /// Insère ou met à jour un rating pour une beatmap
+    /// Inserts or updates SR/ratings for a beatmap.
     pub async fn upsert_beatmap_rating(
         &self,
         beatmap_hash: &str,
@@ -139,7 +140,7 @@ impl Database {
         .await
     }
 
-    /// Récupère les ratings d'une beatmap
+    /// Fetches all ratings for a beatmap.
     pub async fn get_ratings_for_beatmap(
         &self,
         beatmap_hash: &str,
@@ -147,19 +148,19 @@ impl Database {
         query::get_ratings_for_beatmap(&self.pool, beatmap_hash).await
     }
 
-    /// Récupère tous les ratings
+    /// Fetches all ratings across every beatmap.
     pub async fn get_all_beatmap_ratings(&self) -> Result<Vec<BeatmapRating>, sqlx::Error> {
         query::get_all_beatmap_ratings(&self.pool).await
     }
 
-    /// Récupère tous les beatmapsets avec leurs beatmaps
+    /// Fetches every beatmapset together with their beatmaps.
     pub async fn get_all_beatmapsets(
         &self,
     ) -> Result<Vec<(Beatmapset, Vec<BeatmapWithRatings>)>, sqlx::Error> {
         query::get_all_beatmapsets(&self.pool).await
     }
 
-    /// Recherche des beatmapsets en fonction des filtres
+    /// Searches beatmapsets using the provided filters.
     pub async fn search_beatmapsets(
         &self,
         filters: &crate::models::search::MenuSearchFilters,
@@ -167,12 +168,12 @@ impl Database {
         query::search_beatmapsets(&self.pool, filters).await
     }
 
-    /// Compte le nombre total de beatmapsets
+    /// Counts beatmapsets in the database.
     pub async fn count_beatmapsets(&self) -> Result<i32, sqlx::Error> {
         query::count_beatmapsets(&self.pool).await
     }
 
-    /// Insère un replay
+    /// Persists a replay row.
     pub async fn insert_replay(
         &self,
         beatmap_hash: &str,
@@ -196,7 +197,7 @@ impl Database {
         .await
     }
 
-    /// Récupère tous les replays pour une beatmap
+    /// Retrieves all replays for a given beatmap hash.
     pub async fn get_replays_for_beatmap(
         &self,
         beatmap_hash: &str,
@@ -204,7 +205,7 @@ impl Database {
         query::get_replays_for_beatmap(&self.pool, beatmap_hash).await
     }
 
-    /// Récupère les meilleurs scores par accuracy
+    /// Retrieves the top scores ordered by accuracy.
     pub async fn get_top_scores(
         &self,
         limit: i32,

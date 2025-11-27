@@ -1,9 +1,12 @@
+//! Low-level helpers to draw gameplay layers, backgrounds, and UI snapshots.
+
 use crate::render::context::RenderContext;
 use crate::render::resources::RenderResources;
 use crate::shared::snapshot::{GameplaySnapshot, RenderState};
 use crate::views::context::GameplayRenderContext;
 use wgpu::{Color, CommandEncoder, LoadOp, Operations, RenderPassDescriptor, TextureView};
 
+/// Entry point for rendering any `RenderState`.
 pub fn draw_game(
     ctx: &RenderContext,
     res: &mut RenderResources,
@@ -31,7 +34,7 @@ pub fn draw_game(
             });
             draw_gameplay(ctx, res, encoder, view, snapshot, fps);
         }
-        // CORRECTION : Gestion de l'Editor (comme InGame pour le fond)
+        // Editor shares the same background rendering path as gameplay.
         RenderState::Editor(snapshot) => {
             encoder.begin_render_pass(&RenderPassDescriptor {
                 label: Some("Editor Clear"),
@@ -48,7 +51,7 @@ pub fn draw_game(
                 timestamp_writes: None,
                 occlusion_query_set: None,
             });
-            // On dessine le jeu figé en fond
+            // Render the frozen gameplay layer underneath.
             draw_gameplay(ctx, res, encoder, view, &snapshot.game, fps);
         }
         RenderState::Menu(_) => {
@@ -77,6 +80,7 @@ pub fn draw_game(
     }
 }
 
+/// Clears the surface and draws the cached background quad (if any).
 fn draw_background(
     _ctx: &RenderContext,
     res: &RenderResources,
@@ -121,7 +125,7 @@ fn draw_background(
     }
 }
 
-// CORRECTION : pub fn pour être accessible depuis renderer.rs
+/// Renders gameplay + HUD layers; exposed so `renderer.rs` can reuse it.
 pub fn draw_gameplay(
     ctx: &RenderContext,
     res: &mut RenderResources,

@@ -1,7 +1,10 @@
+//! egui settings window mirroring `SettingsState` fields.
+
 use crate::models::settings::{HitWindowMode, SettingsState};
 use log::info;
 
 #[derive(Clone)]
+/// Snapshot of settings before editing so we can detect deltas.
 pub struct SettingsSnapshot {
     pub skin: String,
     pub hit_window_mode: HitWindowMode,
@@ -10,6 +13,7 @@ pub struct SettingsSnapshot {
 }
 
 impl SettingsSnapshot {
+    /// Captures the relevant settings values for comparison.
     pub fn capture(settings: &SettingsState) -> Self {
         Self {
             skin: settings.current_skin.clone(),
@@ -20,12 +24,17 @@ impl SettingsSnapshot {
     }
 }
 
+/// Aggregates the state changes emitted by the settings window.
 pub struct SettingsWindowResult {
+    /// Whether the caller should close the window.
     pub request_toggle: bool,
+    /// Master volume delta (if any).
     pub volume_changed: Option<f32>,
+    /// True when keybinds were saved/reset so input threads can reload.
     pub keybinds_updated: bool,
 }
 
+/// Renders the settings modal and returns UI side-effects.
 pub fn render_settings_window(
     ctx: &egui::Context,
     settings: &mut SettingsState,

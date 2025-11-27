@@ -1,3 +1,5 @@
+//! Result screen layout mixing stats and performance graphs.
+
 pub mod graphs;
 pub mod stats;
 
@@ -20,7 +22,7 @@ impl ResultScreen {
     ) -> bool {
         let mut should_close = false;
 
-        // Détection UI (backup au cas où winit raterait le focus)
+        // UI-level fallback in case winit focus handling fails.
         if ctx.input(|i| i.key_pressed(Key::Escape) || i.key_pressed(Key::Enter)) {
             should_close = true;
         }
@@ -47,12 +49,12 @@ impl ResultScreen {
                     let full_width = ui.available_width();
                     let height = ui.available_height();
 
-                    // Calcul précis des largeurs
-                    let graphs_width = full_width * 0.40; // Max 0.4 demandé
-                    let stats_width = full_width * 0.35; // Un peu de place pour les stats
+                    // Compute layout widths.
+                    let graphs_width = full_width * 0.40; // Cap graph column at ~40%.
+                    let stats_width = full_width * 0.35; // Keep enough room for stats.
                     let spacer = full_width - graphs_width - stats_width;
 
-                    // Panneau Gauche (Stats)
+                    // Left panel (stats).
                     egui::Frame::default()
                         .fill(Color32::TRANSPARENT)
                         .show(ui, |ui| {
@@ -61,10 +63,10 @@ impl ResultScreen {
                             stats::render_stats(ui, data);
                         });
 
-                    // Espace
+                    // Spacer between columns.
                     ui.add_space(spacer * 0.5);
 
-                    // Panneau Droit (Graphes) - Largeur contrainte à 40%
+                    // Right panel (graphs) constrained to 40%.
                     egui::Frame::default()
                         .fill(Color32::TRANSPARENT)
                         .show(ui, |ui| {

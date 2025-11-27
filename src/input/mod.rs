@@ -1,3 +1,5 @@
+//! Input thread bootstrapping and high-level event routing.
+
 pub mod events;
 pub mod manager;
 
@@ -13,8 +15,8 @@ pub fn start_thread(bus: SystemBus, mut manager: InputManager) {
         .spawn(move || {
             log::info!("INPUT: Thread started");
 
-            // Boucle bloquante : attend un event, le traite, recommence.
-            // C'est ultra efficace et ne consomme pas de CPU à vide.
+            // Blocking loop: wait for an event, handle it, repeat.
+            // Keeps CPU usage at zero when idle.
             loop {
                 select! {
                     recv(bus.raw_input_rx) -> raw => {

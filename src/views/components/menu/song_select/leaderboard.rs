@@ -1,3 +1,5 @@
+//! Leaderboard list plus helper `ScoreCard` conversions.
+
 use crate::models::engine::hit_window::HitWindow;
 use crate::models::menu::GameResultData;
 use crate::models::replay::ReplayData;
@@ -5,6 +7,7 @@ use crate::views::components::menu::song_select::leaderboard_card::LeaderboardCa
 use egui::{Color32, ScrollArea};
 
 #[derive(Clone)]
+/// Lightweight view model built from DB replay rows.
 pub struct ScoreCard {
     pub timestamp: i64,
     pub rate: f64,
@@ -17,6 +20,7 @@ pub struct ScoreCard {
 }
 
 impl ScoreCard {
+    /// Builds a score card from a replay row, falling back to an empty replay if parsing fails.
     pub fn from_replay(
         replay: &crate::database::models::Replay,
         total_notes: usize,
@@ -40,19 +44,23 @@ impl ScoreCard {
     }
 }
 
+/// Leaderboard UI state that caches up to 10 score cards.
 pub struct Leaderboard {
     scores: Vec<ScoreCard>,
 }
 
 impl Leaderboard {
+    /// Returns an empty leaderboard.
     pub fn new() -> Self {
         Self { scores: Vec::new() }
     }
 
+    /// Replaces the leaderboard entries.
     pub fn update_scores(&mut self, scores: Vec<ScoreCard>) {
         self.scores = scores;
     }
 
+    /// Renders the leaderboard and returns a replay to preview if the user clicked a row.
     pub fn render(
         &self,
         ui: &mut egui::Ui,
@@ -99,9 +107,8 @@ impl Leaderboard {
                                 );
 
                                 if response.clicked() {
-                                    // Générer une description textuelle de la Hit Window actuelle
-                                    // Comme on n'a pas l'objet HitWindowMode ici facilement, on estime
-                                    // ou on met une valeur par défaut "Current Settings"
+                                    // Derive a textual description for the current hit window.
+                                    // We do not have HitWindowMode here, so reuse a generic label.
                                     let judge_text = "Replay View".to_string();
 
                                     clicked_result = Some(GameResultData {
@@ -111,8 +118,8 @@ impl Leaderboard {
                                         accuracy: accuracy,
                                         max_combo: card.max_combo as u32,
                                         beatmap_hash: Some(card.beatmap_hash.clone()),
-                                        rate: card.rate, // Nouveau champ
-                                        judge_text,      // Nouveau champ
+                                        rate: card.rate,
+                                        judge_text,
                                     });
                                 }
 

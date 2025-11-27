@@ -1,3 +1,5 @@
+//! Difficulty card widget used inside the song select layout.
+
 use egui::{
     Color32, Label, Pos2, Rect, RichText, Sense, Stroke, StrokeKind, TextureId, UiBuilder, Vec2,
 };
@@ -18,20 +20,18 @@ impl DifficultyCard {
         let card_height = 35.0;
         let full_width = ui.available_width();
 
-        // --- LOGIQUE D'ALIGNEMENT ---
-        // SongCard a : left=10, right=10.
-        // Ici on veut aligner à droite (right=10) mais indenter à gauche (left=60).
+        // Align to the right while keeping a left indent to match the song card layout.
         let margin_right = 0.0;
         let margin_left = 40.0;
 
         let visual_width = (full_width - margin_left - margin_right).max(50.0);
 
-        // Calcul de la position (X de départ + marge gauche)
+        // Compute the starting position with the left margin.
         let start_pos = ui.cursor().min;
         let card_pos = Pos2::new(start_pos.x + margin_left, start_pos.y);
         let card_rect = Rect::from_min_size(card_pos, Vec2::new(visual_width, card_height));
 
-        // Allocation sur la zone précise calculée
+        // Allocate space using the computed bounds.
         let response = ui.allocate_rect(card_rect, Sense::click());
 
         // Rendu graphique
@@ -84,7 +84,7 @@ impl DifficultyCard {
             }
         }
 
-        // Contenu texte (centré dans la carte elle-même)
+        // Text content centered inside the card.
         let mut content_ui =
             ui.new_child(UiBuilder::new().max_rect(card_rect).layout(*ui.layout()));
 
@@ -103,7 +103,7 @@ impl DifficultyCard {
             });
         });
 
-        // Espace vertical entre les difficultés
+        // Add spacing between rows of difficulties.
         ui.add_space(0.0);
 
         response

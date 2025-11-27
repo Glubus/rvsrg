@@ -1,4 +1,6 @@
-use crate::models::engine::InstanceRaw; // Assurez-vous que ce modèle est accessible via models
+//! Miscellaneous rendering helpers for wgpu + egui glue code.
+
+use crate::models::engine::InstanceRaw; // Make sure this is visible through `models`.
 use crate::shaders::constants::MAIN_SHADER_SRC;
 use image::GenericImageView;
 use std::path::Path;
@@ -221,13 +223,13 @@ pub fn load_text_brush(
         None
     };
 
-    // Fallback si la police n'est pas trouvée
+    // Fallback when the font cannot be located.
     let final_font = font.unwrap_or_else(|| {
         log::warn!(
             "Font not found or failed to load, using default (Hack: Empty Font might panic if used)"
         );
-        // Pour éviter le panic, idéalement on devrait avoir une police par défaut incluse en bytes (include_bytes!)
-        // Ici on retourne une police vide qui risque de ne rien afficher, mais évite le crash immédiat si géré par wgpu_text
+        // Ideally include a baked-in default font via include_bytes! to avoid panics.
+        // Returning an empty font risks missing glyphs but prevents a crash inside wgpu_text.
         FontArc::try_from_vec(vec![]).unwrap_or_else(|_| panic!("Fatal: No font available"))
     });
 

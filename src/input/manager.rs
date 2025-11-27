@@ -121,7 +121,7 @@ impl InputManager {
             .insert(KeyCode::KeyK, GameAction::Hit { column: 3 });
         self.bindings.insert(KeyCode::F5, GameAction::Restart);
 
-        // Navigation UI (Sert aussi pour l'éditeur)
+        // UI navigation (mirrored inside the editor).
         self.bindings
             .insert(KeyCode::ArrowUp, GameAction::Navigation { x: 0, y: -1 });
         self.bindings
@@ -131,7 +131,7 @@ impl InputManager {
         self.bindings
             .insert(KeyCode::ArrowRight, GameAction::Navigation { x: 1, y: 0 });
 
-        // Onglets / Settings
+        // Tab / settings controls.
         self.bindings.insert(KeyCode::PageUp, GameAction::TabPrev);
         self.bindings.insert(KeyCode::PageDown, GameAction::TabNext);
         self.bindings
