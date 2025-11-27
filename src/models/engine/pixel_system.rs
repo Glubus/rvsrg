@@ -1,6 +1,8 @@
+//! Utility to convert screen pixels into normalized coordinates.
+
 #[derive(Clone)]
 pub struct PixelSystem {
-    pub pixel_size: f32, // Basé sur la hauteur (2.0 / height)
+    pub pixel_size: f32, // Derived from height (2.0 / height)
     pub window_width: u32,
     pub window_height: u32,
     pub aspect_ratio: f32,
@@ -18,18 +20,17 @@ impl PixelSystem {
         }
     }
 
-    /// Convertit des pixels en taille normalisée Y (Hauteur)
+    /// Converts pixel units into normalized Y size (height).
     pub fn y_pixels_to_normalized(&self, pixels: f32) -> f32 {
         pixels * self.pixel_size
     }
 
-    /// Convertit des pixels en taille normalisée X (Largeur)
-    /// Applique la correction d'aspect ratio pour garder les carrés carrés.
+    /// Converts pixels into normalized X size, applying aspect-ratio correction.
     pub fn x_pixels_to_normalized(&self, pixels: f32) -> f32 {
         (pixels * self.pixel_size) / self.aspect_ratio
     }
 
-    /// Helper générique (ancien comportement, souvent utilisé pour Y)
+    /// Legacy helper that defaults to the Y conversion.
     pub fn pixels_to_normalized(&self, pixels: f32) -> f32 {
         self.y_pixels_to_normalized(pixels)
     }
@@ -39,7 +40,7 @@ impl PixelSystem {
         self.window_height = height;
         self.pixel_size = 2.0 / height as f32;
 
-        // Si un ratio est forcé (via les settings), on l'utilise, sinon on calcule le ratio réel
+        // Respect a forced aspect ratio if provided, else compute the actual value.
         self.aspect_ratio = forced_ratio.unwrap_or(width as f32 / height as f32);
     }
 }

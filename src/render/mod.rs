@@ -1,7 +1,9 @@
-pub mod app; // Déjà fait
-pub mod context; // Nouveau
-pub mod draw; // Nouveau
+//! Aggregates the rendering submodules (app, renderer, utilities, ...).
+
+pub mod app; // Already implemented
+pub mod context; // New
+pub mod draw; // New
 pub mod renderer;
-pub mod resources; // Nouveau
-pub mod ui; // Nouveau
-pub mod utils; // Déjà fait // Nouveau - Le point d'entrée final
+pub mod resources; // New
+pub mod ui; // New
+pub mod utils; // Covers the final entry points/helpers

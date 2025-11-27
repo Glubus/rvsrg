@@ -1,3 +1,5 @@
+//! Abstractions around wgpu surface/device/swapchain state.
+
 use std::sync::Arc;
 use winit::window::Window;
 
@@ -44,15 +46,15 @@ impl RenderContext {
             .find(|f| f.is_srgb())
             .unwrap_or(surface_caps.formats[0]);
 
-        // SÉLECTION INTELLIGENTE DU MODE DE PRÉSENTATION (FPS DÉBRIDÉS)
-        // 1. Immediate : Pas de VSync, FPS max, risque de tearing (déchirement). C'est ce qu'on veut pour la perf pure.
-        // 2. Mailbox : Pas de VSync, FPS max, pas de tearing (Triple Buffering). Excellent si dispo.
-        // 3. Fifo : VSync activée (Cap à 60/144Hz). Fallback obligatoire.
+        // Presentation mode selection (prefer uncapped FPS when available):
+        // 1. Immediate: no VSync, max FPS, potential tearing (ideal for raw perf).
+        // 2. Mailbox: no VSync, max FPS, triple-buffered to avoid tearing.
+        // 3. Fifo: VSync locked (60/144 Hz). Required fallback.
         let present_mode = surface_caps
             .present_modes
             .iter()
             .copied()
-            .find(|&mode| mode == wgpu::PresentMode::Immediate) // Priorité absolu au mode "No VSync"
+            .find(|&mode| mode == wgpu::PresentMode::Immediate) // Hard preference for no VSync.
             .or_else(|| {
                 surface_caps
                     .present_modes
@@ -69,7 +71,7 @@ impl RenderContext {
             format: texture_format,
             width: size.width,
             height: size.height,
-            present_mode, // Utilisation du mode choisi
+            present_mode, // Use the selected present mode.
             alpha_mode: surface_caps.alpha_modes[0],
             view_formats: vec![],
             desired_maximum_frame_latency: 2,

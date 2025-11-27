@@ -1,3 +1,5 @@
+//! Converts raw key events into high-level `KeyAction`s using bindings.
+
 pub mod actions;
 pub mod bindings;
 
@@ -28,13 +30,13 @@ impl InputManager {
                     state,
                     physical_key: PhysicalKey::Code(keycode),
                     logical_key,
-                    repeat: false, // On ignore la répétition automatique
+                    repeat: false, // Ignore auto-repeat events.
                     ..
                 },
             ..
         } = event
         {
-            // Résolution via bindings
+            // Resolve against the configured bindings.
             let action = self.bindings.resolve(*keycode);
 
             match (*state, action) {
@@ -52,7 +54,7 @@ impl InputManager {
                 // Actions UI - Pressed only
                 (ElementState::Pressed, KeyAction::UI(ui_action)) => Some(KeyAction::UI(ui_action)),
 
-                // Fallback Entrée/Echap si non mappé
+                // Provide Enter/Escape fallbacks if not mapped.
                 (ElementState::Pressed, KeyAction::None) => match logical_key {
                     Key::Named(NamedKey::Enter) => Some(KeyAction::UI(UIAction::Select)),
                     Key::Named(NamedKey::Escape) => Some(KeyAction::UI(UIAction::Back)),

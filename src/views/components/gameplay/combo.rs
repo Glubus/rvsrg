@@ -1,8 +1,11 @@
+//! Combo counter overlay rendered near the playfield.
+
 use wgpu_text::glyph_brush::{Section, Text};
 
 pub struct ComboDisplay {
     position: (f32, f32),
-    text_size: f32, // Nouveau
+    /// Configurable font size.
+    text_size: f32,
     text_buffer: String,
 }
 
@@ -31,7 +34,7 @@ impl ComboDisplay {
         let scale_ratio = screen_height / 1080.0;
         self.text_buffer = combo.to_string();
 
-        // Utilise text_size du skin
+        // Scale based on the skin-configured text size.
         let font_scale = self.text_size * scale_ratio;
         let text_width_estimate = self.text_buffer.len() as f32 * 0.6 * font_scale;
         let centered_x = self.position.0 - (text_width_estimate / 2.0);

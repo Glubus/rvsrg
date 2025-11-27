@@ -1,24 +1,30 @@
+//! Filter sidebar used by the song select screen.
+
 use egui::{Color32, ComboBox, Frame, Margin, RichText, Slider, TextEdit, Ui};
 
 use crate::models::menu::MenuState;
 use crate::models::search::{MenuSearchFilters, RatingMetric, RatingSource};
 
+/// Message emitted by the search panel when the user applies filters.
 pub enum SearchPanelEvent {
     None,
     Apply(MenuSearchFilters),
 }
 
+/// Stateful form mirroring `MenuSearchFilters`.
 pub struct SearchPanel {
     form_filters: MenuSearchFilters,
 }
 
 impl SearchPanel {
+    /// Returns a panel with default (inactive) filters.
     pub fn new() -> Self {
         Self {
             form_filters: MenuSearchFilters::default(),
         }
     }
 
+    /// Draws the panel and returns an event when the user applies filters.
     pub fn render(&mut self, ui: &mut Ui, menu_state: &MenuState) -> SearchPanelEvent {
         if self.form_filters != menu_state.search_filters {
             self.form_filters = menu_state.search_filters.clone();

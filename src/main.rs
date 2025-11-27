@@ -1,9 +1,10 @@
+//! Application entry point and thread bootstrapper.
+
 mod input;
 mod logic;
 mod render;
 mod system;
 
-// Modules modèles/données (nécessaires)
 mod core;
 mod database;
 mod difficulty;
@@ -13,7 +14,6 @@ mod shared;
 mod states;
 mod views;
 
-// mod renderer; // SUPPRIMÉ : L'ancien renderer est mort, vive le nouveau dans 'mod render' !
 
 use crate::database::DbManager;
 use crate::system::bus::SystemBus;

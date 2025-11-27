@@ -1,3 +1,5 @@
+//! Filesystem scanner that imports beatmapsets into the database.
+
 use crate::database::connection::Database;
 use crate::database::query::{insert_beatmap, insert_beatmapset};
 use crate::difficulty;
@@ -6,7 +8,7 @@ use std::fs;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 
-/// Scanne le dossier songs/ et remplit la base de données
+/// Scans the `songs/` directory and fills the database.
 pub async fn scan_songs_directory(
     db: &Database,
     songs_path: &Path,
@@ -18,7 +20,7 @@ pub async fn scan_songs_directory(
 
     difficulty::init_global_calc()?;
 
-    // Parcourir tous les dossiers dans songs/
+    // Walk every sub-folder under songs/.
     let entries = fs::read_dir(songs_path)?;
 
     for entry in entries {
@@ -158,7 +160,7 @@ fn find_background_image(beatmapset_path: &Path, filename: Option<&str>) -> Opti
     })
 }
 
-/// Calcule le hash MD5 d'un fichier .osu
+/// Computes the MD5 hash for an `.osu` chart file.
 fn calculate_file_hash(file_path: &Path) -> Result<String, std::io::Error> {
     let mut file = fs::File::open(file_path)?;
     let mut buffer = String::new();

@@ -1,8 +1,11 @@
+//! Accuracy display showing current percentage with smoothing.
+
 use wgpu_text::glyph_brush::{Section, Text};
 
 pub struct AccuracyDisplay {
     position: (f32, f32),
-    text_size: f32, // Nouveau
+    /// Configurable font size.
+    text_size: f32,
     text_buffer: String,
 }
 

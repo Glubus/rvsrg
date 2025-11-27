@@ -1,3 +1,5 @@
+//! Audio stream wrapper providing timing helpers for the game engine.
+
 use rodio::{Decoder, OutputStream, OutputStreamHandle, Sink, Source};
 use std::fs::File;
 use std::io::BufReader;
@@ -15,7 +17,7 @@ pub struct AudioManager {
 
     pub played_samples: Arc<AtomicUsize>,
     pub sample_rate: u32,
-    pub channels: u16, // AJOUTÉ : Nécessaire pour le calcul du temps
+    pub channels: u16, // Needed to compute accurate timing offsets.
 }
 
 impl AudioManager {
@@ -29,7 +31,7 @@ impl AudioManager {
             music_sink,
             played_samples: Arc::new(AtomicUsize::new(0)),
             sample_rate: 44100,
-            channels: 2, // Valeur par défaut standard
+            channels: 2, // Reasonable default if no source is provided.
         }
     }
 
@@ -37,7 +39,7 @@ impl AudioManager {
         if let Ok(file) = File::open(path) {
             if let Ok(source) = Decoder::new(BufReader::new(file)) {
                 self.sample_rate = source.sample_rate();
-                self.channels = source.channels(); // On récupère le vrai nombre de canaux
+                self.channels = source.channels(); // Mirror the actual channel count.
 
                 self.played_samples.store(0, Ordering::Relaxed);
 
@@ -79,7 +81,7 @@ impl AudioManager {
 
     pub fn get_position_seconds(&self) -> f64 {
         let samples = self.played_samples.load(Ordering::Relaxed) as f64;
-        let channels = self.channels.max(1) as f64; // Sécurité division par 0
+        let channels = self.channels.max(1) as f64; // Avoid division by zero.
 
         // CORRECTION : On divise par le nombre de canaux !
         // Ex: 88200 samples / (44100 Hz * 2 canaux) = 1 seconde.

@@ -1,6 +1,8 @@
+//! High-level rendering pipeline orchestrating egui + wgpu output.
+
 use crate::core::input::actions::UIAction;
 use crate::input::events::{EditMode, EditorTarget, GameAction};
-use crate::models::skin::UIElementPos; // Import nécessaire pour l'éditeur
+use crate::models::skin::UIElementPos; // Needed for editor overlay adjustments.
 use crate::render::context::RenderContext;
 use crate::render::draw::draw_game;
 use crate::render::resources::RenderResources;
@@ -230,14 +232,14 @@ impl Renderer {
                 }
             }
 
-            // --- ÉDITEUR CORRIGÉ ---
+            // --- Editor overlay ---
             RenderState::Editor(snapshot) => {
                 if let Some((target, mode, dx, dy)) = snapshot.modification {
                     let config = &mut self.resources.skin.config;
                     let speed = 2.0;
 
                     match (target, mode) {
-                        // Redimensionnement
+                        // Resize handles.
                         (EditorTarget::Notes, EditMode::Resize) => {
                             config.note_width_px += dx * speed;
                             config.note_height_px -= dy * speed;
@@ -262,7 +264,7 @@ impl Renderer {
                             config.hit_bar_height_px -= dy * speed
                         }
 
-                        // Déplacement (Valable pour TOUS les targets)
+                        // Move handles (shared across targets).
                         (t, EditMode::Move) => {
                             let pos_opt = match t {
                                 EditorTarget::Notes
@@ -296,11 +298,11 @@ impl Renderer {
                     .show(&ctx_egui, |ui| {
                         ui.label(&snapshot.status_text);
 
-                        // Affichage conditionnel selon le mode
+                        // Display contextual info based on the current mode.
                         if let Some(target) = snapshot.target {
                             let config = &self.resources.skin.config;
                             let text = match (target, snapshot.mode) {
-                                // Mode MOVE : On affiche la position
+                                // Move mode: surface the element position.
                                 (t, EditMode::Move) => {
                                     let pos = match t {
                                         EditorTarget::Notes
@@ -316,7 +318,7 @@ impl Renderer {
                                     .unwrap_or(UIElementPos { x: 0., y: 0. });
                                     format!("Pos: X {:.0} Y {:.0}", pos.x, pos.y)
                                 }
-                                // Mode RESIZE : On affiche la taille
+                                // Resize mode: expose element size.
                                 (EditorTarget::Notes, EditMode::Resize) => format!(
                                     "Size: W {:.0} H {:.0}",
                                     config.note_width_px, config.note_height_px

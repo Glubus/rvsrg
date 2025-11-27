@@ -1,3 +1,5 @@
+//! Renders a single beatmapset card inside the song list.
+
 use egui::{
     Color32, Label, Margin, Pos2, Rect, RichText, Sense, Stroke, StrokeKind, TextureId, UiBuilder,
     Vec2,
@@ -8,6 +10,7 @@ use crate::database::models::{BeatmapWithRatings, Beatmapset};
 pub struct SongCard;
 
 impl SongCard {
+    /// Renders a beatmapset row; returns the egui response for interaction.
     pub fn render(
         ui: &mut egui::Ui,
         beatmapset: &Beatmapset,
@@ -17,7 +20,7 @@ impl SongCard {
         texture_selected: Option<TextureId>,
         selected_color: Color32,
     ) -> egui::Response {
-        // Hauteur réduite (80.0 au lieu de 100.0) pour faire "moins gros"
+        // Slightly shorter card to reduce visual bulk.
         let card_height = 80.0;
         let width = ui.available_width();
         let size = Vec2::new(width, card_height);
@@ -83,7 +86,7 @@ impl SongCard {
             }
         }
 
-        // Marges réduites pour faire "plus long" (tout la largeur)
+        // Narrower margins so the card spans the full row.
         let card_margin = Margin {
             left: 10,
             right: 10,

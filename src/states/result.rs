@@ -87,7 +87,7 @@ impl GameState for ResultStateController {
     }
 
     fn update(&mut self, _ctx: &mut StateContext) -> StateTransition {
-        // Vérifier si l'UI a demandé la fermeture (via le bouton par exemple)
+        // Close the screen if the UI requested it (e.g. via button click).
         let should_close = if let Ok(state) = self.menu_state.lock() {
             state.should_close_result
         } else {
@@ -111,7 +111,7 @@ impl GameState for ResultStateController {
     ) -> StateTransition {
         if let Some(KeyAction::UI(ui_action)) = action {
             match ui_action {
-                // Select (Entrée) ou Back (Echap) pour quitter l'écran
+                // Either Select (Enter) or Back (Esc) exits this screen.
                 UIAction::Select | UIAction::Back => {
                     return StateTransition::Replace(Box::new(MenuStateController::new(
                         Arc::clone(&self.menu_state),

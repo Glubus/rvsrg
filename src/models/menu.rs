@@ -31,7 +31,7 @@ pub struct MenuState {
     pub in_menu: bool,
     pub in_editor: bool,
     pub show_result: bool,
-    // NOUVEAU : Source de vérité pour l'affichage des settings
+    // Canonical toggle for exposing the settings window.
     pub show_settings: bool,
     pub rate: f64,
     pub last_result: Option<GameResultData>,
@@ -54,7 +54,7 @@ impl MenuState {
             in_menu: true,
             in_editor: false,
             show_result: false,
-            show_settings: false, // Par défaut fermé
+            show_settings: false, // Hidden by default
             rate: 1.0,
             last_result: None,
             should_close_result: false,
@@ -116,7 +116,7 @@ impl MenuState {
                 Ok(map) => map,
                 Err(err) => {
                     log::error!(
-                        "MENU: Impossible de charger la beatmap {} pour calculer les rates: {}",
+                        "MENU: Failed to load beatmap {} to compute rates: {}",
                         beatmap_hash,
                         err
                     );
@@ -135,7 +135,7 @@ impl MenuState {
                 }
                 Err(err) => {
                     log::error!(
-                        "MENU: Impossible de calculer les rates pour {}: {}",
+                        "MENU: Unable to compute rates for {}: {}",
                         beatmap_hash,
                         err
                     );

@@ -1,9 +1,11 @@
+//! Raw sqlx query helpers for the persistent database layer.
+
 use crate::database::models::{Beatmap, BeatmapRating, BeatmapWithRatings, Beatmapset, Replay};
 use crate::models::search::MenuSearchFilters;
 use sqlx::SqlitePool;
 use std::collections::HashMap;
 
-/// Vide toutes les tables (pour rescan)
+/// Clears every table (used during rescans).
 pub async fn clear_all(pool: &SqlitePool) -> Result<(), sqlx::Error> {
     sqlx::query("DELETE FROM beatmap_rating")
         .execute(pool)
@@ -14,7 +16,7 @@ pub async fn clear_all(pool: &SqlitePool) -> Result<(), sqlx::Error> {
     Ok(())
 }
 
-/// Insère ou met à jour un beatmapset
+/// Inserts or updates a beatmapset record.
 pub async fn insert_beatmapset(
     pool: &SqlitePool,
     path: &str,
@@ -22,7 +24,7 @@ pub async fn insert_beatmapset(
     artist: Option<&str>,
     title: Option<&str>,
 ) -> Result<i64, sqlx::Error> {
-    // Vérifier si le beatmapset existe déjà
+    // Check whether the beatmapset already exists.
     let existing: Option<i64> = sqlx::query_scalar("SELECT id FROM beatmapset WHERE path = ?1")
         .bind(path)
         .fetch_optional(pool)
@@ -30,7 +32,7 @@ pub async fn insert_beatmapset(
 
     match existing {
         Some(id) => {
-            // Mettre à jour
+            // Update existing row.
             sqlx::query(
                 "UPDATE beatmapset SET image_path = ?1, artist = ?2, title = ?3 WHERE id = ?4",
             )
@@ -43,7 +45,7 @@ pub async fn insert_beatmapset(
             Ok(id)
         }
         None => {
-            // Insérer
+            // Insert a new row.
             let result = sqlx::query(
                 "INSERT INTO beatmapset (path, image_path, artist, title) VALUES (?1, ?2, ?3, ?4)",
             )
@@ -58,7 +60,7 @@ pub async fn insert_beatmapset(
     }
 }
 
-/// Insère ou met à jour une beatmap
+/// Inserts or updates a beatmap record.
 pub async fn insert_beatmap(
     pool: &SqlitePool,
     beatmapset_id: i64,
@@ -69,7 +71,7 @@ pub async fn insert_beatmap(
     duration_ms: i32,
     nps: f64,
 ) -> Result<String, sqlx::Error> {
-    // Vérifier si la beatmap existe déjà par hash
+    // Check whether a beatmap already exists for the given hash.
     let existing: Option<String> = sqlx::query_scalar("SELECT hash FROM beatmap WHERE hash = ?1")
         .bind(hash)
         .fetch_optional(pool)
@@ -77,7 +79,7 @@ pub async fn insert_beatmap(
 
     match existing {
         Some(existing_hash) => {
-            // Mettre à jour
+            // Update the existing row.
             sqlx::query(
                 "UPDATE beatmap SET beatmapset_id = ?1, path = ?2, difficulty_name = ?3, note_count = ?4, duration_ms = ?5, nps = ?6 WHERE hash = ?7"
             )
@@ -93,7 +95,7 @@ pub async fn insert_beatmap(
             Ok(existing_hash)
         }
         None => {
-            // Insérer
+            // Insert a new row.
             sqlx::query(
                 "INSERT INTO beatmap (hash, beatmapset_id, path, difficulty_name, note_count, duration_ms, nps) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)"
             )
@@ -111,7 +113,7 @@ pub async fn insert_beatmap(
     }
 }
 
-/// Insère ou met à jour un rating pour une beatmap
+/// Inserts or updates a rating entry for a beatmap.
 pub async fn upsert_beatmap_rating(
     pool: &SqlitePool,
     beatmap_hash: &str,
@@ -154,7 +156,7 @@ pub async fn upsert_beatmap_rating(
     Ok(())
 }
 
-/// Récupère tous les ratings d'une beatmap
+/// Retrieves every rating for a specific beatmap.
 pub async fn get_ratings_for_beatmap(
     pool: &SqlitePool,
     beatmap_hash: &str,
@@ -169,7 +171,7 @@ pub async fn get_ratings_for_beatmap(
     Ok(ratings)
 }
 
-/// Récupère tous les ratings
+/// Retrieves all ratings across the database.
 pub async fn get_all_beatmap_ratings(pool: &SqlitePool) -> Result<Vec<BeatmapRating>, sqlx::Error> {
     let ratings: Vec<BeatmapRating> = sqlx::query_as(
         "SELECT id, beatmap_hash, name, overall, stream, jumpstream, handstream, stamina, jackspeed, chordjack, technical FROM beatmap_rating",
@@ -179,7 +181,7 @@ pub async fn get_all_beatmap_ratings(pool: &SqlitePool) -> Result<Vec<BeatmapRat
     Ok(ratings)
 }
 
-/// Récupère tous les beatmapsets avec leurs beatmaps
+/// Retrieves every beatmapset together with its beatmaps/ratings.
 pub async fn get_all_beatmapsets(
     pool: &SqlitePool,
 ) -> Result<Vec<(Beatmapset, Vec<BeatmapWithRatings>)>, sqlx::Error> {
@@ -302,7 +304,7 @@ pub async fn search_beatmapsets(
     Ok(result)
 }
 
-/// Compte le nombre total de beatmapsets
+/// Counts how many beatmapsets exist.
 pub async fn count_beatmapsets(pool: &SqlitePool) -> Result<i32, sqlx::Error> {
     let count: Option<i64> = sqlx::query_scalar("SELECT COUNT(*) FROM beatmapset")
         .fetch_optional(pool)
@@ -310,7 +312,7 @@ pub async fn count_beatmapsets(pool: &SqlitePool) -> Result<i32, sqlx::Error> {
     Ok(count.unwrap_or(0) as i32)
 }
 
-/// Insère un replay en calculant automatiquement son hash
+/// Inserts a replay and derives a deterministic hash.
 pub async fn insert_replay(
     pool: &SqlitePool,
     beatmap_hash: &str,
@@ -343,7 +345,7 @@ pub async fn insert_replay(
     Ok(hash)
 }
 
-/// Récupère tous les replays pour une beatmap, triés par rate puis accuracy (meilleurs scores en premier)
+/// Retrieves all replays for a beatmap, sorted by rate then accuracy (best first).
 pub async fn get_replays_for_beatmap(
     pool: &SqlitePool,
     beatmap_hash: &str,
@@ -357,7 +359,7 @@ pub async fn get_replays_for_beatmap(
     Ok(replays)
 }
 
-/// Récupère les meilleurs scores triés par rate puis accuracy (toutes beatmaps confondues)
+/// Retrieves the top scores sorted by rate then accuracy (cross-beatmap).
 pub async fn get_top_scores(pool: &SqlitePool, limit: i32) -> Result<Vec<Replay>, sqlx::Error> {
     let replays: Vec<Replay> = sqlx::query_as(
         "SELECT hash, beatmap_hash, timestamp, score, accuracy, max_combo, rate, data FROM replay ORDER BY rate DESC, accuracy DESC, timestamp DESC LIMIT ?1"

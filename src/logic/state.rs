@@ -8,21 +8,29 @@ use crossbeam_channel::Sender;
 use serde_json;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+/// High-level application states driven by `GlobalState`.
 enum AppState {
+    /// Song select and menu browsing.
     Menu(MenuState),
+    /// Live gameplay.
     Game(GameEngine),
+    /// Beatmap editor wrapper.
     Editor {
         engine: GameEngine,
         target: Option<EditorTarget>,
-        mode: EditMode, // On stocke le mode courant ici
+        /// Tracks the current edit mode so the renderer/input stay in sync.
+        mode: EditMode,
         modification_buffer: Option<(f32, f32)>,
         save_requested: bool,
     },
+    /// Post-game result screen.
     Result(GameResultData),
 }
 
+/// Owns the long-lived state machine for gameplay, menu and editor.
 pub struct GlobalState {
     current_state: AppState,
+    saved_menu_state: MenuState,
     db_manager: DbManager,
     last_db_version: u64,
     last_leaderboard_version: u64,
@@ -32,12 +40,14 @@ pub struct GlobalState {
 }
 
 impl GlobalState {
+    /// Creates a new state machine with default menu/settings and DB plumbing.
     pub fn new(db_manager: DbManager, input_cmd_tx: Sender<InputCommand>) -> Self {
         log::info!("LOGIC: Initializing Global State");
         let settings = SettingsState::load();
         let menu = MenuState::new();
 
         Self {
+            saved_menu_state: menu.clone(),
             current_state: AppState::Menu(menu),
             db_manager,
             last_db_version: 0,
@@ -51,6 +61,7 @@ impl GlobalState {
     pub fn resize(&mut self, _w: u32, _h: u32) {}
     pub fn shutdown(&mut self) {}
 
+    /// Ticks the active state and processes end-of-run transitions.
     pub fn update(&mut self, dt: f64) {
         self.sync_db_to_menu();
 
@@ -96,29 +107,41 @@ impl GlobalState {
         }
     }
 
+    /// Mirrors database snapshots into the menu whenever new data is available.
     fn sync_db_to_menu(&mut self) {
         let db_state_arc = self.db_manager.get_state();
         if let Ok(guard) = db_state_arc.try_lock() {
             if matches!(guard.status, DbStatus::Idle) {
                 if guard.version != self.last_db_version {
+                    let mut request_hash = None;
+                    let mut cache = None;
                     if let AppState::Menu(menu) = &mut self.current_state {
                         menu.beatmapsets = guard.beatmapsets.clone();
                         menu.start_index = 0;
                         menu.end_index = menu.visible_count.min(menu.beatmapsets.len());
                         menu.selected_index = 0;
                         menu.selected_difficulty_index = 0;
-                        let request_hash = menu.get_selected_beatmap_hash();
-                        self.request_leaderboard_for_hash(request_hash);
+                        request_hash = menu.get_selected_beatmap_hash();
+                        cache = Some(menu.clone());
                     }
+                    if let Some(menu) = cache {
+                        self.cache_menu_state(menu);
+                    }
+                    self.request_leaderboard_for_hash(request_hash);
                     self.last_db_version = guard.version;
                 }
 
                 if guard.leaderboard_version != self.last_leaderboard_version {
+                    let mut cache = None;
                     if let AppState::Menu(menu) = &mut self.current_state {
                         menu.set_leaderboard(
                             guard.leaderboard_hash.clone(),
                             guard.leaderboard.clone(),
                         );
+                        cache = Some(menu.clone());
+                    }
+                    if let Some(menu) = cache {
+                        self.cache_menu_state(menu);
                     }
                     self.last_leaderboard_version = guard.leaderboard_version;
                     if let Some(hash) = &guard.leaderboard_hash {
@@ -131,6 +154,7 @@ impl GlobalState {
         }
     }
 
+    /// Formats the active judgement window as text for the UI/result screen.
     fn get_hit_window_text(&self) -> String {
         match self.settings.hit_window_mode {
             HitWindowMode::OsuOD => format!("OD {:.1}", self.settings.hit_window_value),
@@ -138,6 +162,7 @@ impl GlobalState {
         }
     }
 
+    /// Asks the DB thread to refresh leaderboard data for a beatmap hash.
     fn request_leaderboard_for_hash(&mut self, hash: Option<String>) {
         if let Some(hash) = hash {
             if self.requested_leaderboard_hash.as_deref() != Some(hash.as_str()) {
@@ -147,6 +172,17 @@ impl GlobalState {
         }
     }
 
+    /// Persists the last known menu state so that leaving gameplay restores it.
+    fn cache_menu_state(&mut self, menu: MenuState) {
+        self.saved_menu_state = menu;
+    }
+
+    /// Writes current settings to disk.
+    fn persist_settings(&self) {
+        self.settings.save();
+    }
+
+    /// Converts gameplay stats into a DB command for replay persistence.
     fn build_replay_payload(engine: &GameEngine, accuracy: f64) -> Option<SaveReplayCommand> {
         let hash = engine.beatmap_hash.clone()?;
 
@@ -168,199 +204,44 @@ impl GlobalState {
         })
     }
 
+    /// Routes a `GameAction` to the current state and applies the resulting transition.
     pub fn handle_action(&mut self, action: GameAction) {
         if let GameAction::ReloadKeybinds = action {
             self.reload_keybinds_from_disk();
             return;
         }
 
-        let mut next_state = None;
+        let mut current_state =
+            std::mem::replace(&mut self.current_state, AppState::Menu(MenuState::new()));
 
-        match &mut self.current_state {
+        let transition = match &mut current_state {
             AppState::Menu(menu) => {
-                match action {
-                    GameAction::Navigation { x, y } => {
-                        let request_hash = {
-                            if y < 0 {
-                                menu.move_up();
-                            }
-                            if y > 0 {
-                                menu.move_down();
-                            }
-                            if x < 0 {
-                                menu.previous_difficulty();
-                            }
-                            if x > 0 {
-                                menu.next_difficulty();
-                            }
-                            menu.get_selected_beatmap_hash()
-                        };
-                        self.request_leaderboard_for_hash(request_hash);
-                    }
-                    GameAction::SetSelection(idx) => {
-                        let request_hash = {
-                            if idx < menu.beatmapsets.len() {
-                                menu.selected_index = idx;
-                                menu.selected_difficulty_index = 0;
-                                if idx < menu.start_index {
-                                    menu.start_index = idx;
-                                    menu.end_index = (menu.start_index + menu.visible_count)
-                                        .min(menu.beatmapsets.len());
-                                } else if idx >= menu.end_index {
-                                    menu.end_index = (idx + 1).min(menu.beatmapsets.len());
-                                    menu.start_index =
-                                        menu.end_index.saturating_sub(menu.visible_count);
-                                }
-                                menu.get_selected_beatmap_hash()
-                            } else {
-                                None
-                            }
-                        };
-                        self.request_leaderboard_for_hash(request_hash);
-                    }
-                    GameAction::SetDifficulty(idx) => {
-                        let request_hash = {
-                            menu.selected_difficulty_index = idx;
-                            menu.get_selected_beatmap_hash()
-                        };
-                        self.request_leaderboard_for_hash(request_hash);
-                    }
-                    GameAction::Confirm => {
-                        if let Some(path) = menu.get_selected_beatmap_path() {
-                            let beatmap_hash = menu.get_selected_beatmap_hash();
-                            let mut engine = GameEngine::new(path, menu.rate, beatmap_hash.clone());
-                            engine.scroll_speed_ms = self.settings.scroll_speed;
-                            engine.update_hit_window(
-                                self.settings.hit_window_mode,
-                                self.settings.hit_window_value,
-                            );
-                            engine.audio_manager.set_volume(self.settings.master_volume);
-                            next_state = Some(AppState::Game(engine));
-                        }
-                    }
-                    GameAction::ToggleEditor => {
-                        if let Some(path) = menu.get_selected_beatmap_path() {
-                            let mut engine = GameEngine::new(path, 1.0, None);
-                            engine.scroll_speed_ms = self.settings.scroll_speed;
-                            engine.update_hit_window(
-                                self.settings.hit_window_mode,
-                                self.settings.hit_window_value,
-                            );
-                            engine.audio_manager.set_volume(self.settings.master_volume);
-
-                            next_state = Some(AppState::Editor {
-                                engine,
-                                target: None,
-                                mode: EditMode::Move, // Mode par défaut
-                                modification_buffer: None,
-                                save_requested: false,
-                            });
-                        }
-                    }
-                    GameAction::TabNext => menu.increase_rate(),
-                    GameAction::TabPrev => menu.decrease_rate(),
-                    GameAction::ToggleSettings => menu.show_settings = !menu.show_settings,
-                    GameAction::UpdateVolume(value) => {
-                        self.settings.master_volume = value;
-                    }
-                    GameAction::Rescan => {
-                        self.db_manager.rescan();
-                        self.last_db_version = u64::MAX;
-                    }
-                    GameAction::ApplySearch(filters) => {
-                        menu.search_filters = filters.clone();
-                        self.db_manager.search(filters);
-                        self.requested_leaderboard_hash = None;
-                        self.last_leaderboard_version = 0;
-                    }
-                    _ => {}
-                }
+                let next = action.apply_to_menu(self, menu);
+                self.cache_menu_state(menu.clone());
+                next
             }
-            AppState::Game(engine) => match action {
-                GameAction::Back => {
-                    engine.audio_manager.stop();
-                    let new_menu = MenuState::new();
-                    self.last_db_version = u64::MAX;
-                    self.last_leaderboard_version = 0;
-                    self.requested_leaderboard_hash = None;
-                    next_state = Some(AppState::Menu(new_menu));
-                }
-                GameAction::UpdateVolume(value) => {
-                    self.settings.master_volume = value;
-                    engine.audio_manager.set_volume(value);
-                }
-                _ => {
-                    engine.handle_input(action);
-                }
-            },
+            AppState::Game(engine) => action.apply_to_game(self, engine),
             AppState::Editor {
                 engine,
                 target,
                 mode,
                 modification_buffer,
                 save_requested,
-            } => {
-                match action {
-                    GameAction::Back => {
-                        engine.audio_manager.stop();
-                        let new_menu = MenuState::new();
-                        self.last_db_version = u64::MAX;
-                        self.last_leaderboard_version = 0;
-                        self.requested_leaderboard_hash = None;
-                        next_state = Some(AppState::Menu(new_menu));
-                    }
-                    GameAction::EditorSelect(t) => {
-                        if *target == Some(t) {
-                            // Si même cible, on bascule le mode
-                            *mode = match *mode {
-                                EditMode::Resize => EditMode::Move,
-                                EditMode::Move => EditMode::Resize,
-                            };
-                        } else {
-                            // Nouvelle cible, mode par défaut intelligent
-                            *target = Some(t);
-                            *mode = match t {
-                                EditorTarget::Notes
-                                | EditorTarget::Receptors
-                                | EditorTarget::HitBar => EditMode::Resize,
-                                _ => EditMode::Move,
-                            };
-                        }
-                    }
-                    GameAction::Navigation { x, y } => {
-                        if target.is_some() {
-                            *modification_buffer = Some((x as f32, y as f32));
-                        }
-                    }
-                    GameAction::EditorSave => *save_requested = true,
-                    GameAction::UpdateVolume(value) => {
-                        self.settings.master_volume = value;
-                        engine.audio_manager.set_volume(value);
-                    }
-                    GameAction::Hit { column } => engine.handle_input(GameAction::Hit { column }),
-                    GameAction::Release { column } => {
-                        engine.handle_input(GameAction::Release { column })
-                    }
-                    _ => {}
-                }
-            }
-            AppState::Result(_) => match action {
-                GameAction::Back | GameAction::Confirm => {
-                    let new_menu = MenuState::new();
-                    self.last_db_version = u64::MAX;
-                    self.last_leaderboard_version = 0;
-                    self.requested_leaderboard_hash = None;
-                    next_state = Some(AppState::Menu(new_menu));
-                }
-                _ => {}
-            },
-        }
+            } => action.apply_to_editor(
+                self,
+                engine,
+                target,
+                mode,
+                modification_buffer,
+                save_requested,
+            ),
+            AppState::Result(result) => action.apply_to_result(self, result),
+        };
 
-        if let Some(state) = next_state {
-            self.current_state = state;
-        }
+        self.current_state = transition.unwrap_or(current_state);
     }
 
+    /// Cleans up transient editor buffers so next frame starts fresh.
     pub fn frame_end(&mut self) {
         if let AppState::Editor {
             modification_buffer,
@@ -373,6 +254,7 @@ impl GlobalState {
         }
     }
 
+    /// Produces a render-ready snapshot for the renderer thread.
     pub fn create_snapshot(&self) -> RenderState {
         match &self.current_state {
             AppState::Menu(menu) => RenderState::Menu(menu.clone()),
@@ -401,7 +283,8 @@ impl GlobalState {
                 RenderState::Editor(EditorSnapshot {
                     game: engine.get_snapshot(),
                     target: *target,
-                    mode: *mode, // On passe le mode au renderer
+                    // Editor mode is forwarded so the renderer can show the right hints.
+                    mode: *mode,
                     status_text,
                     modification,
                     save_requested: *save_requested,
@@ -413,6 +296,7 @@ impl GlobalState {
 }
 
 impl GlobalState {
+    /// Reloads bindings from disk and forwards them to the input thread.
     fn reload_keybinds_from_disk(&mut self) {
         let disk_settings = SettingsState::load();
         self.settings.keybinds = disk_settings.keybinds.clone();
@@ -421,6 +305,249 @@ impl GlobalState {
             .send(InputCommand::ReloadKeybinds(self.settings.keybinds.clone()))
         {
             log::error!("LOGIC: Failed to forward keybinds to input thread: {}", e);
+        }
+    }
+}
+
+impl GameAction {
+    /// Handles menu-specific behavior for this action.
+    fn apply_to_menu(
+        &self,
+        state: &mut GlobalState,
+        menu: &mut MenuState,
+    ) -> Option<AppState> {
+        match self {
+            GameAction::Navigation { x, y } => {
+                if *y < 0 {
+                    menu.move_up();
+                }
+                if *y > 0 {
+                    menu.move_down();
+                }
+                if *x < 0 {
+                    menu.previous_difficulty();
+                }
+                if *x > 0 {
+                    menu.next_difficulty();
+                }
+                let request_hash = menu.get_selected_beatmap_hash();
+                state.request_leaderboard_for_hash(request_hash);
+                None
+            }
+            GameAction::SetSelection(idx) => {
+                if *idx < menu.beatmapsets.len() {
+                    menu.selected_index = *idx;
+                    menu.selected_difficulty_index = 0;
+                    if *idx < menu.start_index {
+                        menu.start_index = *idx;
+                        menu.end_index =
+                            (menu.start_index + menu.visible_count).min(menu.beatmapsets.len());
+                    } else if *idx >= menu.end_index {
+                        menu.end_index = (*idx + 1).min(menu.beatmapsets.len());
+                        menu.start_index = menu.end_index.saturating_sub(menu.visible_count);
+                    }
+                }
+                let request_hash = menu.get_selected_beatmap_hash();
+                state.request_leaderboard_for_hash(request_hash);
+                None
+            }
+            GameAction::SetDifficulty(idx) => {
+                menu.selected_difficulty_index = *idx;
+                let request_hash = menu.get_selected_beatmap_hash();
+                state.request_leaderboard_for_hash(request_hash);
+                None
+            }
+            GameAction::Confirm => {
+                if let Some(path) = menu.get_selected_beatmap_path() {
+                    let beatmap_hash = menu.get_selected_beatmap_hash();
+                    let mut engine = GameEngine::new(path, menu.rate, beatmap_hash.clone());
+                    engine.scroll_speed_ms = state.settings.scroll_speed;
+                    engine.update_hit_window(
+                        state.settings.hit_window_mode,
+                        state.settings.hit_window_value,
+                    );
+                    engine.audio_manager
+                        .set_volume(state.settings.master_volume);
+                    return Some(AppState::Game(engine));
+                }
+                None
+            }
+            GameAction::ToggleEditor => {
+                if let Some(path) = menu.get_selected_beatmap_path() {
+                    let mut engine = GameEngine::new(path, 1.0, None);
+                    engine.scroll_speed_ms = state.settings.scroll_speed;
+                    engine.update_hit_window(
+                        state.settings.hit_window_mode,
+                        state.settings.hit_window_value,
+                    );
+                    engine.audio_manager
+                        .set_volume(state.settings.master_volume);
+
+                    return Some(AppState::Editor {
+                        engine,
+                        target: None,
+                        mode: EditMode::Move,
+                        modification_buffer: None,
+                        save_requested: false,
+                    });
+                }
+                None
+            }
+            GameAction::TabNext => {
+                menu.increase_rate();
+                None
+            }
+            GameAction::TabPrev => {
+                menu.decrease_rate();
+                None
+            }
+            GameAction::ToggleSettings => {
+                menu.show_settings = !menu.show_settings;
+                None
+            }
+            GameAction::UpdateVolume(value) => {
+                state.settings.master_volume = *value;
+                state.persist_settings();
+                None
+            }
+            GameAction::Rescan => {
+                state.db_manager.rescan();
+                state.last_db_version = u64::MAX;
+                None
+            }
+            GameAction::ApplySearch(filters) => {
+                menu.search_filters = filters.clone();
+                state.db_manager.search(filters.clone());
+                state.requested_leaderboard_hash = None;
+                state.last_leaderboard_version = 0;
+                None
+            }
+            GameAction::TogglePause
+            | GameAction::Hit { .. }
+            | GameAction::Release { .. }
+            | GameAction::Restart
+            | GameAction::Back
+            | GameAction::EditorSelect(_)
+            | GameAction::EditorModify { .. }
+            | GameAction::EditorSave
+            | GameAction::ReloadKeybinds => None,
+        }
+    }
+
+    /// Handles in-game behavior for this action.
+    fn apply_to_game(
+        &self,
+        state: &mut GlobalState,
+        engine: &mut GameEngine,
+    ) -> Option<AppState> {
+        match self {
+            GameAction::Back => {
+                engine.audio_manager.stop();
+                state.requested_leaderboard_hash = None;
+                let menu = state.saved_menu_state.clone();
+                let request_hash = menu.get_selected_beatmap_hash();
+                state.request_leaderboard_for_hash(request_hash);
+                Some(AppState::Menu(menu))
+            }
+            GameAction::UpdateVolume(value) => {
+                state.settings.master_volume = *value;
+                engine.audio_manager.set_volume(*value);
+                state.persist_settings();
+                None
+            }
+            GameAction::ReloadKeybinds => None,
+            _ => {
+                engine.handle_input(self.clone());
+                None
+            }
+        }
+    }
+
+    /// Handles editor-specific behavior for this action.
+    fn apply_to_editor(
+        &self,
+        state: &mut GlobalState,
+        engine: &mut GameEngine,
+        target: &mut Option<EditorTarget>,
+        mode: &mut EditMode,
+        modification_buffer: &mut Option<(f32, f32)>,
+        save_requested: &mut bool,
+    ) -> Option<AppState> {
+        match self {
+            GameAction::Back => {
+                engine.audio_manager.stop();
+                state.requested_leaderboard_hash = None;
+                let menu = state.saved_menu_state.clone();
+                let request_hash = menu.get_selected_beatmap_hash();
+                state.request_leaderboard_for_hash(request_hash);
+                Some(AppState::Menu(menu))
+            }
+            GameAction::EditorSelect(t) => {
+                if *target == Some(*t) {
+                    *mode = match *mode {
+                        EditMode::Resize => EditMode::Move,
+                        EditMode::Move => EditMode::Resize,
+                    };
+                } else {
+                    *target = Some(*t);
+                    *mode = match t {
+                        EditorTarget::Notes
+                        | EditorTarget::Receptors
+                        | EditorTarget::HitBar => EditMode::Resize,
+                        _ => EditMode::Move,
+                    };
+                }
+                None
+            }
+            GameAction::Navigation { x, y } => {
+                if target.is_some() {
+                    *modification_buffer = Some((*x as f32, *y as f32));
+                }
+                None
+            }
+            GameAction::EditorModify { x, y } => {
+                if target.is_some() {
+                    *modification_buffer = Some((*x, *y));
+                }
+                None
+            }
+            GameAction::EditorSave => {
+                *save_requested = true;
+                None
+            }
+            GameAction::UpdateVolume(value) => {
+                state.settings.master_volume = *value;
+                engine.audio_manager.set_volume(*value);
+                state.persist_settings();
+                None
+            }
+            GameAction::Hit { column } => {
+                engine.handle_input(GameAction::Hit { column: *column });
+                None
+            }
+            GameAction::Release { column } => {
+                engine.handle_input(GameAction::Release { column: *column });
+                None
+            }
+            _ => None,
+        }
+    }
+
+    /// Handles result screen behavior for this action.
+    fn apply_to_result(
+        &self,
+        state: &mut GlobalState,
+        _result: &mut GameResultData,
+    ) -> Option<AppState> {
+        match self {
+            GameAction::Back | GameAction::Confirm => {
+                state.requested_leaderboard_hash = None;
+                let menu = state.saved_menu_state.clone();
+                let request_hash = menu.get_selected_beatmap_hash();
+                state.request_leaderboard_for_hash(request_hash);
+                Some(AppState::Menu(menu))
+            }
+            _ => None,
         }
     }
 }

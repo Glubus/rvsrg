@@ -98,7 +98,7 @@ impl DbManager {
         let mut db: Option<Database> = None;
 
         loop {
-            // Vérifier les commandes (non-bloquant)
+            // Check commands without blocking the loop.
             match rx.try_recv() {
                 Ok(DbCommand::Init) => {
                     {
@@ -115,7 +115,7 @@ impl DbManager {
                                 s.status = DbStatus::Idle;
                             }
 
-                            // Si la DB existe, charger les maps
+                            // If the database already exists, eagerly load beatmaps.
                             if db_path.exists() {
                                 Self::load_maps(&state, db.as_ref().unwrap()).await;
                             }
@@ -156,15 +156,15 @@ impl DbManager {
                     break;
                 }
                 Err(std::sync::mpsc::TryRecvError::Empty) => {
-                    // Pas de commande, continuer
+                    // No command available, keep looping.
                 }
                 Err(std::sync::mpsc::TryRecvError::Disconnected) => {
-                    // Le sender est fermé, on peut continuer ou sortir
+                    // Sender was dropped; exit the loop so the worker stops cleanly.
                     break;
                 }
             }
 
-            // Petit sleep pour éviter de consommer 100% CPU
+            // Small sleep to avoid pegging a CPU core.
             tokio::time::sleep(Duration::from_millis(10)).await;
         }
     }
@@ -205,7 +205,7 @@ impl DbManager {
             s.error = None;
         }
 
-        // Vider la DB
+        // Clear the in-memory view first.
         if let Err(e) = clear_all(db.pool()).await {
             let mut s = state.lock().unwrap();
             s.status = DbStatus::Error(format!("Error clearing database: {}", e));
@@ -213,7 +213,7 @@ impl DbManager {
             return;
         }
 
-        // Scanner (pour l'instant on ne peut pas suivre la progression facilement)
+        // Run a full rescan (progress tracking is not exposed yet).
         {
             let mut s = state.lock().unwrap();
             s.status = DbStatus::Scanning {

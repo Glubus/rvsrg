@@ -5,7 +5,8 @@ use crate::database::models::{BeatmapRating, BeatmapWithRatings, Beatmapset};
 use crate::models::settings::HitWindowMode;
 
 pub struct BeatmapInfo {
-    selected_rating_tab: u8, // 0 = Etterna, 1 = Osu
+    /// 0 = Etterna tab, 1 = osu! tab.
+    selected_rating_tab: u8,
 }
 
 impl BeatmapInfo {
@@ -33,7 +34,7 @@ impl BeatmapInfo {
             .show(ui, |ui| {
                 ui.set_width(ui.available_rect_before_wrap().width());
 
-                // Nom de la difficulté en gros
+                // Highlight the difficulty name.
                 if let Some(bm) = beatmap {
                     if let Some(diff_name) = &bm.beatmap.difficulty_name {
                         ui.heading(RichText::new(diff_name).size(24.0));
@@ -41,9 +42,9 @@ impl BeatmapInfo {
                     }
                 }
 
-                // Image en bandeau (placeholder pour l'instant)
+                // Placeholder for a future banner image.
                 if let Some(_image_path) = &beatmapset.image_path {
-                    // Plus tard on chargera et affichera l'image ici en mode bandeau
+                    // TODO: load and render the image as a banner.
                     egui::Frame::default()
                         .fill(Color32::from_rgba_unmultiplied(20, 20, 20, 255))
                         .inner_margin(5.0)
@@ -56,27 +57,27 @@ impl BeatmapInfo {
                     ui.add_space(5.0);
                 }
 
-                // Informations de la map
+                // Beatmap metadata
                 ui.separator();
                 ui.add_space(5.0);
 
-                // Notes, BPM, Mappeur les uns à côté des autres
+                // Notes, BPM and mapper aligned on one row.
                 ui.horizontal(|ui| {
-                    // Nombre de notes
+                    // Note count
                     if let Some(bm) = beatmap {
                         ui.label(RichText::new("Notes:").strong());
                         ui.label(format!("{}", bm.beatmap.note_count));
                         ui.add_space(15.0);
                     }
 
-                    // BPM (constante pour l'instant)
+                    // BPM (still constant for now)
                     ui.label(RichText::new("BPM:").strong());
-                    ui.label("180"); // Constante pour l'instant
+                    ui.label("180"); // Placeholder until BPM metadata is wired up.
                     ui.add_space(15.0);
 
-                    // Mappeur (constante pour l'instant)
+                    // Mapper (placeholder for now)
                     ui.label(RichText::new("Mapper:").strong());
-                    ui.label("Unknown"); // Constante pour l'instant
+                    ui.label("Unknown"); // Placeholder until mapper metadata is wired up.
                 });
 
                 ui.add_space(10.0);
@@ -105,7 +106,7 @@ impl BeatmapInfo {
 
                 ui.add_space(5.0);
 
-                // Hit Window au-dessus du rate
+                // Show the active hit window above the rate.
                 let hit_window_text = match hit_window_mode {
                     HitWindowMode::OsuOD => format!("OD {:.1}", hit_window_value),
                     HitWindowMode::EtternaJudge => format!("Judge {}", hit_window_value as u8),
@@ -116,7 +117,7 @@ impl BeatmapInfo {
                     });
                 });
 
-                // Rating et Rate sur la même ligne
+                // Render rating and rate on the same line.
                 ui.horizontal(|ui| {
                     let (label, rating) = match self.selected_rating_tab {
                         0 => ("Etterna", etterna_rating),
@@ -138,7 +139,7 @@ impl BeatmapInfo {
                         );
                     }
 
-                    // Rate à droite, au même niveau
+                    // Place the rate on the right side.
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         ui.label(RichText::new(format!("{:.1}x", rate)).size(20.0).strong());
                     });
