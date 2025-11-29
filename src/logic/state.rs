@@ -267,7 +267,7 @@ impl GlobalState {
                 modification_buffer,
                 save_requested,
             } => {
-                let modification = if let (Some(t), Some((dx, dy))) = (target, modification_buffer.as_ref())
+                let modification = if let (Some(t), Some((dx, dy))) = (target.as_ref(), modification_buffer.as_ref())
                 {
                     Some((*t, *mode, *dx, *dy))
                 } else {
@@ -278,8 +278,9 @@ impl GlobalState {
                 if modification.is_some() {
                     *modification_buffer = None;
                 }
+                
 
-                let status_text = if let Some(t) = target {
+                let status_text = if let Some(t) = target.as_ref() {
                     format!("EDIT: {:?} [{}]", t, mode)
                 } else {
                     "SELECT: W(Note) X(Rec) C(Cmb) V(Scr) B(Acc) N(Judg) K(Bar) | S(Save)"
