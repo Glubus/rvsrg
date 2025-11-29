@@ -182,13 +182,27 @@ impl Renderer {
                 };
                 let dummy_win = crate::models::engine::hit_window::HitWindow::new();
 
-                let (action_opt, _, _) = self.song_select_screen.render(
+                // Créer un hit_window à jour avec les settings actuels
+                let current_hit_window = match self.resources.settings.hit_window_mode {
+                    crate::models::settings::HitWindowMode::OsuOD => {
+                        crate::models::engine::hit_window::HitWindow::from_osu_od(
+                            self.resources.settings.hit_window_value,
+                        )
+                    }
+                    crate::models::settings::HitWindowMode::EtternaJudge => {
+                        crate::models::engine::hit_window::HitWindow::from_etterna_judge(
+                            self.resources.settings.hit_window_value as u8,
+                        )
+                    }
+                };
+
+                let (action_opt, result_data, search_request) = self.song_select_screen.render(
                     &ctx_egui,
                     menu_state,
                     &view,
                     self.ctx.config.width as f32,
                     self.ctx.config.height as f32,
-                    &dummy_win,
+                    &current_hit_window,
                     self.resources.settings.hit_window_mode,
                     self.resources.settings.hit_window_value,
                     self.resources.song_button_texture.as_ref().map(|t| t.id()),
@@ -224,10 +238,41 @@ impl Renderer {
                         _ => {}
                     }
                 }
+
+                // Traiter les clics sur les scores (ouvrir l'écran de résultat)
+                if let Some(result_data) = result_data {
+                    // Envoyer l'action au thread de logique pour changer d'état
+                    actions_to_send.push(GameAction::SetResult(result_data));
+                }
+
+                // Traiter les requêtes de recherche
+                if let Some(filters) = search_request {
+                    actions_to_send.push(GameAction::ApplySearch(filters));
+                }
             }
 
             // --- ÉDITEUR CORRIGÉ ---
             RenderState::Editor(snapshot) => {
+                // Capturer les événements de souris pour l'éditeur
+                let is_dragging = ctx_egui.input(|i| i.pointer.primary_down());
+                
+                if let (Some(target), true) = (snapshot.target, is_dragging) {
+                    // Calculer le delta depuis la dernière position
+                    // On utilise le delta de la souris depuis egui
+                    let delta = ctx_egui.input(|i| {
+                        let delta = i.pointer.delta();
+                        (delta.x, delta.y)
+                    });
+                    
+                    if delta.0 != 0.0 || delta.1 != 0.0 {
+                        // Envoyer l'action de modification
+                        actions_to_send.push(GameAction::EditorModify {
+                            x: delta.0,
+                            y: delta.1,
+                        });
+                    }
+                }
+                
                 if let Some((target, mode, dx, dy)) = snapshot.modification {
                     let config = &mut self.resources.skin.config;
                     let speed = 2.0;

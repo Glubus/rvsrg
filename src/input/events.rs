@@ -94,6 +94,9 @@ pub enum GameAction {
     // DB
     Rescan,
     ApplySearch(MenuSearchFilters),
+    
+    // Result screen
+    SetResult(crate::models::menu::GameResultData),
 }
 
 #[derive(Debug, Clone)]

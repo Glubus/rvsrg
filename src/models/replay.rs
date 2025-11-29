@@ -2,21 +2,21 @@
 use serde::{Deserialize, Serialize};
 
 /// Represents a hit on a specific note.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ReplayHit {
     pub note_index: usize, // Sequential note index
     pub timing_ms: f64,    // Offset in ms (negative means early)
 }
 
 /// Represents a raw key press (no specific note).
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ReplayKeyPress {
     pub timestamp_ms: f64, // Absolute time in ms since song start
     pub column: usize,     // Column index
 }
 
 /// Full replay payload including hits and key presses.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ReplayData {
     pub hits: Vec<ReplayHit>,             // Hits in chronological order
     pub key_presses: Vec<ReplayKeyPress>, // Raw key presses

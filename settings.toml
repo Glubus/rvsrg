@@ -1,17 +1,11 @@
-master_volume = 0.27000001072883606
+master_volume = 0.3499999940395355
 scroll_speed = 450.0
 hit_window_mode = "EtternaJudge"
-hit_window_value = 5.0
+hit_window_value = 2.0
 aspect_ratio_mode = "Auto"
 current_skin = "default"
 
 [keybinds]
-4 = [
-    "KeyQ",
-    "KeyW",
-    "KeyO",
-    "KeyP",
-]
 7 = [
     "KeyS",
     "KeyD",
@@ -35,4 +29,10 @@ current_skin = "default"
     "Space",
     "KeyJ",
     "KeyK",
+]
+4 = [
+    "KeyQ",
+    "KeyW",
+    "KeyO",
+    "KeyP",
 ]

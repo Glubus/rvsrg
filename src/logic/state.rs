@@ -244,19 +244,20 @@ impl GlobalState {
     /// Cleans up transient editor buffers so next frame starts fresh.
     pub fn frame_end(&mut self) {
         if let AppState::Editor {
-            modification_buffer,
+            modification_buffer: _,
             save_requested,
             ..
         } = &mut self.current_state
         {
-            *modification_buffer = None;
+            // Ne pas nettoyer modification_buffer ici - il sera traité dans create_snapshot
+            // et nettoyé seulement après avoir été utilisé
             *save_requested = false;
         }
     }
 
     /// Produces a render-ready snapshot for the renderer thread.
-    pub fn create_snapshot(&self) -> RenderState {
-        match &self.current_state {
+    pub fn create_snapshot(&mut self) -> RenderState {
+        match &mut self.current_state {
             AppState::Menu(menu) => RenderState::Menu(menu.clone()),
             AppState::Game(engine) => RenderState::InGame(engine.get_snapshot()),
             AppState::Editor {
@@ -266,12 +267,17 @@ impl GlobalState {
                 modification_buffer,
                 save_requested,
             } => {
-                let modification = if let (Some(t), Some((dx, dy))) = (target, modification_buffer)
+                let modification = if let (Some(t), Some((dx, dy))) = (target, modification_buffer.as_ref())
                 {
                     Some((*t, *mode, *dx, *dy))
                 } else {
                     None
                 };
+                
+                // Nettoyer le buffer après l'avoir utilisé
+                if modification.is_some() {
+                    *modification_buffer = None;
+                }
 
                 let status_text = if let Some(t) = target {
                     format!("EDIT: {:?} [{}]", t, mode)
@@ -422,6 +428,9 @@ impl GameAction {
                 state.last_leaderboard_version = 0;
                 None
             }
+            GameAction::SetResult(result_data) => {
+                Some(AppState::Result(result_data.clone()))
+            }
             GameAction::TogglePause
             | GameAction::Hit { .. }
             | GameAction::Release { .. }
@@ -501,13 +510,25 @@ impl GameAction {
             }
             GameAction::Navigation { x, y } => {
                 if target.is_some() {
-                    *modification_buffer = Some((*x as f32, *y as f32));
+                    // Accumuler les modifications au lieu de les remplacer
+                    // Cela permet de traiter plusieurs inputs même s'ils arrivent rapidement
+                    let (dx, dy) = (*x as f32, *y as f32);
+                    if let Some((old_dx, old_dy)) = modification_buffer {
+                        *modification_buffer = Some((*old_dx + dx, *old_dy + dy));
+                    } else {
+                        *modification_buffer = Some((dx, dy));
+                    }
                 }
                 None
             }
             GameAction::EditorModify { x, y } => {
                 if target.is_some() {
-                    *modification_buffer = Some((*x, *y));
+                    // Accumuler les modifications au lieu de les remplacer
+                    if let Some((old_dx, old_dy)) = modification_buffer {
+                        *modification_buffer = Some((*old_dx + *x, *old_dy + *y));
+                    } else {
+                        *modification_buffer = Some((*x, *y));
+                    }
                 }
                 None
             }

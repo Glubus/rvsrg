@@ -26,10 +26,6 @@ impl SearchPanel {
 
     /// Draws the panel and returns an event when the user applies filters.
     pub fn render(&mut self, ui: &mut Ui, menu_state: &MenuState) -> SearchPanelEvent {
-        if self.form_filters != menu_state.search_filters {
-            self.form_filters = menu_state.search_filters.clone();
-        }
-
         let mut should_apply = false;
 
         Frame::default()
@@ -59,9 +55,16 @@ impl SearchPanel {
                 should_apply |= self.render_duration_section(ui);
             });
 
+        // Si l'utilisateur a modifié quelque chose, on envoie l'événement
+        // Sinon, on synchronise avec menu_state si nécessaire
         if should_apply {
             SearchPanelEvent::Apply(self.form_filters.clone())
         } else {
+            // Synchroniser seulement si aucun changement utilisateur n'a été détecté
+            // Cela évite d'écraser les modifications en cours
+            if self.form_filters != menu_state.search_filters {
+                self.form_filters = menu_state.search_filters.clone();
+            }
             SearchPanelEvent::None
         }
     }
