@@ -2,6 +2,7 @@ use crate::database::{DbManager, DbStatus, SaveReplayCommand};
 use crate::input::events::{EditMode, EditorTarget, GameAction, InputCommand};
 use crate::logic::engine::GameEngine;
 use crate::models::menu::{GameResultData, MenuState};
+use crate::models::replay::simulate_replay;
 use crate::models::settings::{HitWindowMode, SettingsState};
 use crate::shared::snapshot::{EditorSnapshot, RenderState};
 use crossbeam_channel::Sender;
@@ -70,17 +71,25 @@ impl GlobalState {
         match &mut self.current_state {
             AppState::Menu(menu) => {
                 menu.ensure_selected_rate_cache();
+                menu.ensure_chart_cache();
             }
             AppState::Game(engine) => {
                 engine.update(dt);
                 if engine.is_finished() {
-                    let accuracy = engine.hit_stats.calculate_accuracy();
+                    // Simuler le replay pour obtenir les résultats détaillés (hit_timings, etc.)
+                    let chart = engine.get_chart();
+                    let replay_result =
+                        simulate_replay(&engine.replay_data, &chart, &engine.hit_window);
+
+                    let accuracy = replay_result.accuracy;
                     if let Some(payload) = Self::build_replay_payload(engine, accuracy) {
                         self.db_manager.save_replay(payload);
                     }
+
                     let result = GameResultData {
-                        hit_stats: engine.hit_stats.clone(),
+                        hit_stats: replay_result.hit_stats.clone(),
                         replay_data: engine.replay_data.clone(),
+                        replay_result,
                         score: engine.score,
                         accuracy,
                         max_combo: engine.max_combo,
@@ -184,14 +193,34 @@ impl GlobalState {
 
     /// Converts gameplay stats into a DB command for replay persistence.
     fn build_replay_payload(engine: &GameEngine, accuracy: f64) -> Option<SaveReplayCommand> {
-        let hash = engine.beatmap_hash.clone()?;
+        let hash = match engine.beatmap_hash.clone() {
+            Some(h) => h,
+            None => {
+                log::error!("REPLAY: Cannot save - beatmap_hash is None!");
+                return None;
+            }
+        };
 
         let timestamp = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap_or_default()
             .as_secs() as i64;
 
-        let data = serde_json::to_string(&engine.replay_data).ok()?;
+        let data = match serde_json::to_string(&engine.replay_data) {
+            Ok(d) => d,
+            Err(e) => {
+                log::error!("REPLAY: Cannot serialize replay_data: {}", e);
+                return None;
+            }
+        };
+
+        log::info!(
+            "REPLAY: Building payload for {} (score: {}, accuracy: {:.2}%, inputs: {})",
+            hash,
+            engine.score,
+            accuracy,
+            engine.replay_data.inputs.len()
+        );
 
         Some(SaveReplayCommand {
             beatmap_hash: hash,
@@ -365,40 +394,88 @@ impl GameAction {
                 None
             }
             GameAction::Confirm => {
-                if let Some(path) = menu.get_selected_beatmap_path() {
-                    let beatmap_hash = menu.get_selected_beatmap_hash();
-                    let mut engine = GameEngine::new(path, menu.rate, beatmap_hash.clone());
-                    engine.scroll_speed_ms = state.settings.scroll_speed;
-                    engine.update_hit_window(
+                // Utiliser la chart cachée si disponible, sinon charger depuis le fichier
+                let engine = if let Some(cache) = menu.get_cached_chart() {
+                    // Reset les notes hit pour le nouveau gameplay
+                    let chart: Vec<_> = cache.chart.iter().map(|n| crate::models::engine::NoteData {
+                        timestamp_ms: n.timestamp_ms,
+                        column: n.column,
+                        hit: false,
+                    }).collect();
+                    
+                    // Utiliser le hash du cache (garanti cohérent avec la chart)
+                    let beatmap_hash = Some(cache.beatmap_hash.clone());
+                    
+                    log::info!("GAME: Using cached chart ({} notes, hash: {:?})", chart.len(), beatmap_hash);
+                    GameEngine::from_cached(
+                        chart,
+                        cache.audio_path.clone(),
+                        menu.rate,
+                        beatmap_hash,
                         state.settings.hit_window_mode,
                         state.settings.hit_window_value,
-                    );
-                    engine.audio_manager
-                        .set_volume(state.settings.master_volume);
-                    return Some(AppState::Game(engine));
-                }
-                None
+                    )
+                } else if let Some(path) = menu.get_selected_beatmap_path() {
+                    let beatmap_hash = menu.get_selected_beatmap_hash();
+                    log::info!("GAME: Loading chart from file (no cache), hash: {:?}", beatmap_hash);
+                    GameEngine::new(
+                        path,
+                        menu.rate,
+                        beatmap_hash,
+                        state.settings.hit_window_mode,
+                        state.settings.hit_window_value,
+                    )
+                } else {
+                    return None;
+                };
+                
+                let mut engine = engine;
+                engine.scroll_speed_ms = state.settings.scroll_speed;
+                engine.audio_manager
+                    .set_volume(state.settings.master_volume);
+                return Some(AppState::Game(engine));
             }
             GameAction::ToggleEditor => {
-                if let Some(path) = menu.get_selected_beatmap_path() {
-                    let mut engine = GameEngine::new(path, 1.0, None);
-                    engine.scroll_speed_ms = state.settings.scroll_speed;
-                    engine.update_hit_window(
+                // Utiliser la chart cachée si disponible
+                let engine = if let Some(cache) = menu.get_cached_chart() {
+                    let chart: Vec<_> = cache.chart.iter().map(|n| crate::models::engine::NoteData {
+                        timestamp_ms: n.timestamp_ms,
+                        column: n.column,
+                        hit: false,
+                    }).collect();
+                    
+                    GameEngine::from_cached(
+                        chart,
+                        cache.audio_path.clone(),
+                        1.0,
+                        None,
                         state.settings.hit_window_mode,
                         state.settings.hit_window_value,
-                    );
-                    engine.audio_manager
-                        .set_volume(state.settings.master_volume);
+                    )
+                } else if let Some(path) = menu.get_selected_beatmap_path() {
+                    GameEngine::new(
+                        path,
+                        1.0,
+                        None,
+                        state.settings.hit_window_mode,
+                        state.settings.hit_window_value,
+                    )
+                } else {
+                    return None;
+                };
+                
+                let mut engine = engine;
+                engine.scroll_speed_ms = state.settings.scroll_speed;
+                engine.audio_manager
+                    .set_volume(state.settings.master_volume);
 
-                    return Some(AppState::Editor {
-                        engine,
-                        target: None,
-                        mode: EditMode::Move,
-                        modification_buffer: None,
-                        save_requested: false,
-                    });
-                }
-                None
+                return Some(AppState::Editor {
+                    engine,
+                    target: None,
+                    mode: EditMode::Move,
+                    modification_buffer: None,
+                    save_requested: false,
+                });
             }
             GameAction::TabNext => {
                 menu.increase_rate();

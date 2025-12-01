@@ -1,8 +1,8 @@
 use crate::models::engine::hit_window::HitWindow;
-use crate::models::replay::ReplayData;
+use crate::models::replay::ReplayResult;
 use egui::{Align2, Color32, FontId, Painter, Pos2, Rect, Stroke, Ui, Vec2};
 
-pub fn render_graphs(ui: &mut Ui, replay_data: &ReplayData, hit_window: &HitWindow) {
+pub fn render_graphs(ui: &mut Ui, replay_result: &ReplayResult, hit_window: &HitWindow) {
     ui.vertical(|ui| {
         ui.label(egui::RichText::new("Hit Deviation Distribution").strong());
         egui::Frame::canvas(ui.style())
@@ -11,7 +11,7 @@ pub fn render_graphs(ui: &mut Ui, replay_data: &ReplayData, hit_window: &HitWind
             .show(ui, |ui| {
                 let (response, painter) = ui
                     .allocate_painter(Vec2::new(ui.available_width(), 150.0), egui::Sense::hover());
-                render_hit_histogram(&painter, &response.rect, replay_data, hit_window);
+                render_hit_histogram(&painter, &response.rect, replay_result, hit_window);
             });
         ui.add_space(20.0);
         ui.label(egui::RichText::new("Hit Timeline").strong());
@@ -21,7 +21,7 @@ pub fn render_graphs(ui: &mut Ui, replay_data: &ReplayData, hit_window: &HitWind
             .show(ui, |ui| {
                 let (response, painter) = ui
                     .allocate_painter(Vec2::new(ui.available_width(), 200.0), egui::Sense::hover());
-                render_timeline_graph(&painter, &response.rect, replay_data, hit_window);
+                render_timeline_graph(&painter, &response.rect, replay_result, hit_window);
             });
     });
 }
@@ -29,7 +29,7 @@ pub fn render_graphs(ui: &mut Ui, replay_data: &ReplayData, hit_window: &HitWind
 fn render_hit_histogram(
     painter: &Painter,
     rect: &Rect,
-    replay_data: &ReplayData,
+    replay_result: &ReplayResult,
     hit_window: &HitWindow,
 ) {
     let center_x = rect.center().x;
@@ -37,14 +37,24 @@ fn render_hit_histogram(
     let top_y = rect.top() + 10.0;
     let graph_height = bottom_y - top_y;
     let width = rect.width();
+
+    // Ligne centrale (0ms)
     painter.line_segment(
         [Pos2::new(center_x, top_y), Pos2::new(center_x, bottom_y)],
         Stroke::new(1.0, Color32::WHITE.linear_multiply(0.3)),
     );
-    let hits: Vec<f64> = replay_data.hits.iter().map(|h| h.timing_ms).collect();
+
+    // Collecter les timings depuis hit_timings
+    let hits: Vec<f64> = replay_result
+        .hit_timings
+        .iter()
+        .map(|h| h.timing_ms)
+        .collect();
+
     if hits.is_empty() {
         return;
     }
+
     let range_ms = hit_window.miss_ms.max(50.0) as f32;
     let bucket_count = 60;
     let mut buckets = vec![0; bucket_count];
@@ -52,6 +62,7 @@ fn render_hit_histogram(
     let max_val = range_ms;
     let step = (max_val - min_val) / bucket_count as f32;
     let mut max_bucket_val = 0;
+
     for &timing in &hits {
         let t = timing as f32;
         if t >= min_val && t < max_val {
@@ -64,10 +75,13 @@ fn render_hit_histogram(
             }
         }
     }
+
     if max_bucket_val == 0 {
         return;
     }
+
     let bar_width = (width / bucket_count as f32) * 0.8;
+
     for (i, &count) in buckets.iter().enumerate() {
         if count == 0 {
             continue;
@@ -83,6 +97,8 @@ fn render_hit_histogram(
         let color = get_color_for_timing(bucket_time as f64, hit_window);
         painter.rect_filled(bar_rect, 1.0, color.linear_multiply(0.8));
     }
+
+    // Labels
     let font_id = FontId::monospace(10.0);
     let text_color = Color32::from_gray(180);
     painter.text(
@@ -111,15 +127,18 @@ fn render_hit_histogram(
 fn render_timeline_graph(
     painter: &Painter,
     rect: &Rect,
-    replay_data: &ReplayData,
+    replay_result: &ReplayResult,
     hit_window: &HitWindow,
 ) {
-    if replay_data.hits.is_empty() {
+    if replay_result.hit_timings.is_empty() {
         return;
     }
+
     let center_y = rect.center().y;
     let width = rect.width() - 40.0;
     let graph_rect = Rect::from_min_max(rect.min, Pos2::new(rect.left() + width, rect.bottom()));
+
+    // Ligne centrale (0ms)
     painter.line_segment(
         [
             Pos2::new(graph_rect.left(), center_y),
@@ -127,8 +146,11 @@ fn render_timeline_graph(
         ],
         Stroke::new(1.0, Color32::WHITE.linear_multiply(0.3)),
     );
+
     let scale_y = (graph_rect.height() / 2.0) / hit_window.miss_ms as f32 * 0.9;
     let font_id = FontId::monospace(10.0);
+
+    // Fonction helper pour dessiner les guides
     let draw_guide = |ms: f64, color: Color32, _label: &str| {
         let y_offset = ms as f32 * scale_y;
         let stroke = Stroke::new(1.0, color.linear_multiply(0.15));
@@ -163,9 +185,11 @@ fn render_timeline_graph(
             color,
         );
     };
+
     draw_guide(hit_window.marv_ms, Color32::from_rgb(0, 255, 255), "Marv");
     draw_guide(hit_window.perfect_ms, Color32::YELLOW, "Perf");
     draw_guide(hit_window.great_ms, Color32::GREEN, "Great");
+
     painter.text(
         Pos2::new(graph_rect.right() + 5.0, center_y),
         Align2::LEFT_CENTER,
@@ -173,11 +197,22 @@ fn render_timeline_graph(
         font_id.clone(),
         Color32::WHITE,
     );
-    let min_idx = replay_data.hits.first().map(|h| h.note_index).unwrap_or(0);
-    let max_idx = replay_data.hits.last().map(|h| h.note_index).unwrap_or(1);
-    let range_idx = (max_idx - min_idx).max(1) as f32;
-    for hit in &replay_data.hits {
-        let x_ratio = (hit.note_index - min_idx) as f32 / range_idx;
+
+    // Utiliser note_timestamp_ms pour l'axe X (plus précis que note_index)
+    let min_time = replay_result
+        .hit_timings
+        .first()
+        .map(|h| h.note_timestamp_ms)
+        .unwrap_or(0.0);
+    let max_time = replay_result
+        .hit_timings
+        .last()
+        .map(|h| h.note_timestamp_ms)
+        .unwrap_or(1.0);
+    let time_range = (max_time - min_time).max(1.0);
+
+    for hit in &replay_result.hit_timings {
+        let x_ratio = (hit.note_timestamp_ms - min_time) as f32 / time_range as f32;
         let x = graph_rect.left() + x_ratio * width;
         let y_offset = hit.timing_ms as f32 * scale_y;
         let y = center_y - y_offset;

@@ -1,5 +1,5 @@
 use super::events::{EditorTarget, GameAction, RawInputEvent};
-use crate::core::input::bindings::parse_keycode;
+use super::keycode::parse_keycode;
 use crate::models::engine::constants::NUM_COLUMNS;
 use crate::models::settings::SettingsState;
 use std::collections::{HashMap, HashSet};

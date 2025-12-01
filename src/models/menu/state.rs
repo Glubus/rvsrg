@@ -1,25 +1,17 @@
+//! État du menu principal.
+
+use super::{ChartCache, RateCacheEntry};
 use crate::database::models::Replay;
 use crate::database::{BeatmapRating, BeatmapWithRatings, Beatmapset, Database};
 use crate::difficulty;
-use crate::models::replay::ReplayData;
 use crate::models::search::MenuSearchFilters;
-use crate::models::stats::HitStats;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
-#[derive(Clone, Debug, PartialEq)]
-pub struct GameResultData {
-    pub hit_stats: HitStats,
-    pub replay_data: ReplayData,
-    pub score: u32,
-    pub accuracy: f64,
-    pub max_combo: u32,
-    pub beatmap_hash: Option<String>,
-    pub rate: f64,
-    pub judge_text: String,
-}
+use super::GameResultData;
 
+/// État principal du menu de sélection de chansons.
 #[derive(Clone, Debug)]
 pub struct MenuState {
     pub beatmapsets: Vec<(Beatmapset, Vec<BeatmapWithRatings>)>,
@@ -31,7 +23,6 @@ pub struct MenuState {
     pub in_menu: bool,
     pub in_editor: bool,
     pub show_result: bool,
-    // Canonical toggle for exposing the settings window.
     pub show_settings: bool,
     pub rate: f64,
     pub last_result: Option<GameResultData>,
@@ -40,6 +31,7 @@ pub struct MenuState {
     pub search_filters: MenuSearchFilters,
     pub leaderboard_scores: Vec<Replay>,
     pub leaderboard_hash: Option<String>,
+    pub chart_cache: Option<ChartCache>,
 }
 
 impl MenuState {
@@ -54,7 +46,7 @@ impl MenuState {
             in_menu: true,
             in_editor: false,
             show_result: false,
-            show_settings: false, // Hidden by default
+            show_settings: false,
             rate: 1.0,
             last_result: None,
             should_close_result: false,
@@ -62,7 +54,55 @@ impl MenuState {
             search_filters: MenuSearchFilters::default(),
             leaderboard_scores: Vec::new(),
             leaderboard_hash: None,
+            chart_cache: None,
         }
+    }
+
+    /// Charge la chart de la map actuellement sélectionnée dans le cache.
+    pub fn ensure_chart_cache(&mut self) -> bool {
+        let selected = match self.get_selected_beatmap() {
+            Some(bm) => bm,
+            None => return false,
+        };
+
+        let beatmap_hash = selected.beatmap.hash.clone();
+        let beatmap_path = PathBuf::from(&selected.beatmap.path);
+
+        if let Some(ref cache) = self.chart_cache {
+            if cache.beatmap_hash == beatmap_hash {
+                return false;
+            }
+        }
+
+        match crate::models::engine::load_map_safe(&beatmap_path) {
+            Some((audio_path, chart)) => {
+                log::info!(
+                    "MENU: Chart cached for {} ({} notes)",
+                    beatmap_hash,
+                    chart.len()
+                );
+                self.chart_cache = Some(ChartCache {
+                    beatmap_hash,
+                    chart,
+                    audio_path,
+                    map_path: beatmap_path,
+                });
+                true
+            }
+            None => {
+                log::error!("MENU: Failed to load chart for caching");
+                self.chart_cache = None;
+                false
+            }
+        }
+    }
+
+    pub fn get_cached_chart(&self) -> Option<&ChartCache> {
+        self.chart_cache.as_ref()
+    }
+
+    pub fn get_cached_chart_note_count(&self) -> usize {
+        self.chart_cache.as_ref().map(|c| c.chart.len()).unwrap_or(0)
     }
 
     pub fn increase_rate(&mut self) {
@@ -169,6 +209,7 @@ impl MenuState {
             state.search_filters = MenuSearchFilters::default();
             state.leaderboard_scores.clear();
             state.leaderboard_hash = None;
+            state.chart_cache = None;
         }
         Ok(())
     }
@@ -283,87 +324,3 @@ impl MenuState {
     }
 }
 
-#[derive(Clone, Debug)]
-pub struct RateCacheEntry {
-    available_rates: Vec<f64>,
-    ratings_by_rate: HashMap<i32, Vec<BeatmapRating>>,
-}
-
-impl RateCacheEntry {
-    fn from_analysis(beatmap_hash: &str, analysis: difficulty::RateDifficultyCache) -> Self {
-        let mut ratings_by_rate = HashMap::new();
-
-        for (rate, values) in analysis.ratings_by_rate.into_iter() {
-            let key = Self::normalize(rate);
-            let converted = values
-                .into_iter()
-                .enumerate()
-                .map(|(idx, value)| BeatmapRating {
-                    id: -((idx as i64) + 1),
-                    beatmap_hash: beatmap_hash.to_string(),
-                    name: value.name,
-                    overall: value.ssr.overall,
-                    stream: value.ssr.stream,
-                    jumpstream: value.ssr.jumpstream,
-                    handstream: value.ssr.handstream,
-                    stamina: value.ssr.stamina,
-                    jackspeed: value.ssr.jackspeed,
-                    chordjack: value.ssr.chordjack,
-                    technical: value.ssr.technical,
-                })
-                .collect::<Vec<_>>();
-            ratings_by_rate.insert(key, converted);
-        }
-
-        Self {
-            available_rates: analysis.available_rates,
-            ratings_by_rate,
-        }
-    }
-
-    fn get_ratings(&self, rate: f64) -> Option<&Vec<BeatmapRating>> {
-        let key = Self::normalize(rate);
-        self.ratings_by_rate.get(&key)
-    }
-
-    fn contains_rate(&self, rate: f64) -> bool {
-        self.get_ratings(rate).is_some()
-    }
-
-    fn closest_rate(&self, desired: f64) -> Option<f64> {
-        if self.available_rates.is_empty() {
-            return None;
-        }
-        let mut best_rate = self.available_rates[0];
-        let mut best_diff = (best_rate - desired).abs();
-        for &candidate in &self.available_rates {
-            let diff = (candidate - desired).abs();
-            if diff < best_diff {
-                best_rate = candidate;
-                best_diff = diff;
-            }
-        }
-        Some(best_rate)
-    }
-
-    fn next_rate(&self, current: f64) -> Option<f64> {
-        let epsilon = 0.0001;
-        self.available_rates
-            .iter()
-            .copied()
-            .find(|&rate| rate > current + epsilon)
-    }
-
-    fn previous_rate(&self, current: f64) -> Option<f64> {
-        let epsilon = 0.0001;
-        self.available_rates
-            .iter()
-            .rev()
-            .copied()
-            .find(|&rate| rate < current - epsilon)
-    }
-
-    fn normalize(rate: f64) -> i32 {
-        (rate * 100.0).round() as i32
-    }
-}

@@ -18,8 +18,8 @@ pub fn start_thread(bus: SystemBus, db_manager: DbManager) {
 
             // 1. Connexion DB
             db_manager.init();
-            // 2. Force Rescan au démarrage pour peupler la DB
-            db_manager.rescan();
+            // 2. Charger les beatmaps existantes (sans vider la DB)
+            db_manager.load();
 
             let input_cmd_tx = bus.input_cmd_tx.clone();
             let mut state = GlobalState::new(db_manager, input_cmd_tx);

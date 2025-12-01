@@ -1,9 +1,8 @@
 use crate::input::events::GameAction;
 use crate::logic::audio::AudioManager;
-use crate::models::engine::{
-    HitWindow, NUM_COLUMNS, NoteData, load_map,
-};
+use crate::models::engine::{HitWindow, NoteData, NUM_COLUMNS, load_map};
 use crate::models::replay::ReplayData;
+use crate::models::settings::HitWindowMode;
 use crate::models::stats::{HitStats, Judgement};
 use crate::shared::snapshot::GameplaySnapshot;
 use std::collections::VecDeque;
@@ -29,6 +28,8 @@ pub struct GameEngine {
     pub rate: f64,
     pub scroll_speed_ms: f64,
     pub hit_window: HitWindow,
+    pub hit_window_mode: HitWindowMode,
+    pub hit_window_value: f64,
 
     pub replay_data: ReplayData,
     pub beatmap_hash: Option<String>,
@@ -42,12 +43,36 @@ pub struct GameEngine {
 impl GameEngine {
     const PRE_ROLL_MS: f64 = 3000.0;
 
-    pub fn new(map_path: PathBuf, rate: f64, beatmap_hash: Option<String>) -> Self {
+    /// Crée un GameEngine en chargeant la map depuis le fichier.
+    pub fn new(
+        map_path: PathBuf,
+        rate: f64,
+        beatmap_hash: Option<String>,
+        hit_window_mode: HitWindowMode,
+        hit_window_value: f64,
+    ) -> Self {
         let (audio_path, chart) = load_map(map_path);
+        Self::from_cached(chart, audio_path, rate, beatmap_hash, hit_window_mode, hit_window_value)
+    }
 
+    /// Crée un GameEngine à partir d'une chart et d'un chemin audio pré-chargés.
+    /// Utilisé quand la chart est déjà en cache.
+    pub fn from_cached(
+        chart: Vec<NoteData>,
+        audio_path: PathBuf,
+        rate: f64,
+        beatmap_hash: Option<String>,
+        hit_window_mode: HitWindowMode,
+        hit_window_value: f64,
+    ) -> Self {
         let mut audio_manager = AudioManager::new();
         audio_manager.load_music(&audio_path);
         audio_manager.set_speed(rate as f32);
+
+        let hit_window = match hit_window_mode {
+            HitWindowMode::OsuOD => HitWindow::from_osu_od(hit_window_value),
+            HitWindowMode::EtternaJudge => HitWindow::from_etterna_judge(hit_window_value as u8),
+        };
 
         Self {
             chart,
@@ -62,12 +87,14 @@ impl GameEngine {
             last_hit_judgement: None,
             audio_manager,
             audio_clock: -Self::PRE_ROLL_MS,
-            replay_data: ReplayData::new(),
+            replay_data: ReplayData::new(rate, hit_window_mode, hit_window_value),
             beatmap_hash,
             started_audio: false,
             rate,
             scroll_speed_ms: 500.0,
-            hit_window: HitWindow::new(),
+            hit_window,
+            hit_window_mode,
+            hit_window_value,
             input_timestamps: VecDeque::new(),
             current_nps: 0.0,
         }
@@ -122,9 +149,8 @@ impl GameEngine {
                 // 2. Apply the judgement (mutates self).
                 self.apply_judgement(Judgement::Miss);
 
-                // 3. Add the event to the replay (mutates self).
-                self.replay_data
-                    .add_hit(new_head, (note_timestamp - current_time) / self.rate);
+                // NOTE: On n'enregistre plus les misses dans le replay.
+                // La simulation les recalculera à partir des inputs purs.
 
                 new_head += 1;
             } else {
@@ -143,6 +169,10 @@ impl GameEngine {
                 if column < self.keys_held.len() {
                     self.keys_held[column] = true;
                 }
+
+                // Enregistrer l'input PRESS pur dans le replay.
+                self.replay_data.add_press(self.audio_clock, column);
+
                 // Record input timestamp for NPS calculation
                 self.input_timestamps.push_back(self.audio_clock);
                 self.process_hit(column);
@@ -151,6 +181,9 @@ impl GameEngine {
                 if column < self.keys_held.len() {
                     self.keys_held[column] = false;
                 }
+
+                // Enregistrer l'input RELEASE pur dans le replay.
+                self.replay_data.add_release(self.audio_clock, column);
             }
             GameAction::TogglePause => { /* TODO */ }
             _ => {}
@@ -186,12 +219,15 @@ impl GameEngine {
             self.last_hit_timing = Some(diff);
             self.last_hit_judgement = Some(judgement);
             self.apply_judgement(judgement);
-            self.replay_data.add_hit(idx, diff);
+
+            // NOTE: On n'enregistre plus les hits calculés dans le replay.
+            // Seuls les inputs purs sont stockés, la simulation recalculera.
         } else {
             self.last_hit_timing = None;
             self.last_hit_judgement = Some(Judgement::GhostTap);
             self.apply_judgement(Judgement::GhostTap);
-            self.replay_data.add_key_press(current_time, column);
+
+            // NOTE: Les ghost taps seront aussi recalculés par la simulation.
         }
     }
 
@@ -290,12 +326,17 @@ impl GameEngine {
         }
     }
 
-    pub fn update_hit_window(&mut self, mode: crate::models::settings::HitWindowMode, value: f64) {
+    pub fn update_hit_window(&mut self, mode: HitWindowMode, value: f64) {
         self.hit_window = match mode {
-            crate::models::settings::HitWindowMode::OsuOD => HitWindow::from_osu_od(value),
-            crate::models::settings::HitWindowMode::EtternaJudge => {
-                HitWindow::from_etterna_judge(value as u8)
-            }
+            HitWindowMode::OsuOD => HitWindow::from_osu_od(value),
+            HitWindowMode::EtternaJudge => HitWindow::from_etterna_judge(value as u8),
         };
+        self.hit_window_mode = mode;
+        self.hit_window_value = value;
+    }
+
+    /// Retourne une copie de la chart originale (pour la simulation).
+    pub fn get_chart(&self) -> Vec<NoteData> {
+        self.chart.clone()
     }
 }

@@ -1,4 +1,5 @@
 pub mod events;
+pub mod keycode;
 pub mod manager;
 
 use crate::input::events::InputCommand;

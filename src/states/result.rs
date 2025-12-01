@@ -1,7 +1,7 @@
 use super::{GameState, MenuStateController, StateContext, StateTransition};
 use crate::core::input::actions::{KeyAction, UIAction};
 use crate::models::menu::{GameResultData, MenuState};
-use crate::models::replay::ReplayData;
+use crate::models::replay::{ReplayData, ReplayResult};
 use crate::models::stats::HitStats;
 use std::sync::{Arc, Mutex};
 use winit::event::WindowEvent;
@@ -15,6 +15,7 @@ impl ResultStateController {
         menu_state: Arc<Mutex<MenuState>>,
         hit_stats: HitStats,
         replay_data: ReplayData,
+        replay_result: ReplayResult,
         score: u32,
         accuracy: f64,
         max_combo: u32,
@@ -27,6 +28,7 @@ impl ResultStateController {
             state.last_result = Some(GameResultData {
                 hit_stats,
                 replay_data,
+                replay_result,
                 score,
                 accuracy,
                 max_combo,

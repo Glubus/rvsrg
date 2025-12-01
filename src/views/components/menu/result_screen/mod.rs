@@ -72,7 +72,7 @@ impl ResultScreen {
                         .show(ui, |ui| {
                             ui.set_width(graphs_width);
                             ui.set_height(height);
-                            graphs::render_graphs(ui, &data.replay_data, hit_window);
+                            graphs::render_graphs(ui, &data.replay_result, hit_window);
                         });
                 });
 

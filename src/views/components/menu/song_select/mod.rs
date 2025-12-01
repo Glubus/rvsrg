@@ -170,9 +170,13 @@ impl SongSelectScreen {
                             }
 
                             // Capture the leaderboard click result if any.
+                            // Passer la chart cachée pour permettre le recalcul des replays.
+                            let cached_chart = menu_state.get_cached_chart()
+                                .map(|c| c.chart.as_slice());
+                            
                             let clicked_result =
                                 self.leaderboard
-                                    .render(ui, diff_name.as_deref(), hit_window);
+                                    .render(ui, diff_name.as_deref(), hit_window, cached_chart);
 
                             if let Some(result_data) = clicked_result {
                                 result_data_triggered = Some(result_data);

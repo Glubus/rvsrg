@@ -5,12 +5,14 @@ use crate::models::search::MenuSearchFilters;
 use sqlx::SqlitePool;
 use std::collections::HashMap;
 
-/// Clears every table (used during rescans).
+/// Clears beatmap tables (used during rescans).
+/// NOTE: Les replays ne sont PAS supprimés car ce sont des données utilisateur.
 pub async fn clear_all(pool: &SqlitePool) -> Result<(), sqlx::Error> {
     sqlx::query("DELETE FROM beatmap_rating")
         .execute(pool)
         .await?;
-    sqlx::query("DELETE FROM replay").execute(pool).await?;
+    // On ne supprime PAS les replays - ce sont des données utilisateur précieuses !
+    // sqlx::query("DELETE FROM replay").execute(pool).await?;
     sqlx::query("DELETE FROM beatmap").execute(pool).await?;
     sqlx::query("DELETE FROM beatmapset").execute(pool).await?;
     Ok(())

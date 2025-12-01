@@ -144,7 +144,10 @@ impl DbManager {
                 }
                 Ok(DbCommand::SaveReplay(payload)) => {
                     if let Some(ref d) = db {
+                        log::info!("DB: Saving replay for beatmap {}", payload.beatmap_hash);
                         Self::persist_replay(&state, d, payload).await;
+                    } else {
+                        log::error!("DB: Cannot save replay - database not initialized!");
                     }
                 }
                 Ok(DbCommand::FetchLeaderboard(hash)) => {
@@ -277,6 +280,7 @@ impl DbManager {
             .await
         {
             Ok(_) => {
+                log::info!("DB: Replay saved successfully for {}", payload.beatmap_hash);
                 Self::load_leaderboard(state, db, &payload.beatmap_hash).await;
             }
             Err(e) => {

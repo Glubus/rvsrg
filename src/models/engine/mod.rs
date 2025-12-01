@@ -10,6 +10,6 @@ pub use constants::*;
 //pub use game::GameEngine;
 pub use hit_window::HitWindow;
 pub use instance::InstanceRaw;
-pub use note::{NoteData, load_map};
+pub use note::{NoteData, load_map, load_map_safe};
 pub use pixel_system::PixelSystem;
 pub use playfield::PlayfieldConfig;
