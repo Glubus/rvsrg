@@ -19,3 +19,4 @@ pub struct GameResultData {
     pub judge_text: String,
 }
 
+

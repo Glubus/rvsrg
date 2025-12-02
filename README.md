@@ -30,7 +30,7 @@
 
 ```bash
 # Clone the repository
-git clone https://github.com/your-username/rvsrg.git
+git clone https://github.com/glubus/rvsrg.git
 cd rvsrg
 
 # Build in release mode (recommended)

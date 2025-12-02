@@ -6,6 +6,7 @@
 
 use super::BeatmapSsr;
 use crate::models::engine::NoteData;
+use rosu_map::Beatmap;
 use std::collections::HashMap;
 use std::fmt::Debug;
 
@@ -82,6 +83,49 @@ impl CalculationContext {
             nps,
             other_results: HashMap::new(),
         }
+    }
+
+    /// Creates a context from a rosu-map Beatmap.
+    pub fn from_beatmap(map: &Beatmap, rate: f64) -> Self {
+        use rosu_map::section::hit_objects::HitObjectKind;
+
+        let key_count = map.circle_size as u8;
+        
+        // Parse notes from hit objects
+        let notes: Vec<NoteData> = map
+            .hit_objects
+            .iter()
+            .filter_map(|obj| {
+                let column = crate::models::engine::note::x_to_column_generic(
+                    match &obj.kind {
+                        HitObjectKind::Circle(c) => c.pos.x as i32,
+                        HitObjectKind::Hold(h) => h.pos_x as i32,
+                        _ => return None,
+                    },
+                    key_count,
+                )?;
+
+                match &obj.kind {
+                    HitObjectKind::Circle(_) => {
+                        Some(NoteData::tap(obj.start_time, column))
+                    }
+                    HitObjectKind::Hold(hold) => {
+                        Some(NoteData::hold(obj.start_time, column, hold.duration))
+                    }
+                    _ => None,
+                }
+            })
+            .collect();
+
+        // Get BPM from timing points
+        let bpm = map
+            .control_points
+            .timing_points
+            .first()
+            .map(|tp| 60000.0 / tp.beat_len)
+            .unwrap_or(120.0);
+
+        Self::new(notes, key_count, bpm, rate)
     }
 }
 

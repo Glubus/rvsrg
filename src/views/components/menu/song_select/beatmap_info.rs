@@ -1,8 +1,9 @@
 //! Beatmap information panel with customizable skin colors and background.
 
-use egui::{Color32, CornerRadius, Frame, Margin, Pos2, Rect, RichText, Stroke, TextureId, Ui, Vec2};
+use egui::{Color32, ComboBox, CornerRadius, Frame, Margin, Pos2, Rect, RichText, Stroke, TextureId, Ui, Vec2};
 
 use crate::database::models::{BeatmapRating, BeatmapWithRatings, Beatmapset};
+use crate::difficulty::BeatmapSsr;
 use crate::models::settings::HitWindowMode;
 
 /// UI color configuration for the beatmap info panel.
@@ -47,8 +48,23 @@ impl Default for BeatmapInfoColors {
     }
 }
 
+/// Calculator info for the dropdown.
+#[derive(Clone, Debug)]
+pub struct CalculatorOption {
+    pub id: String,
+    pub display_name: String,
+}
+
+impl CalculatorOption {
+    pub fn new(id: impl Into<String>, display_name: impl Into<String>) -> Self {
+        Self {
+            id: id.into(),
+            display_name: display_name.into(),
+        }
+    }
+}
+
 pub struct BeatmapInfo {
-    selected_rating_tab: u8,
     colors: BeatmapInfoColors,
     /// Whether the pattern breakdown section is expanded
     pattern_breakdown_expanded: bool,
@@ -57,7 +73,6 @@ pub struct BeatmapInfo {
 impl BeatmapInfo {
     pub fn new() -> Self {
         Self {
-            selected_rating_tab: 0,
             colors: BeatmapInfoColors::default(),
             pattern_breakdown_expanded: false,
         }
@@ -68,6 +83,11 @@ impl BeatmapInfo {
         self.colors = colors;
     }
 
+    /// Renders the beatmap info panel.
+    /// 
+    /// `active_calculator` - the currently selected calculator ID from MenuState
+    /// `current_ssr` - the calculated SSR for the active calculator (from difficulty_cache)
+    /// Returns the new calculator ID if the user changed it via dropdown
     pub fn render(
         &mut self,
         ui: &mut Ui,
@@ -78,10 +98,14 @@ impl BeatmapInfo {
         hit_window_value: f64,
         override_ratings: Option<&[BeatmapRating]>,
         background_texture: Option<TextureId>,
-    ) {
+        available_calculators: &[CalculatorOption],
+        active_calculator: &str,
+        current_ssr: Option<&BeatmapSsr>,
+    ) -> Option<String> {
         let colors = self.colors.clone();
         let rounding = CornerRadius::same(12);
         let margin = Margin::symmetric(8, 6);
+        let mut calculator_changed: Option<String> = None;
 
         let available_rect = ui.available_rect_before_wrap();
         let panel_rect = Rect::from_min_size(
@@ -169,9 +193,11 @@ impl BeatmapInfo {
 
                         ui.add_space(10.0);
 
-                        // Rating source tabs + Rate display on same line
+                        // Calculator dropdown + Rate display on same line
                         ui.horizontal(|ui| {
-                            self.render_rating_tabs(ui, &colors, background_texture.is_some());
+                            if let Some(new_calc) = self.render_calculator_dropdown(ui, &colors, background_texture.is_some(), available_calculators, active_calculator) {
+                                calculator_changed = Some(new_calc);
+                            }
                             
                             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                                 self.render_rate_badge(ui, rate, &colors, background_texture.is_some());
@@ -183,16 +209,21 @@ impl BeatmapInfo {
                         // Rating details
                         let ratings_slice =
                             override_ratings.or_else(|| beatmap.map(|bm| bm.ratings.as_slice()));
-                        let etterna_rating = find_rating(ratings_slice, "etterna");
-                        let osu_rating = find_rating(ratings_slice, "osu");
+                        
+                        let active_rating = find_rating(ratings_slice, active_calculator);
 
-                        let active_rating = match self.selected_rating_tab {
-                            0 => etterna_rating,
-                            1 => osu_rating,
-                            _ => etterna_rating,
-                        };
+                        // Use current_ssr if we have it, otherwise fall back to active_rating
+                        if let Some(ssr) = current_ssr {
+                            ui.add_space(10.0);
 
-                        if let Some(rating) = active_rating {
+                            // Overall rating display from SSR
+                            self.render_overall_rating_from_ssr(ui, ssr, &colors);
+
+                            ui.add_space(8.0);
+
+                            // Collapsible SSR breakdown
+                            self.render_collapsible_breakdown_from_ssr(ui, ssr, &colors, background_texture.is_some());
+                        } else if let Some(rating) = active_rating {
                             ui.add_space(10.0);
 
                             // Overall rating display
@@ -215,6 +246,8 @@ impl BeatmapInfo {
                         }
                     });
             });
+
+        calculator_changed
     }
 
     fn render_metadata_row(&self, ui: &mut Ui, beatmap: Option<&BeatmapWithRatings>, colors: &BeatmapInfoColors, has_bg: bool) {
@@ -249,44 +282,51 @@ impl BeatmapInfo {
             });
     }
 
-    fn render_rating_tabs(&mut self, ui: &mut Ui, colors: &BeatmapInfoColors, has_bg: bool) {
-        ui.horizontal(|ui| {
-            ui.spacing_mut().item_spacing.x = 4.0;
+    fn render_calculator_dropdown(
+        &self,
+        ui: &mut Ui,
+        colors: &BeatmapInfoColors,
+        has_bg: bool,
+        available_calculators: &[CalculatorOption],
+        active_calculator: &str,
+    ) -> Option<String> {
+        let mut changed: Option<String> = None;
 
-            for (idx, label) in [(0u8, "Etterna"), (1u8, "osu!")] {
-                let is_selected = self.selected_rating_tab == idx;
-                let (bg, text_color) = if is_selected {
-                    (colors.accent, colors.panel_bg)
-                } else if has_bg {
-                    (Color32::from_rgba_unmultiplied(0, 0, 0, 120), colors.text_secondary)
-                } else {
-                    (colors.panel_secondary, colors.text_secondary)
-                };
+        let bg = if has_bg {
+            Color32::from_rgba_unmultiplied(0, 0, 0, 120)
+        } else {
+            colors.panel_secondary
+        };
 
-                let response = Frame::default()
-                    .corner_radius(CornerRadius::same(6))
-                    .inner_margin(Margin::symmetric(10, 5))
-                    .fill(bg)
-                    .stroke(if is_selected {
-                        Stroke::NONE
-                    } else {
-                        Stroke::new(1.0, colors.panel_border)
-                    })
-                    .show(ui, |ui| {
-                        ui.label(
-                            RichText::new(label)
-                                .size(11.0)
-                                .strong()
-                                .color(text_color),
-                        );
-                    })
-                    .response;
+        // Find current display name
+        let current_name = available_calculators
+            .iter()
+            .find(|c| c.id == active_calculator)
+            .map(|c| c.display_name.clone())
+            .unwrap_or_else(|| active_calculator.to_string());
 
-                if response.interact(egui::Sense::click()).clicked() {
-                    self.selected_rating_tab = idx;
-                }
-            }
-        });
+        Frame::default()
+            .corner_radius(CornerRadius::same(6))
+            .inner_margin(Margin::symmetric(2, 0))
+            .fill(bg)
+            .stroke(Stroke::new(1.0, colors.panel_border))
+            .show(ui, |ui| {
+                ComboBox::from_id_salt("calculator_select")
+                    .selected_text(RichText::new(&current_name).size(11.0).color(colors.text_primary))
+                    .width(120.0)
+                    .show_ui(ui, |ui| {
+                        for calc in available_calculators {
+                            let is_selected = active_calculator == calc.id;
+                            if ui.selectable_label(is_selected, &calc.display_name).clicked() {
+                                if active_calculator != calc.id {
+                                    changed = Some(calc.id.clone());
+                                }
+                            }
+                        }
+                    });
+            });
+
+        changed
     }
 
     fn render_hit_window_badge(&self, ui: &mut Ui, hit_window_mode: HitWindowMode, hit_window_value: f64, colors: &BeatmapInfoColors, has_bg: bool) {
@@ -339,6 +379,14 @@ impl BeatmapInfo {
     }
 
     fn render_overall_rating(&self, ui: &mut Ui, rating: &BeatmapRating, colors: &BeatmapInfoColors) {
+        self.render_overall_value(ui, rating.overall, colors);
+    }
+
+    fn render_overall_rating_from_ssr(&self, ui: &mut Ui, ssr: &BeatmapSsr, colors: &BeatmapInfoColors) {
+        self.render_overall_value(ui, ssr.overall, colors);
+    }
+
+    fn render_overall_value(&self, ui: &mut Ui, overall: f64, colors: &BeatmapInfoColors) {
         ui.horizontal(|ui| {
             ui.label(
                 RichText::new("Overall")
@@ -348,10 +396,10 @@ impl BeatmapInfo {
 
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 ui.label(
-                    RichText::new(format!("{:.2}", rating.overall))
+                    RichText::new(format!("{:.2}", overall))
                         .size(26.0)
                         .strong()
-                        .color(self.get_difficulty_color(rating.overall, colors)),
+                        .color(self.get_difficulty_color(overall, colors)),
                 );
             });
         });
@@ -368,6 +416,32 @@ impl BeatmapInfo {
     }
 
     fn render_collapsible_breakdown(&mut self, ui: &mut Ui, rating: &BeatmapRating, colors: &BeatmapInfoColors, has_bg: bool) {
+        let metrics = [
+            ("Stream", rating.stream, colors.rating_stream),
+            ("JS", rating.jumpstream, colors.rating_jumpstream),
+            ("HS", rating.handstream, colors.rating_handstream),
+            ("Stamina", rating.stamina, colors.rating_stamina),
+            ("Jack", rating.jackspeed, colors.rating_jackspeed),
+            ("CJ", rating.chordjack, colors.rating_chordjack),
+            ("Tech", rating.technical, colors.rating_technical),
+        ];
+        self.render_collapsible_breakdown_impl(ui, &metrics, colors, has_bg);
+    }
+
+    fn render_collapsible_breakdown_from_ssr(&mut self, ui: &mut Ui, ssr: &BeatmapSsr, colors: &BeatmapInfoColors, has_bg: bool) {
+        let metrics = [
+            ("Stream", ssr.stream, colors.rating_stream),
+            ("JS", ssr.jumpstream, colors.rating_jumpstream),
+            ("HS", ssr.handstream, colors.rating_handstream),
+            ("Stamina", ssr.stamina, colors.rating_stamina),
+            ("Jack", ssr.jackspeed, colors.rating_jackspeed),
+            ("CJ", ssr.chordjack, colors.rating_chordjack),
+            ("Tech", ssr.technical, colors.rating_technical),
+        ];
+        self.render_collapsible_breakdown_impl(ui, &metrics, colors, has_bg);
+    }
+
+    fn render_collapsible_breakdown_impl(&mut self, ui: &mut Ui, metrics: &[(&str, f64, Color32); 7], colors: &BeatmapInfoColors, has_bg: bool) {
         let header_bg = if has_bg {
             Color32::from_rgba_unmultiplied(0, 0, 0, 80)
         } else {
@@ -406,7 +480,7 @@ impl BeatmapInfo {
         // Content (only if expanded)
         if self.pattern_breakdown_expanded {
             ui.add_space(6.0);
-            self.render_ssr_breakdown(ui, rating, colors, has_bg);
+            self.render_ssr_breakdown_impl(ui, metrics, colors, has_bg);
         }
     }
 
@@ -420,7 +494,10 @@ impl BeatmapInfo {
             ("CJ", rating.chordjack, colors.rating_chordjack),
             ("Tech", rating.technical, colors.rating_technical),
         ];
+        self.render_ssr_breakdown_impl(ui, &metrics, colors, has_bg);
+    }
 
+    fn render_ssr_breakdown_impl(&self, ui: &mut Ui, metrics: &[(&str, f64, Color32); 7], colors: &BeatmapInfoColors, has_bg: bool) {
         let max_val = metrics
             .iter()
             .map(|(_, v, _)| *v)
@@ -428,8 +505,8 @@ impl BeatmapInfo {
             .max(1.0);
 
         for (name, value, color) in metrics {
-            if value > 0.01 {
-                self.render_metric_bar(ui, name, value, max_val, color, colors, has_bg);
+            if *value > 0.01 {
+                self.render_metric_bar(ui, name, *value, max_val, *color, colors, has_bg);
                 ui.add_space(3.0);
             }
         }
@@ -498,4 +575,12 @@ fn find_rating<'a>(
         list.iter()
             .find(|rating| rating.name.eq_ignore_ascii_case(target))
     })
+}
+
+/// Default calculators (builtin).
+pub fn default_calculators() -> Vec<CalculatorOption> {
+    vec![
+        CalculatorOption::new("etterna", "Etterna"),
+        CalculatorOption::new("osu", "osu!"),
+    ]
 }

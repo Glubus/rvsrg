@@ -1,29 +1,20 @@
 //! Difficulty calculation module.
 //!
-//! This module provides a flexible system for calculating beatmap difficulty
-//! using various calculators (built-in or custom scripts).
-//!
-//! ## Architecture
-//!
-//! - `calculator`: Trait definition for difficulty calculators
-//! - `builtin`: Built-in calculators (Etterna MinaCalc, osu! rosu-pp)
-//! - `registry`: Global registry for managing calculators
+//! This module provides difficulty calculation using Etterna (MinaCalc) and osu! (rosu-pp).
 //!
 //! ## Usage
 //!
-//! Difficulty is now calculated on-demand when a beatmap is selected,
+//! Difficulty is calculated on-demand when a beatmap is selected,
 //! rather than during the initial scan. This dramatically improves scan speed.
 
 #![allow(dead_code)]
 
 pub mod builtin;
 pub mod calculator;
-pub mod registry;
 
 // Re-export commonly used types
 pub use builtin::{EtternaCalculator, OsuCalculator};
 pub use calculator::{CalcError, CalculationContext, DifficultyCalculator};
-pub use registry::{global_registry, calculate_with_registry, CalculatorRegistry};
 
 use minacalc_rs::Calc;
 use rosu_map::Beatmap;

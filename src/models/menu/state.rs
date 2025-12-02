@@ -16,6 +16,7 @@ use crate::database::models::Replay;
 use crate::database::{BeatmapRating, BeatmapWithRatings, Beatmapset, Database};
 use crate::difficulty::{self, BeatmapSsr};
 use crate::models::search::MenuSearchFilters;
+use crate::views::components::menu::song_select::CalculatorOption;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
@@ -65,6 +66,9 @@ pub struct MenuState {
     // Active difficulty calculator
     pub active_calculator: String,
     
+    // Available calculators (builtin + custom)
+    pub available_calculators: Vec<CalculatorOption>,
+    
     // Search/filter
     pub search_filters: MenuSearchFilters,
     
@@ -97,6 +101,10 @@ impl MenuState {
             rate_cache: HashMap::new(),
             difficulty_cache: DifficultyCache::new(),
             active_calculator: "etterna".to_string(),
+            available_calculators: vec![
+                CalculatorOption::new("etterna", "Etterna"),
+                CalculatorOption::new("osu", "osu!"),
+            ],
             search_filters: MenuSearchFilters::default(),
             leaderboard_scores: Vec::new(),
             leaderboard_hash: None,

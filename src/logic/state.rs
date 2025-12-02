@@ -584,6 +584,12 @@ impl GameAction {
                 state.last_leaderboard_version = 0;
                 None
             }
+            GameAction::SetCalculator(calc_id) => {
+                menu.set_calculator(&calc_id);
+                // Recalculate difficulty for current map with new calculator
+                menu.ensure_difficulty_calculated();
+                None
+            }
             GameAction::SetResult(result_data) => Some(AppState::Result(result_data.clone())),
             GameAction::TogglePause
             | GameAction::Hit { .. }

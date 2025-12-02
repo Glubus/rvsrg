@@ -138,6 +138,10 @@ pub enum GameAction {
     /// Apply search filters.
     ApplySearch(MenuSearchFilters),
 
+    // Difficulty
+    /// Set the active difficulty calculator.
+    SetCalculator(String),
+
     // Result screen
     /// Navigate to result screen with data.
     SetResult(crate::models::menu::GameResultData),
