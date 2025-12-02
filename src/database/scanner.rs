@@ -1,7 +1,10 @@
 //! Filesystem scanner that imports beatmapsets into the database.
+//!
+//! This scanner has been optimized to only extract basic metadata during import.
+//! Difficulty ratings are now calculated on-demand when a map is selected.
 
 use crate::database::connection::Database;
-use crate::database::query::{insert_beatmap, insert_beatmapset};
+use crate::database::query::insert_beatmap;
 use crate::difficulty;
 use md5::Context;
 use std::fs;
@@ -9,6 +12,10 @@ use std::io::Read;
 use std::path::{Path, PathBuf};
 
 /// Scans the `songs/` directory and fills the database.
+/// 
+/// Note: This scanner now only extracts basic metadata (hash, notes, duration, nps).
+/// Difficulty ratings are NOT calculated here - they are computed on-demand
+/// when the user selects a beatmap in the song select menu.
 pub async fn scan_songs_directory(
     db: &Database,
     songs_path: &Path,
@@ -17,8 +24,6 @@ pub async fn scan_songs_directory(
         eprintln!("The songs/ directory does not exist");
         return Ok(());
     }
-
-    difficulty::init_global_calc()?;
 
     // Walk every sub-folder under songs/.
     let entries = fs::read_dir(songs_path)?;
@@ -76,14 +81,14 @@ async fn process_beatmapset(
         return Ok(());
     };
 
-    let beatmapset_id = insert_beatmapset(
-        db.pool(),
-        path_str,
-        image_path.as_deref(),
-        Some(artist.as_str()),
-        Some(title.as_str()),
-    )
-    .await?;
+    let beatmapset_id = db
+        .insert_beatmapset(
+            path_str,
+            image_path.as_deref(),
+            Some(artist.as_str()),
+            Some(title.as_str()),
+        )
+        .await?;
 
     for osu_file in osu_files {
         if let Err(e) = process_osu_file(db, beatmapset_id, osu_file).await {
@@ -102,19 +107,9 @@ async fn process_osu_file(
     let hash = calculate_file_hash(osu_file)?;
     let bm = rosu_map::Beatmap::from_path(osu_file)?;
 
-    let note_count = bm
-        .hit_objects
-        .iter()
-        .filter(|ho| {
-            matches!(
-                ho.kind,
-                rosu_map::section::hit_objects::HitObjectKind::Circle(_)
-            )
-        })
-        .count() as i32;
-
+    // Extract basic info WITHOUT calculating difficulty
+    let basic_info = difficulty::extract_basic_info(&bm)?;
     let difficulty_name = bm.version.clone();
-    let difficulty_info = difficulty::analyze(&bm)?;
 
     if let Some(osu_str) = osu_file.to_str() {
         insert_beatmap(
@@ -123,27 +118,15 @@ async fn process_osu_file(
             &hash,
             osu_str,
             Some(&difficulty_name),
-            note_count,
-            difficulty_info.duration_ms,
-            difficulty_info.nps,
+            basic_info.note_count,
+            basic_info.duration_ms,
+            basic_info.nps,
         )
         .await?;
 
-        for rating in &difficulty_info.ratings {
-            db.upsert_beatmap_rating(
-                &hash,
-                &rating.name,
-                rating.ssr.overall,
-                rating.ssr.stream,
-                rating.ssr.jumpstream,
-                rating.ssr.handstream,
-                rating.ssr.stamina,
-                rating.ssr.jackspeed,
-                rating.ssr.chordjack,
-                rating.ssr.technical,
-            )
-            .await?;
-        }
+        // NOTE: We no longer calculate ratings here!
+        // Ratings are computed on-demand when the user selects a beatmap.
+        // This dramatically speeds up the scan process.
     }
 
     Ok(())

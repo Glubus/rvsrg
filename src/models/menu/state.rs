@@ -2,13 +2,19 @@
 //!
 //! This module handles the song select menu state including beatmap selection,
 //! rate changes, difficulty caching, and leaderboard display.
+//!
+//! ## Architecture
+//!
+//! - Beatmaps are loaded via pagination (50 items at a time)
+//! - Difficulty ratings are calculated ON-DEMAND when a map is selected
+//! - Ratings are cached in memory (not DB) for the session
 
 #![allow(dead_code)]
 
-use super::{ChartCache, RateCacheEntry};
+use super::{ChartCache, DifficultyCache, RateCacheEntry};
 use crate::database::models::Replay;
 use crate::database::{BeatmapRating, BeatmapWithRatings, Beatmapset, Database};
-use crate::difficulty;
+use crate::difficulty::{self, BeatmapSsr};
 use crate::models::search::MenuSearchFilters;
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -16,26 +22,57 @@ use std::sync::{Arc, Mutex};
 
 use super::GameResultData;
 
+/// Constants for pagination
+pub const PAGE_SIZE: usize = 50;
+pub const PRELOAD_MARGIN: usize = 10;
+
 /// Main state for the song selection menu.
 #[derive(Clone, Debug)]
 pub struct MenuState {
+    // Current beatmapsets (loaded via pagination or full load for backwards compat)
     pub beatmapsets: Vec<(Beatmapset, Vec<BeatmapWithRatings>)>,
+    
+    // Pagination state
+    pub total_count: usize,
+    pub current_offset: usize,
+    
+    // Selection state
     pub start_index: usize,
     pub end_index: usize,
     pub selected_index: usize,
     pub selected_difficulty_index: usize,
     pub visible_count: usize,
+    
+    // UI state
     pub in_menu: bool,
     pub in_editor: bool,
     pub show_result: bool,
     pub show_settings: bool,
+    
+    // Playback rate
     pub rate: f64,
+    
+    // Result screen
     pub last_result: Option<GameResultData>,
     pub should_close_result: bool,
+    
+    // Rate cache (available rates per beatmap)
     pub rate_cache: HashMap<String, RateCacheEntry>,
+    
+    // On-demand difficulty cache (in RAM only!)
+    pub difficulty_cache: DifficultyCache,
+    
+    // Active difficulty calculator
+    pub active_calculator: String,
+    
+    // Search/filter
     pub search_filters: MenuSearchFilters,
+    
+    // Leaderboard
     pub leaderboard_scores: Vec<Replay>,
     pub leaderboard_hash: Option<String>,
+    
+    // Chart cache for gameplay
     pub chart_cache: Option<ChartCache>,
 }
 
@@ -43,6 +80,8 @@ impl MenuState {
     pub fn new() -> Self {
         Self {
             beatmapsets: Vec::new(),
+            total_count: 0,
+            current_offset: 0,
             start_index: 0,
             end_index: 0,
             selected_index: 0,
@@ -56,6 +95,8 @@ impl MenuState {
             last_result: None,
             should_close_result: false,
             rate_cache: HashMap::new(),
+            difficulty_cache: DifficultyCache::new(),
+            active_calculator: "etterna".to_string(),
             search_filters: MenuSearchFilters::default(),
             leaderboard_scores: Vec::new(),
             leaderboard_hash: None,
@@ -113,6 +154,49 @@ impl MenuState {
             .as_ref()
             .map(|c| c.chart.len())
             .unwrap_or(0)
+    }
+
+    /// Calculates difficulty for the currently selected beatmap on-demand.
+    /// Results are cached in memory (not DB).
+    pub fn ensure_difficulty_calculated(&mut self) -> Option<BeatmapSsr> {
+        let selected = self.get_selected_beatmap()?;
+        let beatmap_hash = selected.beatmap.hash.clone();
+        let beatmap_path = selected.beatmap.path.clone();
+        let calculator = self.active_calculator.clone();
+        let rate = self.rate;
+
+        // Check cache first
+        if let Some(cached) = self.difficulty_cache.get(&beatmap_hash, &calculator, rate) {
+            return Some(cached.clone());
+        }
+
+        // Load and calculate
+        let map = match rosu_map::Beatmap::from_path(&beatmap_path) {
+            Ok(map) => map,
+            Err(err) => {
+                log::error!("MENU: Failed to load beatmap for difficulty calc: {}", err);
+                return None;
+            }
+        };
+
+        match difficulty::calculate_on_demand(&map, &calculator, rate) {
+            Ok(ssr) => {
+                self.difficulty_cache
+                    .insert(&beatmap_hash, &calculator, rate, ssr.clone());
+                Some(ssr)
+            }
+            Err(err) => {
+                log::error!("MENU: Failed to calculate difficulty: {}", err);
+                None
+            }
+        }
+    }
+
+    /// Gets the cached difficulty for the selected beatmap at the current rate.
+    pub fn get_current_difficulty(&self) -> Option<&BeatmapSsr> {
+        let selected = self.get_selected_beatmap()?;
+        self.difficulty_cache
+            .get(&selected.beatmap.hash, &self.active_calculator, self.rate)
     }
 
     pub fn increase_rate(&mut self) {
@@ -207,13 +291,18 @@ impl MenuState {
         db: &Database,
     ) -> Result<(), sqlx::Error> {
         let beatmapsets = db.get_all_beatmapsets().await?;
+        let total_count = beatmapsets.len();
+        
         if let Ok(mut state) = menu_state.lock() {
-            state.beatmapsets = beatmapsets.clone();
+            state.beatmapsets = beatmapsets;
+            state.total_count = total_count;
+            state.current_offset = 0;
             state.selected_index = 0;
             state.selected_difficulty_index = 0;
             state.end_index = state.visible_count.min(state.beatmapsets.len());
             state.start_index = 0;
             state.rate_cache.clear();
+            state.difficulty_cache.clear();
             state.rate = 1.0;
             state.search_filters = MenuSearchFilters::default();
             state.leaderboard_scores.clear();
@@ -330,5 +419,22 @@ impl MenuState {
     pub fn set_leaderboard(&mut self, hash: Option<String>, scores: Vec<Replay>) {
         self.leaderboard_hash = hash;
         self.leaderboard_scores = scores;
+    }
+
+    /// Sets the active difficulty calculator.
+    pub fn set_calculator(&mut self, calculator_id: &str) {
+        if self.active_calculator != calculator_id {
+            self.active_calculator = calculator_id.to_string();
+            // Clear difficulty cache when changing calculator
+            // (rate cache is independent of calculator)
+        }
+    }
+
+    /// Gets the available calculators.
+    pub fn available_calculators(&self) -> Vec<(&'static str, &'static str)> {
+        vec![
+            ("etterna", "Etterna (MinaCalc)"),
+            ("osu", "osu! (rosu-pp)"),
+        ]
     }
 }

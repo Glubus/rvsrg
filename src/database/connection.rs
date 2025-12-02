@@ -2,8 +2,9 @@
 
 #![allow(dead_code)]
 
-use crate::database::models::{BeatmapRating, BeatmapWithRatings, Beatmapset};
+use crate::database::models::{Beatmap, BeatmapLight, BeatmapRating, BeatmapWithRatings, Beatmapset, BeatmapsetLight};
 use crate::database::query;
+use crate::models::search::MenuSearchFilters;
 use sqlx::{SqlitePool, sqlite::SqliteConnectOptions};
 use std::path::{Path, PathBuf};
 
@@ -164,7 +165,7 @@ impl Database {
     /// Searches beatmapsets using the provided filters.
     pub async fn search_beatmapsets(
         &self,
-        filters: &crate::models::search::MenuSearchFilters,
+        filters: &MenuSearchFilters,
     ) -> Result<Vec<(Beatmapset, Vec<BeatmapWithRatings>)>, sqlx::Error> {
         query::search_beatmapsets(&self.pool, filters).await
     }
@@ -173,6 +174,37 @@ impl Database {
     pub async fn count_beatmapsets(&self) -> Result<i32, sqlx::Error> {
         query::count_beatmapsets(&self.pool).await
     }
+
+    // ========================================================================
+    // PAGINATION METHODS (new)
+    // ========================================================================
+
+    /// Counts beatmapsets matching the given filters.
+    pub async fn count_beatmapsets_filtered(
+        &self,
+        filters: &MenuSearchFilters,
+    ) -> Result<usize, sqlx::Error> {
+        query::count_beatmapsets_filtered(&self.pool, filters).await
+    }
+
+    /// Retrieves a page of beatmapsets (lightweight, no ratings).
+    pub async fn get_beatmapsets_page(
+        &self,
+        offset: usize,
+        limit: usize,
+        filters: &MenuSearchFilters,
+    ) -> Result<Vec<BeatmapsetLight>, sqlx::Error> {
+        query::get_beatmapsets_page(&self.pool, offset, limit, filters).await
+    }
+
+    /// Retrieves a single beatmap by hash.
+    pub async fn get_beatmap_by_hash(&self, hash: &str) -> Result<Option<Beatmap>, sqlx::Error> {
+        query::get_beatmap_by_hash(&self.pool, hash).await
+    }
+
+    // ========================================================================
+    // REPLAY METHODS
+    // ========================================================================
 
     /// Persists a replay row.
     pub async fn insert_replay(

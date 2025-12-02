@@ -47,3 +47,4 @@ crossbeam-channel = "0.5"
 minacalc-rs = {version = "0.2.2", features = ["osu"]}
 rosu-pp = "3.1.0"
 ssrrr = "0.2.1"
+ordered-float = "4.2"

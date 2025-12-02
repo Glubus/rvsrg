@@ -89,3 +89,4 @@ impl RateCacheEntry {
         (rate * 100.0).round() as i32
     }
 }
+

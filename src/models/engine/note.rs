@@ -8,6 +8,37 @@ pub struct NoteData {
     pub timestamp_ms: f64,
     pub column: usize,
     pub hit: bool,
+    pub is_hold: bool,
+    pub hold_duration_ms: f64,
+}
+
+impl NoteData {
+    /// Creates a new tap note.
+    pub fn tap(timestamp_ms: f64, column: usize) -> Self {
+        Self {
+            timestamp_ms,
+            column,
+            hit: false,
+            is_hold: false,
+            hold_duration_ms: 0.0,
+        }
+    }
+
+    /// Creates a new hold note.
+    pub fn hold(timestamp_ms: f64, column: usize, duration_ms: f64) -> Self {
+        Self {
+            timestamp_ms,
+            column,
+            hit: false,
+            is_hold: true,
+            hold_duration_ms: duration_ms,
+        }
+    }
+
+    /// Returns the end time of this note (for holds, start + duration).
+    pub fn end_time_ms(&self) -> f64 {
+        self.timestamp_ms + self.hold_duration_ms
+    }
 }
 
 /// Charge une map depuis un fichier .osu.
@@ -18,15 +49,12 @@ pub struct NoteData {
 pub fn load_map(path: PathBuf) -> (PathBuf, Vec<NoteData>) {
     let map = rosu_map::Beatmap::from_path(&path).unwrap();
     let audio_path = path.parent().unwrap().join(map.audio_file);
+    let key_count = map.circle_size as u8;
 
     let mut notes = Vec::new();
     for hit_object in map.hit_objects {
-        if let Some(column) = parse_hit_object_column(&hit_object) {
-            notes.push(NoteData {
-                timestamp_ms: hit_object.start_time,
-                column,
-                hit: false,
-            });
+        if let Some(note) = parse_hit_object(&hit_object, key_count) {
+            notes.push(note);
         }
     }
 
@@ -38,26 +66,51 @@ pub fn load_map(path: PathBuf) -> (PathBuf, Vec<NoteData>) {
 pub fn load_map_safe(path: &PathBuf) -> Option<(PathBuf, Vec<NoteData>)> {
     let map = rosu_map::Beatmap::from_path(path).ok()?;
     let audio_path = path.parent()?.join(&map.audio_file);
+    let key_count = map.circle_size as u8;
 
     let mut notes = Vec::new();
     for hit_object in map.hit_objects {
-        if let Some(column) = parse_hit_object_column(&hit_object) {
-            notes.push(NoteData {
-                timestamp_ms: hit_object.start_time,
-                column,
-                hit: false,
-            });
+        if let Some(note) = parse_hit_object(&hit_object, key_count) {
+            notes.push(note);
         }
     }
 
     Some((audio_path, notes))
 }
 
+/// Parse un HitObject osu! et retourne une NoteData.
+pub fn parse_hit_object(hit_object: &HitObject, key_count: u8) -> Option<NoteData> {
+    match &hit_object.kind {
+        HitObjectKind::Circle(circle) => {
+            let column = x_to_column_generic(circle.pos.x as i32, key_count)?;
+            Some(NoteData::tap(hit_object.start_time, column))
+        }
+        HitObjectKind::Hold(hold) => {
+            // For holds, use the end_info position which contains the x coordinate
+            let column = x_to_column_generic(hold.pos_x as i32, key_count)?;
+            Some(NoteData::hold(hit_object.start_time, column, hold.duration))
+        }
+        _ => None, // On ignore les sliders, spinners, etc.
+    }
+}
+
 /// Parse un HitObject osu! et retourne l'index de colonne si c'est un cercle valide.
+/// (Backward compat - préférer parse_hit_object)
 pub fn parse_hit_object_column(hit_object: &HitObject) -> Option<usize> {
     match &hit_object.kind {
         HitObjectKind::Circle(circle) => x_to_column(circle.pos.x as i32),
-        _ => None, // On ignore les sliders, spinners, etc.
+        _ => None,
+    }
+}
+
+/// Convertit une position X osu!mania en index de colonne (générique).
+pub fn x_to_column_generic(x: i32, key_count: u8) -> Option<usize> {
+    let column_width = 512.0 / key_count as f32;
+    let col = (x as f32 / column_width).floor() as usize;
+    if col < key_count as usize {
+        Some(col)
+    } else {
+        None
     }
 }
 
