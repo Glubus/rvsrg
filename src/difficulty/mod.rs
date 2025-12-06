@@ -7,8 +7,6 @@
 //! Difficulty is calculated on-demand when a beatmap is selected,
 //! rather than during the initial scan. This dramatically improves scan speed.
 
-
-
 pub mod builtin;
 pub mod calculator;
 
@@ -61,23 +59,6 @@ pub struct BeatmapBasicInfo {
     pub duration_ms: i32,
     pub nps: f64,
     pub note_count: i32,
-}
-
-#[derive(Debug, Clone)]
-pub struct DifficultyInfo {
-    pub duration_ms: i32,
-    pub nps: f64,
-    pub ratings: Vec<BeatmapRatingValue>,
-}
-
-impl DifficultyInfo {
-    pub fn new(duration_ms: i32, nps: f64, ratings: Vec<BeatmapRatingValue>) -> Self {
-        Self {
-            duration_ms,
-            nps,
-            ratings,
-        }
-    }
 }
 
 static GLOBAL_CALC: OnceLock<Arc<Mutex<CalcHolder>>> = OnceLock::new();
@@ -140,31 +121,6 @@ pub fn extract_basic_info(map: &Beatmap) -> Result<BeatmapBasicInfo, Box<dyn std
     })
 }
 
-/// Analyse basique d'une beatmap (placeholder pour calculs futurs)
-/// NOTE: This still calculates ratings for backward compatibility.
-/// Use `extract_basic_info` for the new scan-without-calc flow.
-pub fn analyze(map: &Beatmap) -> Result<DifficultyInfo, Box<dyn std::error::Error>> {
-    init_global_calc()?;
-    with_global_calc(|calc| analyze_with_calc(map, calc))
-}
-
-pub fn analyze_for_rate(
-    map: &Beatmap,
-    rate: f64,
-) -> Result<Vec<BeatmapRatingValue>, Box<dyn std::error::Error>> {
-    init_global_calc()?;
-    with_global_calc(|calc| {
-        let etterna_ssr = EtternaCalculator::calculate_from_beatmap(map, rate)
-            .map_err(|e| std::io::Error::other(e.to_string()))?;
-        let osu_ssr = OsuCalculator::calculate_from_beatmap(map, &etterna_ssr, rate)
-            .map_err(|e| std::io::Error::other(e.to_string()))?;
-        Ok(vec![
-            BeatmapRatingValue::new("etterna", etterna_ssr),
-            BeatmapRatingValue::new("osu", osu_ssr),
-        ])
-    })
-}
-
 #[derive(Debug, Clone)]
 pub struct RateDifficultyCache {
     pub available_rates: Vec<f64>,
@@ -209,42 +165,6 @@ fn analyze_all_rates_with_calc(
     })
 }
 
-fn analyze_with_calc(
-    map: &Beatmap,
-    _calc: &Calc,
-) -> Result<DifficultyInfo, Box<dyn std::error::Error>> {
-    if map.hit_objects.is_empty() {
-        return Err(Box::new(std::io::Error::other("No hit objects found")));
-    }
-
-    let first = map.hit_objects.first().map(|h| h.start_time).unwrap_or(0.0);
-    let last = map
-        .hit_objects
-        .last()
-        .map(|h| h.start_time.max(resolve_end_time(h)))
-        .unwrap_or(first);
-
-    let duration = (last - first).max(0.0);
-    let duration_secs = duration / 1000.0;
-    let nps = if duration_secs > 0.0 {
-        map.hit_objects.len() as f64 / duration_secs
-    } else {
-        0.0
-    };
-
-    let etterna_ssr = EtternaCalculator::calculate_from_beatmap(map, 1.0)
-        .map_err(|e| std::io::Error::other(e.to_string()))?;
-    let osu_ssr = OsuCalculator::calculate_from_beatmap(map, &etterna_ssr, 1.0)
-        .map_err(|e| std::io::Error::other(e.to_string()))?;
-
-    let ratings = vec![
-        BeatmapRatingValue::new("etterna", etterna_ssr),
-        BeatmapRatingValue::new("osu", osu_ssr),
-    ];
-
-    Ok(DifficultyInfo::new(duration as i32, nps, ratings))
-}
-
 fn resolve_end_time(obj: &HitObject) -> f64 {
     match &obj.kind {
         HitObjectKind::Hold(hold) => obj.start_time + hold.duration,
@@ -286,4 +206,3 @@ pub fn calculate_all_calculators(
         BeatmapRatingValue::new("osu", osu_ssr),
     ])
 }
-
