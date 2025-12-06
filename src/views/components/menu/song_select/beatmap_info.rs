@@ -1,6 +1,9 @@
 //! Beatmap information panel with customizable skin colors and background.
 
-use egui::{Color32, ComboBox, CornerRadius, Frame, Margin, Pos2, Rect, RichText, Stroke, TextureId, Ui, Vec2};
+use egui::{
+    Color32, ComboBox, CornerRadius, Frame, Margin, Pos2, Rect, RichText, Stroke, TextureId, Ui,
+    Vec2,
+};
 
 use crate::database::models::{BeatmapRating, BeatmapWithRatings, Beatmapset};
 use crate::difficulty::BeatmapSsr;
@@ -84,7 +87,7 @@ impl BeatmapInfo {
     }
 
     /// Renders the beatmap info panel.
-    /// 
+    ///
     /// `active_calculator` - the currently selected calculator ID from MenuState
     /// `current_ssr` - the calculated SSR for the active calculator (from difficulty_cache)
     /// Returns the new calculator ID if the user changed it via dropdown
@@ -163,10 +166,8 @@ impl BeatmapInfo {
                         .show(ui, |ui| {
                             ui.horizontal(|ui| {
                                 let bar_rect = ui.available_rect_before_wrap();
-                                let bar_rect = Rect::from_min_size(
-                                    bar_rect.min,
-                                    Vec2::new(4.0, 24.0),
-                                );
+                                let bar_rect =
+                                    Rect::from_min_size(bar_rect.min, Vec2::new(4.0, 24.0));
                                 ui.painter().rect_filled(
                                     bar_rect,
                                     CornerRadius::same(2),
@@ -189,27 +190,52 @@ impl BeatmapInfo {
                     .inner_margin(Margin::symmetric(14, 10))
                     .show(ui, |ui| {
                         // Metadata row
-                        self.render_metadata_row(ui, beatmap, &colors, background_texture.is_some());
+                        self.render_metadata_row(
+                            ui,
+                            beatmap,
+                            &colors,
+                            background_texture.is_some(),
+                        );
 
                         ui.add_space(10.0);
 
                         // Calculator dropdown + Rate display on same line
                         ui.horizontal(|ui| {
-                            if let Some(new_calc) = self.render_calculator_dropdown(ui, &colors, background_texture.is_some(), available_calculators, active_calculator) {
+                            if let Some(new_calc) = self.render_calculator_dropdown(
+                                ui,
+                                &colors,
+                                background_texture.is_some(),
+                                available_calculators,
+                                active_calculator,
+                            ) {
                                 calculator_changed = Some(new_calc);
                             }
-                            
-                            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                                self.render_rate_badge(ui, rate, &colors, background_texture.is_some());
-                                ui.add_space(6.0);
-                                self.render_hit_window_badge(ui, hit_window_mode, hit_window_value, &colors, background_texture.is_some());
-                            });
+
+                            ui.with_layout(
+                                egui::Layout::right_to_left(egui::Align::Center),
+                                |ui| {
+                                    self.render_rate_badge(
+                                        ui,
+                                        rate,
+                                        &colors,
+                                        background_texture.is_some(),
+                                    );
+                                    ui.add_space(6.0);
+                                    self.render_hit_window_badge(
+                                        ui,
+                                        hit_window_mode,
+                                        hit_window_value,
+                                        &colors,
+                                        background_texture.is_some(),
+                                    );
+                                },
+                            );
                         });
 
                         // Rating details
                         let ratings_slice =
                             override_ratings.or_else(|| beatmap.map(|bm| bm.ratings.as_slice()));
-                        
+
                         let active_rating = find_rating(ratings_slice, active_calculator);
 
                         // Use current_ssr if we have it, otherwise fall back to active_rating
@@ -222,7 +248,12 @@ impl BeatmapInfo {
                             ui.add_space(8.0);
 
                             // Collapsible SSR breakdown
-                            self.render_collapsible_breakdown_from_ssr(ui, ssr, &colors, background_texture.is_some());
+                            self.render_collapsible_breakdown_from_ssr(
+                                ui,
+                                ssr,
+                                &colors,
+                                background_texture.is_some(),
+                            );
                         } else if let Some(rating) = active_rating {
                             ui.add_space(10.0);
 
@@ -232,7 +263,12 @@ impl BeatmapInfo {
                             ui.add_space(8.0);
 
                             // Collapsible SSR breakdown
-                            self.render_collapsible_breakdown(ui, rating, &colors, background_texture.is_some());
+                            self.render_collapsible_breakdown(
+                                ui,
+                                rating,
+                                &colors,
+                                background_texture.is_some(),
+                            );
                         } else {
                             ui.add_space(12.0);
                             ui.centered_and_justified(|ui| {
@@ -250,7 +286,13 @@ impl BeatmapInfo {
         calculator_changed
     }
 
-    fn render_metadata_row(&self, ui: &mut Ui, beatmap: Option<&BeatmapWithRatings>, colors: &BeatmapInfoColors, has_bg: bool) {
+    fn render_metadata_row(
+        &self,
+        ui: &mut Ui,
+        beatmap: Option<&BeatmapWithRatings>,
+        colors: &BeatmapInfoColors,
+        has_bg: bool,
+    ) {
         ui.horizontal_wrapped(|ui| {
             ui.spacing_mut().item_spacing = Vec2::new(6.0, 4.0);
 
@@ -261,14 +303,27 @@ impl BeatmapInfo {
             };
 
             if let Some(bm) = beatmap {
-                self.render_badge(ui, "♫", &format!("{}", bm.beatmap.note_count), badge_bg, colors);
+                self.render_badge(
+                    ui,
+                    "♫",
+                    &format!("{}", bm.beatmap.note_count),
+                    badge_bg,
+                    colors,
+                );
             }
 
             self.render_badge(ui, "BPM", "180", badge_bg, colors);
         });
     }
 
-    fn render_badge(&self, ui: &mut Ui, icon: &str, value: &str, bg_color: Color32, colors: &BeatmapInfoColors) {
+    fn render_badge(
+        &self,
+        ui: &mut Ui,
+        icon: &str,
+        value: &str,
+        bg_color: Color32,
+        colors: &BeatmapInfoColors,
+    ) {
         Frame::default()
             .corner_radius(CornerRadius::same(5))
             .inner_margin(Margin::symmetric(8, 4))
@@ -277,7 +332,12 @@ impl BeatmapInfo {
                 ui.horizontal(|ui| {
                     ui.spacing_mut().item_spacing.x = 4.0;
                     ui.label(RichText::new(icon).size(11.0).color(colors.text_secondary));
-                    ui.label(RichText::new(value).size(12.0).strong().color(colors.text_primary));
+                    ui.label(
+                        RichText::new(value)
+                            .size(12.0)
+                            .strong()
+                            .color(colors.text_primary),
+                    );
                 });
             });
     }
@@ -312,12 +372,19 @@ impl BeatmapInfo {
             .stroke(Stroke::new(1.0, colors.panel_border))
             .show(ui, |ui| {
                 ComboBox::from_id_salt("calculator_select")
-                    .selected_text(RichText::new(&current_name).size(11.0).color(colors.text_primary))
+                    .selected_text(
+                        RichText::new(&current_name)
+                            .size(11.0)
+                            .color(colors.text_primary),
+                    )
                     .width(120.0)
                     .show_ui(ui, |ui| {
                         for calc in available_calculators {
                             let is_selected = active_calculator == calc.id;
-                            if ui.selectable_label(is_selected, &calc.display_name).clicked() {
+                            if ui
+                                .selectable_label(is_selected, &calc.display_name)
+                                .clicked()
+                            {
                                 if active_calculator != calc.id {
                                     changed = Some(calc.id.clone());
                                 }
@@ -329,7 +396,14 @@ impl BeatmapInfo {
         changed
     }
 
-    fn render_hit_window_badge(&self, ui: &mut Ui, hit_window_mode: HitWindowMode, hit_window_value: f64, colors: &BeatmapInfoColors, has_bg: bool) {
+    fn render_hit_window_badge(
+        &self,
+        ui: &mut Ui,
+        hit_window_mode: HitWindowMode,
+        hit_window_value: f64,
+        colors: &BeatmapInfoColors,
+        has_bg: bool,
+    ) {
         let hit_window_text = match hit_window_mode {
             HitWindowMode::OsuOD => format!("OD {:.1}", hit_window_value),
             HitWindowMode::EtternaJudge => format!("J{}", hit_window_value as u8),
@@ -373,16 +447,30 @@ impl BeatmapInfo {
                     RichText::new(format!("{:.2}x", rate))
                         .size(13.0)
                         .strong()
-                        .color(if is_modified { colors.panel_bg } else { colors.text_primary }),
+                        .color(if is_modified {
+                            colors.panel_bg
+                        } else {
+                            colors.text_primary
+                        }),
                 );
             });
     }
 
-    fn render_overall_rating(&self, ui: &mut Ui, rating: &BeatmapRating, colors: &BeatmapInfoColors) {
+    fn render_overall_rating(
+        &self,
+        ui: &mut Ui,
+        rating: &BeatmapRating,
+        colors: &BeatmapInfoColors,
+    ) {
         self.render_overall_value(ui, rating.overall, colors);
     }
 
-    fn render_overall_rating_from_ssr(&self, ui: &mut Ui, ssr: &BeatmapSsr, colors: &BeatmapInfoColors) {
+    fn render_overall_rating_from_ssr(
+        &self,
+        ui: &mut Ui,
+        ssr: &BeatmapSsr,
+        colors: &BeatmapInfoColors,
+    ) {
         self.render_overall_value(ui, ssr.overall, colors);
     }
 
@@ -415,7 +503,13 @@ impl BeatmapInfo {
         }
     }
 
-    fn render_collapsible_breakdown(&mut self, ui: &mut Ui, rating: &BeatmapRating, colors: &BeatmapInfoColors, has_bg: bool) {
+    fn render_collapsible_breakdown(
+        &mut self,
+        ui: &mut Ui,
+        rating: &BeatmapRating,
+        colors: &BeatmapInfoColors,
+        has_bg: bool,
+    ) {
         let metrics = [
             ("Stream", rating.stream, colors.rating_stream),
             ("JS", rating.jumpstream, colors.rating_jumpstream),
@@ -428,7 +522,13 @@ impl BeatmapInfo {
         self.render_collapsible_breakdown_impl(ui, &metrics, colors, has_bg);
     }
 
-    fn render_collapsible_breakdown_from_ssr(&mut self, ui: &mut Ui, ssr: &BeatmapSsr, colors: &BeatmapInfoColors, has_bg: bool) {
+    fn render_collapsible_breakdown_from_ssr(
+        &mut self,
+        ui: &mut Ui,
+        ssr: &BeatmapSsr,
+        colors: &BeatmapInfoColors,
+        has_bg: bool,
+    ) {
         let metrics = [
             ("Stream", ssr.stream, colors.rating_stream),
             ("JS", ssr.jumpstream, colors.rating_jumpstream),
@@ -441,7 +541,13 @@ impl BeatmapInfo {
         self.render_collapsible_breakdown_impl(ui, &metrics, colors, has_bg);
     }
 
-    fn render_collapsible_breakdown_impl(&mut self, ui: &mut Ui, metrics: &[(&str, f64, Color32); 7], colors: &BeatmapInfoColors, has_bg: bool) {
+    fn render_collapsible_breakdown_impl(
+        &mut self,
+        ui: &mut Ui,
+        metrics: &[(&str, f64, Color32); 7],
+        colors: &BeatmapInfoColors,
+        has_bg: bool,
+    ) {
         let header_bg = if has_bg {
             Color32::from_rgba_unmultiplied(0, 0, 0, 80)
         } else {
@@ -457,12 +563,12 @@ impl BeatmapInfo {
             .show(ui, |ui| {
                 ui.horizontal(|ui| {
                     // Arrow indicator
-                    let arrow = if self.pattern_breakdown_expanded { "▼" } else { "▶" };
-                    ui.label(
-                        RichText::new(arrow)
-                            .size(10.0)
-                            .color(colors.accent),
-                    );
+                    let arrow = if self.pattern_breakdown_expanded {
+                        "▼"
+                    } else {
+                        "▶"
+                    };
+                    ui.label(RichText::new(arrow).size(10.0).color(colors.accent));
                     ui.add_space(4.0);
                     ui.label(
                         RichText::new("Pattern Breakdown")
@@ -484,7 +590,13 @@ impl BeatmapInfo {
         }
     }
 
-    fn render_ssr_breakdown(&self, ui: &mut Ui, rating: &BeatmapRating, colors: &BeatmapInfoColors, has_bg: bool) {
+    fn render_ssr_breakdown(
+        &self,
+        ui: &mut Ui,
+        rating: &BeatmapRating,
+        colors: &BeatmapInfoColors,
+        has_bg: bool,
+    ) {
         let metrics = [
             ("Stream", rating.stream, colors.rating_stream),
             ("JS", rating.jumpstream, colors.rating_jumpstream),
@@ -497,7 +609,13 @@ impl BeatmapInfo {
         self.render_ssr_breakdown_impl(ui, &metrics, colors, has_bg);
     }
 
-    fn render_ssr_breakdown_impl(&self, ui: &mut Ui, metrics: &[(&str, f64, Color32); 7], colors: &BeatmapInfoColors, has_bg: bool) {
+    fn render_ssr_breakdown_impl(
+        &self,
+        ui: &mut Ui,
+        metrics: &[(&str, f64, Color32); 7],
+        colors: &BeatmapInfoColors,
+        has_bg: bool,
+    ) {
         let max_val = metrics
             .iter()
             .map(|(_, v, _)| *v)
@@ -536,11 +654,7 @@ impl BeatmapInfo {
                 Vec2::new(40.0, 14.0),
                 egui::Layout::left_to_right(egui::Align::Center),
                 |ui| {
-                    ui.label(
-                        RichText::new(name)
-                            .size(10.0)
-                            .color(colors.text_secondary),
-                    );
+                    ui.label(RichText::new(name).size(10.0).color(colors.text_secondary));
                 },
             );
 
@@ -549,13 +663,13 @@ impl BeatmapInfo {
                 egui::Sense::hover(),
             );
 
-            ui.painter().rect_filled(rect, CornerRadius::same(3), bar_bg);
+            ui.painter()
+                .rect_filled(rect, CornerRadius::same(3), bar_bg);
 
-            let fill_rect = Rect::from_min_size(
-                rect.min,
-                Vec2::new(bar_width.max(4.0), rect.height()),
-            );
-            ui.painter().rect_filled(fill_rect, CornerRadius::same(3), bar_color);
+            let fill_rect =
+                Rect::from_min_size(rect.min, Vec2::new(bar_width.max(4.0), rect.height()));
+            ui.painter()
+                .rect_filled(fill_rect, CornerRadius::same(3), bar_color);
 
             ui.label(
                 RichText::new(format!("{:.1}", value))

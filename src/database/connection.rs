@@ -2,7 +2,9 @@
 
 #![allow(dead_code)]
 
-use crate::database::models::{Beatmap, BeatmapLight, BeatmapRating, BeatmapWithRatings, Beatmapset, BeatmapsetLight};
+use crate::database::models::{
+    Beatmap, BeatmapLight, BeatmapRating, BeatmapWithRatings, Beatmapset, BeatmapsetLight,
+};
 use crate::database::query;
 use crate::models::search::MenuSearchFilters;
 use sqlx::{SqlitePool, sqlite::SqliteConnectOptions};

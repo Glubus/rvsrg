@@ -1,30 +1,29 @@
 //! Gameplay rendering view.
-//!
-//! This module handles all GPU rendering for active gameplay,
-//! including notes, receptors, and UI elements.
 
 #![allow(dead_code)]
 
+use bytemuck;
 use wgpu::{
     CommandEncoder, LoadOp, Operations, RenderPassColorAttachment, RenderPassDescriptor, StoreOp,
 };
-use wgpu_text::glyph_brush::Section;
+use wgpu_text::glyph_brush::Section; // Import bytemuck
 
 use crate::models::engine::{InstanceRaw, NUM_COLUMNS};
+use crate::models::skin::JudgementLabels;
+use crate::models::stats::JudgementColors;
 use crate::shared::snapshot::GameplaySnapshot;
-use crate::views::components::{
-    AccuracyDisplay, ComboDisplay, HitBarDisplay, JudgementFlash, JudgementPanel, NpsDisplay,
-    PlayfieldDisplay, ScoreDisplay,
-};
 use crate::views::components::gameplay::playfield::NoteVisual;
-use crate::views::context::GameplayRenderContext;
+use crate::views::components::{
+    AccuracyDisplay, ComboDisplay, HitBarDisplay, JudgementFlash, JudgementPanel,
+    NotesRemainingDisplay, NpsDisplay, PlayfieldDisplay, ScoreDisplay, ScrollSpeedDisplay,
+    TimeLeftDisplay,
+};
+use crate::views::context::GameplayRenderContext; // Import
 
-/// Main gameplay rendering view.
 pub struct GameplayView {
     playfield_component: PlayfieldDisplay,
     instance_cache: Vec<InstanceRaw>,
     column_instances_cache: Vec<Vec<InstanceRaw>>,
-    // Caches for special note types (single buffer each, drawn once)
     mine_instances: Vec<InstanceRaw>,
     hold_body_instances: Vec<InstanceRaw>,
     hold_end_instances: Vec<InstanceRaw>,
@@ -33,7 +32,6 @@ pub struct GameplayView {
 }
 
 impl GameplayView {
-    /// Creates a new gameplay view with the given playfield configuration.
     pub fn new(playfield_component: PlayfieldDisplay) -> Self {
         let mut column_instances_cache = Vec::with_capacity(NUM_COLUMNS);
         for _ in 0..NUM_COLUMNS {
@@ -52,22 +50,14 @@ impl GameplayView {
         }
     }
 
-    /// Returns a reference to the playfield component.
     pub fn playfield_component(&self) -> &PlayfieldDisplay {
         &self.playfield_component
     }
 
-    /// Returns a mutable reference to the playfield component.
     pub fn playfield_component_mut(&mut self) -> &mut PlayfieldDisplay {
         &mut self.playfield_component
     }
 
-    /// Renders the gameplay scene.
-    ///
-    /// This method handles:
-    /// - Note position interpolation for smooth scrolling
-    /// - Note and receptor rendering
-    /// - UI elements (score, combo, accuracy, etc.)
     #[allow(clippy::too_many_arguments)]
     pub fn render(
         &mut self,
@@ -81,22 +71,19 @@ impl GameplayView {
         judgement_flash: &mut JudgementFlash,
         hit_bar: &mut HitBarDisplay,
         nps_display: &mut NpsDisplay,
+        notes_remaining_display: &mut NotesRemainingDisplay,
+        scroll_speed_display: &mut ScrollSpeedDisplay,
+        time_left_display: &mut TimeLeftDisplay,
+        colors: &JudgementColors,
+        labels: &JudgementLabels,
     ) -> Result<(), wgpu::SurfaceError> {
         let effective_scroll_speed = snapshot.scroll_speed * snapshot.rate;
 
-        // --- TIME INTERPOLATION ---
-        // The snapshot was created a few milliseconds ago (e.g., 3ms).
-        // Since then, real time has advanced. We add this delta to the audio time.
         let now = std::time::Instant::now();
         let delta_time_ms = now.duration_since(snapshot.timestamp).as_secs_f64() * 1000.0;
-
-        // Clamp delta to avoid large jumps (e.g., if thread was blocked)
-        let clamped_delta = delta_time_ms.min(50.0); // Max 50ms interpolation
-
-        // Assume game is not paused (could improve with is_paused flag)
+        let clamped_delta = delta_time_ms.min(50.0);
         let interpolated_time = snapshot.audio_time + (clamped_delta * snapshot.rate);
 
-        // 1. Calculate note positions with interpolated time (typed version for all note types)
         let typed_instances = self.playfield_component.render_notes_typed(
             &snapshot.visible_notes,
             interpolated_time,
@@ -104,7 +91,6 @@ impl GameplayView {
             ctx.pixel_system,
         );
 
-        // Clear all caches
         self.instance_cache.clear();
         for col_vec in &mut self.column_instances_cache {
             col_vec.clear();
@@ -115,33 +101,22 @@ impl GameplayView {
         self.burst_body_instances.clear();
         self.burst_end_instances.clear();
 
-        // Sort instances by visual type
         for note_instance in typed_instances {
             match note_instance.visual {
                 NoteVisual::Tap => {
                     if note_instance.column < self.column_instances_cache.len() {
-                        self.column_instances_cache[note_instance.column].push(note_instance.instance);
+                        self.column_instances_cache[note_instance.column]
+                            .push(note_instance.instance);
                     }
                 }
-                NoteVisual::Mine => {
-                    self.mine_instances.push(note_instance.instance);
-                }
-                NoteVisual::HoldBody => {
-                    self.hold_body_instances.push(note_instance.instance);
-                }
-                NoteVisual::HoldEnd => {
-                    self.hold_end_instances.push(note_instance.instance);
-                }
-                NoteVisual::BurstBody => {
-                    self.burst_body_instances.push(note_instance.instance);
-                }
-                NoteVisual::BurstEnd => {
-                    self.burst_end_instances.push(note_instance.instance);
-                }
+                NoteVisual::Mine => self.mine_instances.push(note_instance.instance),
+                NoteVisual::HoldBody => self.hold_body_instances.push(note_instance.instance),
+                NoteVisual::HoldEnd => self.hold_end_instances.push(note_instance.instance),
+                NoteVisual::BurstBody => self.burst_body_instances.push(note_instance.instance),
+                NoteVisual::BurstEnd => self.burst_end_instances.push(note_instance.instance),
             }
         }
 
-        // Build combined buffer: tap notes by column, then special types
         let mut column_offsets: Vec<u64> = Vec::with_capacity(NUM_COLUMNS);
         let mut total_instances = 0u64;
 
@@ -151,25 +126,29 @@ impl GameplayView {
             total_instances += col_instances.len() as u64;
         }
 
-        // Track offsets for special types
         let mine_offset = total_instances;
-        self.instance_cache.extend(self.mine_instances.iter().copied());
+        self.instance_cache
+            .extend(self.mine_instances.iter().copied());
         total_instances += self.mine_instances.len() as u64;
 
         let hold_body_offset = total_instances;
-        self.instance_cache.extend(self.hold_body_instances.iter().copied());
+        self.instance_cache
+            .extend(self.hold_body_instances.iter().copied());
         total_instances += self.hold_body_instances.len() as u64;
 
         let hold_end_offset = total_instances;
-        self.instance_cache.extend(self.hold_end_instances.iter().copied());
+        self.instance_cache
+            .extend(self.hold_end_instances.iter().copied());
         total_instances += self.hold_end_instances.len() as u64;
 
         let burst_body_offset = total_instances;
-        self.instance_cache.extend(self.burst_body_instances.iter().copied());
+        self.instance_cache
+            .extend(self.burst_body_instances.iter().copied());
         total_instances += self.burst_body_instances.len() as u64;
 
         let burst_end_offset = total_instances;
-        self.instance_cache.extend(self.burst_end_instances.iter().copied());
+        self.instance_cache
+            .extend(self.burst_end_instances.iter().copied());
 
         if !self.instance_cache.is_empty() {
             ctx.queue.write_buffer(
@@ -179,7 +158,6 @@ impl GameplayView {
             );
         }
 
-        // 2. Text rendering
         let mut text_sections = Vec::new();
         let fps_text = format!("{:.0}", ctx.fps);
         text_sections.push(Section {
@@ -201,23 +179,31 @@ impl GameplayView {
             ctx.screen_width,
             ctx.screen_height,
         ));
+
+        // PASSAGE DES LABELS AU PANEL (no more notes/speed - they're separate now)
         text_sections.extend(judgements_panel.render(
             &snapshot.hit_stats,
-            snapshot.remaining_notes,
-            snapshot.scroll_speed,
             ctx.screen_width,
             ctx.screen_height,
+            labels,
         ));
+
         text_sections.extend(combo_display.render(
             snapshot.combo,
             ctx.screen_width,
             ctx.screen_height,
         ));
+
+        // PASSAGE DES COULEURS ET LABELS AU FLASH avec timing pour +/-
         text_sections.extend(judgement_flash.render(
             snapshot.last_hit_judgement,
+            snapshot.last_hit_timing, // timing in ms for +/- indicator
             ctx.screen_width,
             ctx.screen_height,
+            colors,
+            labels,
         ));
+
         text_sections.extend(hit_bar.render(
             snapshot.last_hit_timing.zip(snapshot.last_hit_judgement),
             ctx.screen_width,
@@ -225,11 +211,28 @@ impl GameplayView {
         ));
         text_sections.extend(nps_display.render(snapshot.nps, ctx.screen_width, ctx.screen_height));
 
+        // NEW: Separate display components
+        text_sections.extend(notes_remaining_display.render(
+            snapshot.remaining_notes,
+            ctx.screen_width,
+            ctx.screen_height,
+        ));
+        text_sections.extend(scroll_speed_display.render(
+            snapshot.scroll_speed,
+            ctx.screen_width,
+            ctx.screen_height,
+        ));
+        text_sections.extend(time_left_display.render(
+            snapshot.audio_time,   // elapsed
+            snapshot.map_duration, // total
+            ctx.screen_width,
+            ctx.screen_height,
+        ));
+
         ctx.text_brush
             .queue(ctx.device, ctx.queue, text_sections)
             .map_err(|_| wgpu::SurfaceError::Lost)?;
 
-        // 3. GPU rendering
         let receptor_instances = self.playfield_component.render_receptors(ctx.pixel_system);
         if !receptor_instances.is_empty() {
             ctx.queue.write_buffer(
@@ -239,7 +242,6 @@ impl GameplayView {
             );
         }
 
-        // Use the provided encoder instead of creating a new one
         {
             let mut render_pass = encoder.begin_render_pass(&RenderPassDescriptor {
                 label: Some("Gameplay Pass"),
@@ -247,7 +249,7 @@ impl GameplayView {
                     view: ctx.view,
                     resolve_target: None,
                     ops: Operations {
-                        load: LoadOp::Load, // Draw on top of background
+                        load: LoadOp::Load,
                         store: StoreOp::Store,
                     },
                     depth_slice: None,
@@ -259,7 +261,6 @@ impl GameplayView {
 
             render_pass.set_pipeline(ctx.render_pipeline);
 
-            // Draw Receptors
             if !receptor_instances.is_empty() {
                 for (col, _) in receptor_instances.iter().enumerate() {
                     if col < ctx.receptor_bind_groups.len() {
@@ -280,31 +281,45 @@ impl GameplayView {
                 }
             }
 
-            // Draw Hold/Burst Bodies first (behind everything)
-            let draw_special_instances = |render_pass: &mut wgpu::RenderPass, 
-                                          bind_group: Option<&wgpu::BindGroup>,
-                                          fallback_bind_group: &wgpu::BindGroup,
-                                          offset: u64, 
-                                          count: usize,
-                                          buffer: &wgpu::Buffer| {
-                if count == 0 {
-                    return;
-                }
-                render_pass.set_bind_group(0, bind_group.unwrap_or(fallback_bind_group), &[]);
-                let offset_bytes = offset * std::mem::size_of::<InstanceRaw>() as u64;
-                let size_bytes = count as u64 * std::mem::size_of::<InstanceRaw>() as u64;
-                render_pass.set_vertex_buffer(0, buffer.slice(offset_bytes..offset_bytes + size_bytes));
-                render_pass.draw(0..6, 0..count as u32);
-            };
+            let draw_special_instances =
+                |render_pass: &mut wgpu::RenderPass,
+                 bind_group: Option<&wgpu::BindGroup>,
+                 fallback_bind_group: &wgpu::BindGroup,
+                 offset: u64,
+                 count: usize,
+                 buffer: &wgpu::Buffer| {
+                    if count == 0 {
+                        return;
+                    }
+                    render_pass.set_bind_group(0, bind_group.unwrap_or(fallback_bind_group), &[]);
+                    let offset_bytes = offset * std::mem::size_of::<InstanceRaw>() as u64;
+                    let size_bytes = count as u64 * std::mem::size_of::<InstanceRaw>() as u64;
+                    render_pass.set_vertex_buffer(
+                        0,
+                        buffer.slice(offset_bytes..offset_bytes + size_bytes),
+                    );
+                    render_pass.draw(0..6, 0..count as u32);
+                };
 
-            // Use first note texture as fallback
             let fallback = &ctx.note_bind_groups[0];
-            
-            // Draw bodies first (they go behind heads/ends)
-            draw_special_instances(&mut render_pass, ctx.hold_body_bind_group, fallback, hold_body_offset, self.hold_body_instances.len(), ctx.instance_buffer);
-            draw_special_instances(&mut render_pass, ctx.burst_body_bind_group, fallback, burst_body_offset, self.burst_body_instances.len(), ctx.instance_buffer);
 
-            // Draw Tap Notes (per column texture)
+            draw_special_instances(
+                &mut render_pass,
+                ctx.hold_body_bind_group,
+                fallback,
+                hold_body_offset,
+                self.hold_body_instances.len(),
+                ctx.instance_buffer,
+            );
+            draw_special_instances(
+                &mut render_pass,
+                ctx.burst_body_bind_group,
+                fallback,
+                burst_body_offset,
+                self.burst_body_instances.len(),
+                ctx.instance_buffer,
+            );
+
             for (col, col_instances) in self.column_instances_cache.iter().enumerate() {
                 if col_instances.is_empty() || col >= ctx.note_bind_groups.len() {
                     continue;
@@ -321,12 +336,48 @@ impl GameplayView {
                 render_pass.draw(0..6, 0..col_instances.len() as u32);
             }
 
-            // Draw special note ends
-            draw_special_instances(&mut render_pass, ctx.hold_end_bind_group, fallback, hold_end_offset, self.hold_end_instances.len(), ctx.instance_buffer);
-            draw_special_instances(&mut render_pass, ctx.burst_end_bind_group, fallback, burst_end_offset, self.burst_end_instances.len(), ctx.instance_buffer);
+            draw_special_instances(
+                &mut render_pass,
+                ctx.hold_end_bind_group,
+                fallback,
+                hold_end_offset,
+                self.hold_end_instances.len(),
+                ctx.instance_buffer,
+            );
+            draw_special_instances(
+                &mut render_pass,
+                ctx.burst_end_bind_group,
+                fallback,
+                burst_end_offset,
+                self.burst_end_instances.len(),
+                ctx.instance_buffer,
+            );
 
-            // Draw Mines (on top of everything)
-            draw_special_instances(&mut render_pass, ctx.mine_bind_group, fallback, mine_offset, self.mine_instances.len(), ctx.instance_buffer);
+            draw_special_instances(
+                &mut render_pass,
+                ctx.mine_bind_group,
+                fallback,
+                mine_offset,
+                self.mine_instances.len(),
+                ctx.instance_buffer,
+            );
+
+            // Render TimeLeft progress (Bar/Circle)
+            if let Some(instance) = time_left_display.get_progress_instance(
+                snapshot.audio_time,
+                snapshot.map_duration,
+                ctx.screen_width,
+                ctx.screen_height,
+            ) {
+                // Write to buffer
+                ctx.queue
+                    .write_buffer(ctx.progress_buffer, 0, bytemuck::bytes_of(&instance));
+
+                // Draw
+                render_pass.set_pipeline(ctx.progress_pipeline);
+                render_pass.set_vertex_buffer(0, ctx.progress_buffer.slice(..));
+                render_pass.draw(0..4, 0..1); // 4 vertices for triangle strip, 1 instance
+            }
 
             ctx.text_brush.draw(&mut render_pass);
         }

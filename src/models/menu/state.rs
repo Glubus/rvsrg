@@ -32,50 +32,50 @@ pub const PRELOAD_MARGIN: usize = 10;
 pub struct MenuState {
     // Current beatmapsets (loaded via pagination or full load for backwards compat)
     pub beatmapsets: Vec<(Beatmapset, Vec<BeatmapWithRatings>)>,
-    
+
     // Pagination state
     pub total_count: usize,
     pub current_offset: usize,
-    
+
     // Selection state
     pub start_index: usize,
     pub end_index: usize,
     pub selected_index: usize,
     pub selected_difficulty_index: usize,
     pub visible_count: usize,
-    
+
     // UI state
     pub in_menu: bool,
     pub in_editor: bool,
     pub show_result: bool,
     pub show_settings: bool,
-    
+
     // Playback rate
     pub rate: f64,
-    
+
     // Result screen
     pub last_result: Option<GameResultData>,
     pub should_close_result: bool,
-    
+
     // Rate cache (available rates per beatmap)
     pub rate_cache: HashMap<String, RateCacheEntry>,
-    
+
     // On-demand difficulty cache (in RAM only!)
     pub difficulty_cache: DifficultyCache,
-    
+
     // Active difficulty calculator
     pub active_calculator: String,
-    
+
     // Available calculators (builtin + custom)
     pub available_calculators: Vec<CalculatorOption>,
-    
+
     // Search/filter
     pub search_filters: MenuSearchFilters,
-    
+
     // Leaderboard
     pub leaderboard_scores: Vec<Replay>,
     pub leaderboard_hash: Option<String>,
-    
+
     // Chart cache for gameplay
     pub chart_cache: Option<ChartCache>,
 }
@@ -300,7 +300,7 @@ impl MenuState {
     ) -> Result<(), sqlx::Error> {
         let beatmapsets = db.get_all_beatmapsets().await?;
         let total_count = beatmapsets.len();
-        
+
         if let Ok(mut state) = menu_state.lock() {
             state.beatmapsets = beatmapsets;
             state.total_count = total_count;
@@ -440,9 +440,6 @@ impl MenuState {
 
     /// Gets the available calculators.
     pub fn available_calculators(&self) -> Vec<(&'static str, &'static str)> {
-        vec![
-            ("etterna", "Etterna (MinaCalc)"),
-            ("osu", "osu! (rosu-pp)"),
-        ]
+        vec![("etterna", "Etterna (MinaCalc)"), ("osu", "osu! (rosu-pp)")]
     }
 }

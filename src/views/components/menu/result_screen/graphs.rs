@@ -214,8 +214,13 @@ fn render_timeline_graph(
     for hit in &replay_result.hit_timings {
         let x_ratio = (hit.note_timestamp_ms - min_time) as f32 / time_range as f32;
         let x = graph_rect.left() + x_ratio * width;
-        let y_offset = hit.timing_ms as f32 * scale_y;
+
+        // Invert timing data so Early (if positive) plots to Negative region (Bottom/Left)
+        let display_timing = -hit.timing_ms;
+
+        let y_offset = display_timing as f32 * scale_y;
         let y = center_y - y_offset;
+
         let color = get_color_for_timing(hit.timing_ms, hit_window);
         painter.circle_filled(Pos2::new(x, y), 2.0, color);
     }

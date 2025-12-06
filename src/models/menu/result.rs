@@ -17,8 +17,5 @@ pub struct GameResultData {
     pub beatmap_hash: Option<String>,
     pub rate: f64,
     pub judge_text: String,
+    pub show_settings: bool,
 }
-
-
-
-

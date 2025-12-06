@@ -13,8 +13,8 @@ static GLOBAL_CALC: OnceLock<Arc<Mutex<CalcHolder>>> = OnceLock::new();
 
 fn init_global_calc() -> Result<(), CalcError> {
     if GLOBAL_CALC.get().is_none() {
-        let calc =
-            Calc::new().map_err(|e| CalcError::CalculationFailed(format!("MinaCalc init: {}", e)))?;
+        let calc = Calc::new()
+            .map_err(|e| CalcError::CalculationFailed(format!("MinaCalc init: {}", e)))?;
         let holder = Arc::new(Mutex::new(CalcHolder(calc)));
         let _ = GLOBAL_CALC.set(holder);
     }
@@ -80,9 +80,7 @@ impl EtternaCalculator {
                 .get(&rate_key_precision_two)
                 .or_else(|| hashmap.get(&rate_key_precision_one))
                 .or_else(|| hashmap.get("1.0"))
-                .ok_or_else(|| {
-                    CalcError::UnsupportedRate(rate)
-                })?;
+                .ok_or_else(|| CalcError::UnsupportedRate(rate))?;
 
             Ok(BeatmapSsr {
                 overall: ssr_entry.overall as f64,
@@ -159,7 +157,7 @@ impl DifficultyCalculator for EtternaCalculator {
         // For the trait implementation, we need the raw beatmap.
         // This is a simplified calculation based on NPS when no beatmap is available.
         // In practice, calculate_from_beatmap should be used directly with the beatmap.
-        
+
         let base = ctx.nps * ctx.rate;
         let duration_factor = if ctx.duration_ms > 180000.0 {
             1.15
@@ -195,4 +193,3 @@ impl DifficultyCalculator for EtternaCalculator {
         ])
     }
 }
-

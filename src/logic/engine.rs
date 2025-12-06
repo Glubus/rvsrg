@@ -184,7 +184,7 @@ impl GameEngine {
     ) -> Self {
         let audio_manager = AudioManager::new(bus);
         // No audio loaded - we'll run in silent mode
-        
+
         let hit_window = match hit_window_mode {
             HitWindowMode::OsuOD => HitWindow::from_osu_od(hit_window_value),
             HitWindowMode::EtternaJudge => HitWindow::from_etterna_judge(hit_window_value as u8),
@@ -250,7 +250,9 @@ impl GameEngine {
             if drift.abs() > 80.0 {
                 self.audio_clock = raw_audio_time;
             } else if drift.abs() > 5.0 {
-                self.audio_clock += drift * 0.35;
+                // Use a much smaller correction factor to avoid "sawtooth" velocity changes
+                // causing visual stutter
+                self.audio_clock += drift * 0.05;
             }
         }
 
@@ -285,7 +287,7 @@ impl GameEngine {
 
                 // Record the raw RELEASE input in the replay
                 self.replay_data.add_release(self.audio_clock, column);
-                
+
                 // Check if releasing a hold note
                 self.process_release(column);
             }
@@ -441,7 +443,7 @@ impl GameEngine {
     /// the appropriate judgement based on note type.
     fn process_hit(&mut self, column: usize) {
         use crate::models::engine::note::NoteType;
-        
+
         let current_time = self.audio_clock;
         let mut best_note_idx = None;
         let mut min_diff = f64::MAX;
@@ -464,7 +466,7 @@ impl GameEngine {
         // Apply judgement based on note type
         if let Some(idx) = best_note_idx {
             let diff = self.chart[idx].timestamp_ms - current_time;
-            
+
             match &mut self.chart[idx].note_type {
                 NoteType::Tap => {
                     let (judgement, _) = self.hit_window.judge(diff);
@@ -473,8 +475,12 @@ impl GameEngine {
                     self.last_hit_judgement = Some(judgement);
                     self.apply_judgement(judgement);
                 }
-                
-                NoteType::Hold { start_time, is_held, .. } => {
+
+                NoteType::Hold {
+                    start_time,
+                    is_held,
+                    ..
+                } => {
                     // Start holding - judgement comes when hold is complete
                     let (judgement, _) = self.hit_window.judge(diff);
                     *start_time = Some(current_time);
@@ -483,7 +489,7 @@ impl GameEngine {
                     self.last_hit_judgement = Some(judgement);
                     // Don't mark as hit yet - wait for release/completion
                 }
-                
+
                 NoteType::Mine => {
                     // Hit a mine = bad!
                     self.chart[idx].hit = true;
@@ -491,8 +497,12 @@ impl GameEngine {
                     self.last_hit_judgement = Some(Judgement::Miss);
                     self.apply_judgement(Judgement::Miss);
                 }
-                
-                NoteType::Burst { current_hits, required_hits, .. } => {
+
+                NoteType::Burst {
+                    current_hits,
+                    required_hits,
+                    ..
+                } => {
                     // Increment hit count
                     *current_hits += 1;
                     if *current_hits >= *required_hits {
@@ -515,17 +525,17 @@ impl GameEngine {
     /// Updates note states and handles misses for all note types.
     fn update_notes(&mut self, current_time: f64) {
         use crate::models::engine::NoteType;
-        
+
         let miss_threshold = self.hit_window.miss_ms;
         let mut new_head = self.head_index;
-        
+
         // Collect judgements to apply (to avoid borrow conflicts)
         let mut judgements: Vec<Judgement> = Vec::new();
         let keys_held = self.keys_held.clone();
 
         while new_head < self.chart.len() {
             let note = &mut self.chart[new_head];
-            
+
             // Skip already completed notes
             if note.hit {
                 new_head += 1;
@@ -545,8 +555,12 @@ impl GameEngine {
                         break;
                     }
                 }
-                
-                NoteType::Hold { is_held, start_time, .. } => {
+
+                NoteType::Hold {
+                    is_held,
+                    start_time,
+                    ..
+                } => {
                     if *is_held {
                         // Check if hold completed (reached end time)
                         if current_time >= note_end_time {
@@ -558,7 +572,8 @@ impl GameEngine {
                         // Don't advance head_index while holding - note is still active!
                         // Break to stop processing further notes
                         break;
-                    } else if start_time.is_none() && current_time > note_timestamp + miss_threshold {
+                    } else if start_time.is_none() && current_time > note_timestamp + miss_threshold
+                    {
                         // Never started holding - miss
                         note.hit = true;
                         judgements.push(Judgement::Miss);
@@ -567,7 +582,7 @@ impl GameEngine {
                         break;
                     }
                 }
-                
+
                 NoteType::Mine => {
                     if current_time > note_timestamp + miss_threshold {
                         note.hit = true;
@@ -577,8 +592,12 @@ impl GameEngine {
                         break;
                     }
                 }
-                
-                NoteType::Burst { duration_ms, required_hits, current_hits } => {
+
+                NoteType::Burst {
+                    duration_ms,
+                    required_hits,
+                    current_hits,
+                } => {
                     if current_time > note_timestamp + *duration_ms {
                         note.hit = true;
                         if *current_hits < *required_hits {
@@ -601,9 +620,9 @@ impl GameEngine {
                 }
             }
         }
-        
+
         self.head_index = new_head;
-        
+
         // Apply collected judgements
         for j in judgements {
             self.apply_judgement(j);
@@ -613,30 +632,36 @@ impl GameEngine {
     /// Processes a release input on the given column (for hold notes).
     fn process_release(&mut self, column: usize) {
         use crate::models::engine::note::NoteType;
-        
+
         let current_time = self.audio_clock;
-        
+
         // Find active hold in this column
         for note in self.chart.iter_mut().skip(self.head_index) {
             if note.column != column || note.hit {
                 continue;
             }
-            
-            if let NoteType::Hold { duration_ms, start_time: Some(start), is_held, .. } = &mut note.note_type {
+
+            if let NoteType::Hold {
+                duration_ms,
+                start_time: Some(start),
+                is_held,
+                ..
+            } = &mut note.note_type
+            {
                 if !*is_held {
                     continue;
                 }
-                
+
                 let end_time = note.timestamp_ms + *duration_ms;
                 let hold_duration = current_time - *start;
                 let expected_duration = end_time - note.timestamp_ms;
-                
+
                 *is_held = false;
                 note.hit = true;
-                
+
                 // Calculate how well they held (percentage of required duration)
                 let hold_ratio = hold_duration / expected_duration;
-                
+
                 let judgement = if hold_ratio >= 0.9 {
                     Judgement::Marv
                 } else if hold_ratio >= 0.8 {
@@ -650,7 +675,7 @@ impl GameEngine {
                 } else {
                     Judgement::Miss
                 };
-                
+
                 self.last_hit_judgement = Some(judgement);
                 self.apply_judgement(judgement);
                 break;

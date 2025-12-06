@@ -177,8 +177,9 @@ impl InputManager {
         self.bindings
             .insert(KeyCode::KeyL, GameAction::EditorSelect(EditorTarget::Lanes));
         self.bindings.insert(KeyCode::KeyS, GameAction::EditorSave);
-        
+
         // Debug
-        self.bindings.insert(KeyCode::F10, GameAction::LaunchDebugMap);
+        self.bindings
+            .insert(KeyCode::F10, GameAction::LaunchDebugMap);
     }
 }

@@ -163,6 +163,7 @@ impl Leaderboard {
                                         beatmap_hash: Some(card.beatmap_hash.clone()),
                                         rate: card.rate,
                                         judge_text,
+                                        show_settings: false,
                                     });
                                 }
 

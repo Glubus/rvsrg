@@ -141,11 +141,16 @@ pub enum GameAction {
     // Difficulty
     /// Set the active difficulty calculator.
     SetCalculator(String),
+    /// Update the hit window (live re-judging).
+    UpdateHitWindow {
+        mode: crate::models::settings::HitWindowMode,
+        value: f64,
+    },
 
     // Result screen
     /// Navigate to result screen with data.
     SetResult(crate::models::menu::GameResultData),
-    
+
     // Debug
     /// Launch a debug map with all note types for testing.
     LaunchDebugMap,

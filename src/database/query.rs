@@ -3,7 +3,9 @@
 #![allow(dead_code)]
 #![allow(clippy::too_many_arguments)]
 
-use crate::database::models::{Beatmap, BeatmapLight, BeatmapRating, BeatmapWithRatings, Beatmapset, BeatmapsetLight, Replay};
+use crate::database::models::{
+    Beatmap, BeatmapLight, BeatmapRating, BeatmapWithRatings, Beatmapset, BeatmapsetLight, Replay,
+};
 use crate::models::search::MenuSearchFilters;
 use sqlx::SqlitePool;
 use std::collections::HashMap;
@@ -339,7 +341,8 @@ pub async fn get_beatmapsets_page(
         .fetch_all(pool)
         .await?;
 
-        let light_beatmaps: Vec<BeatmapLight> = beatmaps.into_iter().map(BeatmapLight::from).collect();
+        let light_beatmaps: Vec<BeatmapLight> =
+            beatmaps.into_iter().map(BeatmapLight::from).collect();
         result.push(BeatmapsetLight::new(beatmapset, light_beatmaps));
     }
 

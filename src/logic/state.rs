@@ -1,6 +1,7 @@
 use crate::database::{DbManager, DbStatus, SaveReplayCommand};
 use crate::input::events::{EditMode, EditorTarget, GameAction, InputCommand};
 use crate::logic::engine::GameEngine;
+use crate::models::engine::hit_window::HitWindow;
 use crate::models::menu::{GameResultData, MenuState};
 use crate::models::replay::simulate_replay;
 use crate::models::settings::{HitWindowMode, SettingsState};
@@ -99,6 +100,7 @@ impl GlobalState {
                         beatmap_hash: engine.beatmap_hash.clone(),
                         rate: engine.rate,
                         judge_text: self.get_hit_window_text(),
+                        show_settings: false,
                     };
                     next_state = Some(AppState::Result(result));
                 }
@@ -367,6 +369,9 @@ impl GameAction {
                 if *x > 0 {
                     menu.next_difficulty();
                 }
+                if menu.show_settings {
+                    menu.ensure_chart_cache();
+                }
                 let request_hash = menu.get_selected_beatmap_hash();
                 state.request_leaderboard_for_hash(request_hash);
                 None
@@ -384,12 +389,18 @@ impl GameAction {
                         menu.start_index = menu.end_index.saturating_sub(menu.visible_count);
                     }
                 }
+                if menu.show_settings {
+                    menu.ensure_chart_cache();
+                }
                 let request_hash = menu.get_selected_beatmap_hash();
                 state.request_leaderboard_for_hash(request_hash);
                 None
             }
             GameAction::SetDifficulty(idx) => {
                 menu.selected_difficulty_index = *idx;
+                if menu.show_settings {
+                    menu.ensure_chart_cache();
+                }
                 let request_hash = menu.get_selected_beatmap_hash();
                 state.request_leaderboard_for_hash(request_hash);
                 None
@@ -397,7 +408,10 @@ impl GameAction {
             GameAction::Confirm => {
                 // Reload settings from disk to get any changes from the settings panel
                 state.reload_settings();
-                
+
+                // Ensure chart is cached so we can use it for re-judging later
+                menu.ensure_chart_cache();
+
                 // Use cached chart if available, otherwise load from file
                 let engine = if let Some(cache) = menu.get_cached_chart() {
                     // Reset hit flags for new gameplay
@@ -448,7 +462,8 @@ impl GameAction {
             GameAction::LaunchPractice => {
                 // Reload settings from disk
                 state.reload_settings();
-                
+                menu.ensure_chart_cache();
+
                 // Like Confirm, but enables Practice mode
                 let engine = if let Some(cache) = menu.get_cached_chart() {
                     let chart: Vec<_> = cache.chart.iter().map(|n| n.reset()).collect();
@@ -498,7 +513,8 @@ impl GameAction {
             GameAction::ToggleEditor => {
                 // Reload settings from disk
                 state.reload_settings();
-                
+                menu.ensure_chart_cache();
+
                 // Utiliser la chart cachée si disponible
                 let engine = if let Some(cache) = menu.get_cached_chart() {
                     let chart: Vec<_> = cache.chart.iter().map(|n| n.reset()).collect();
@@ -549,6 +565,9 @@ impl GameAction {
             }
             GameAction::ToggleSettings => {
                 menu.show_settings = !menu.show_settings;
+                if menu.show_settings {
+                    menu.ensure_chart_cache();
+                }
                 None
             }
             GameAction::UpdateVolume(value) => {
@@ -574,11 +593,17 @@ impl GameAction {
                 menu.ensure_difficulty_calculated();
                 None
             }
+            GameAction::UpdateHitWindow { mode, value } => {
+                state.settings.hit_window_mode = *mode;
+                state.settings.hit_window_value = *value;
+                state.persist_settings();
+                None
+            }
             GameAction::SetResult(result_data) => Some(AppState::Result(result_data.clone())),
             GameAction::LaunchDebugMap => {
                 // Reload settings from disk
                 state.reload_settings();
-                
+
                 let chart = create_debug_chart();
                 let engine = GameEngine::from_debug_chart(
                     &state.bus,
@@ -622,6 +647,23 @@ impl GameAction {
                 None
             }
             GameAction::ReloadKeybinds => None,
+            GameAction::UpdateHitWindow { mode, value } => {
+                state.settings.hit_window_mode = *mode;
+                state.settings.hit_window_value = *value;
+                state.persist_settings();
+
+                let hw = match mode {
+                    HitWindowMode::OsuOD => HitWindow::from_osu_od(*value),
+                    HitWindowMode::EtternaJudge => HitWindow::from_etterna_judge(*value as u8),
+                };
+
+                engine.hit_window = hw;
+                // Also update replay data so the saved replay has the new settings
+                engine.replay_data.hit_window_mode = *mode;
+                engine.replay_data.hit_window_value = *value;
+
+                None
+            }
             _ => {
                 engine.handle_input(self.clone());
                 None
@@ -725,6 +767,55 @@ impl GameAction {
                 state.request_leaderboard_for_hash(request_hash);
                 Some(AppState::Menu(menu))
             }
+            GameAction::ToggleSettings => {
+                _result.show_settings = !_result.show_settings;
+                None
+            }
+            GameAction::UpdateHitWindow { mode, value } => {
+                state.settings.hit_window_mode = *mode;
+                state.settings.hit_window_value = *value;
+                state.persist_settings();
+
+                // Update result data configuration
+                _result.replay_data.hit_window_mode = *mode;
+                _result.replay_data.hit_window_value = *value;
+                _result.judge_text = state.get_hit_window_text();
+
+                // Attempt to re-judge if we have the chart
+                let chart_opt = state
+                    .saved_menu_state
+                    .get_cached_chart()
+                    .map(|c| c.chart.iter().map(|n| n.reset()).collect::<Vec<_>>());
+
+                if let Some(chart) = chart_opt {
+                    log::info!(
+                        "RESULT: Re-judging replay with {} notes (Mode: {:?}, Value: {})",
+                        chart.len(),
+                        *mode,
+                        *value
+                    );
+                    let hit_window = _result.replay_data.build_hit_window();
+                    let sim_res = simulate_replay(&_result.replay_data, &chart, &hit_window);
+
+                    log::info!(
+                        "RESULT: New Accuracy: {:.2}% (Marv: {}, Perf: {}, Miss: {})",
+                        sim_res.accuracy,
+                        sim_res.hit_stats.marv,
+                        sim_res.hit_stats.perfect,
+                        sim_res.hit_stats.miss
+                    );
+
+                    _result.hit_stats = sim_res.hit_stats.clone();
+                    _result.replay_result = sim_res.clone();
+                    _result.score = sim_res.score;
+                    _result.accuracy = sim_res.accuracy;
+                    _result.max_combo = sim_res.max_combo;
+                } else {
+                    log::warn!("RESULT: Cannot re-judge, chart not in cache!");
+                }
+
+                None
+            }
             _ => None,
         }
     }
@@ -733,41 +824,46 @@ impl GameAction {
 /// Creates a debug chart with all note types for testing rendering.
 fn create_debug_chart() -> Vec<crate::models::engine::NoteData> {
     use crate::models::engine::NoteData;
-    
+
     let mut notes = Vec::new();
     let time = 1000.0; // Start at 1 second
     let spacing = 500.0; // 500ms between note groups
-    
+
     // Loop to create multiple sets of all note types
     for iteration in 0..10 {
         let base_time = time + (iteration as f64 * spacing * 8.0);
-        
+
         // Tap notes (one per column)
         for col in 0..4 {
             notes.push(NoteData::tap(base_time + (col as f64 * 100.0), col));
         }
-        
+
         // Hold notes (long notes)
         notes.push(NoteData::hold(base_time + spacing, 0, 800.0));
         notes.push(NoteData::hold(base_time + spacing + 200.0, 2, 600.0));
-        
+
         // Mines (avoid hitting these)
         notes.push(NoteData::mine(base_time + spacing * 2.0, 1));
         notes.push(NoteData::mine(base_time + spacing * 2.0 + 200.0, 3));
-        
+
         // Burst notes (mash multiple times)
         notes.push(NoteData::burst(base_time + spacing * 3.0, 0, 500.0, 3));
-        notes.push(NoteData::burst(base_time + spacing * 3.0 + 200.0, 2, 400.0, 4));
-        
+        notes.push(NoteData::burst(
+            base_time + spacing * 3.0 + 200.0,
+            2,
+            400.0,
+            4,
+        ));
+
         // Mixed pattern
         notes.push(NoteData::tap(base_time + spacing * 4.0, 1));
         notes.push(NoteData::hold(base_time + spacing * 4.0, 3, 400.0));
         notes.push(NoteData::mine(base_time + spacing * 4.5, 0));
         notes.push(NoteData::burst(base_time + spacing * 5.0, 2, 300.0, 2));
     }
-    
+
     // Sort by timestamp
     notes.sort_by(|a, b| a.timestamp_ms.partial_cmp(&b.timestamp_ms).unwrap());
-    
+
     notes
 }

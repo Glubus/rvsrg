@@ -3,13 +3,14 @@
 #![allow(dead_code)]
 
 use crate::core::input::actions::UIAction;
-use crate::input::events::{EditMode, EditorTarget, GameAction};
-use crate::models::skin::UIElementPos;
+use crate::input::events::GameAction;
 use crate::render::context::RenderContext;
 use crate::render::draw::draw_game;
+use crate::render::mock_data::create_mock_state;
 use crate::render::resources::RenderResources;
 use crate::render::ui::UiOverlay;
 use crate::shared::snapshot::RenderState;
+use crate::views::components::editor::SkinEditorLayout;
 use crate::views::components::menu::result_screen::ResultScreen;
 use crate::views::components::menu::song_select::SongSelectScreen;
 use crate::views::settings::{SettingsSnapshot, render_settings_window};
@@ -20,11 +21,26 @@ use winit::window::Window;
 
 pub struct Renderer {
     pub ctx: RenderContext,
+
+    // UI Principale (affichée à l'écran)
     ui: UiOverlay,
+
+    // UI Secondaire (pour le rendu dans la texture de l'éditeur)
+    offscreen_ui: UiOverlay,
+
     pub resources: RenderResources,
     current_state: RenderState,
+
+    // Screens
     song_select_screen: SongSelectScreen,
     result_screen: ResultScreen,
+    skin_editor: SkinEditorLayout,
+
+    // Offscreen Rendering (pour l'éditeur)
+    offscreen_texture: Option<wgpu::Texture>,
+    offscreen_view: Option<wgpu::TextureView>,
+    offscreen_id: Option<egui::TextureId>,
+    offscreen_size: (u32, u32),
 
     // FPS
     last_frame_time: std::time::Instant,
@@ -36,18 +52,35 @@ pub struct Renderer {
 impl Renderer {
     pub async fn new(window: Arc<Window>) -> Self {
         let ctx = RenderContext::new(window.clone()).await;
+
+        // Instance UI pour la fenêtre principale
         let ui = UiOverlay::new(window.clone(), &ctx.device, ctx.config.format);
+
+        // Instance UI pour le rendu offscreen (prévisualisation)
+        // On utilise le même format de pixel que la swapchain pour simplifier
+        let offscreen_ui = UiOverlay::new(window.clone(), &ctx.device, ctx.config.format);
+
         let mut resources = RenderResources::new(&ctx, &ui.ctx);
 
+        // Positionnement initial des éléments
         resources.update_component_positions(ctx.config.width as f32, ctx.config.height as f32);
 
         Self {
             ctx,
             ui,
+            offscreen_ui,
             resources,
             current_state: RenderState::Empty,
+
             song_select_screen: SongSelectScreen::new(),
             result_screen: ResultScreen::new(),
+            skin_editor: SkinEditorLayout::new(),
+
+            offscreen_texture: None,
+            offscreen_view: None,
+            offscreen_id: None,
+            offscreen_size: (0, 0),
+
             last_frame_time: std::time::Instant::now(),
             frame_count: 0,
             last_fps_update: std::time::Instant::now(),
@@ -103,8 +136,52 @@ impl Renderer {
         self.current_state = new_state;
     }
 
+    /// Prépare la texture offscreen pour le rendu de l'éditeur
+    fn ensure_offscreen_texture(&mut self, width: u32, height: u32) {
+        if self.offscreen_texture.is_some() && self.offscreen_size == (width, height) {
+            return;
+        }
+
+        // Libérer l'ancienne texture Egui si elle existe
+        if let Some(id) = self.offscreen_id {
+            self.ui.free_texture(id);
+        }
+
+        let texture_desc = wgpu::TextureDescriptor {
+            size: wgpu::Extent3d {
+                width,
+                height,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: self.ctx.config.format,
+            usage: wgpu::TextureUsages::COPY_SRC
+                | wgpu::TextureUsages::RENDER_ATTACHMENT
+                | wgpu::TextureUsages::TEXTURE_BINDING,
+            label: Some("Editor Offscreen Texture"),
+            view_formats: &[],
+        };
+
+        let texture = self.ctx.device.create_texture(&texture_desc);
+        let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+
+        // Enregistrement de la nouvelle texture dans l'UI principale pour l'afficher
+        let id = self
+            .ui
+            .register_texture(&self.ctx.device, &view, wgpu::FilterMode::Linear);
+
+        self.offscreen_texture = Some(texture);
+        self.offscreen_view = Some(view);
+        self.offscreen_id = Some(id);
+        self.offscreen_size = (width, height);
+
+        log::info!("RENDER: Created offscreen texture {}x{}", width, height);
+    }
+
     pub fn render(&mut self, window: &Window) -> Result<Vec<GameAction>, wgpu::SurfaceError> {
-        // FPS
+        // --- FPS Calculation ---
         self.frame_count += 1;
         let now = std::time::Instant::now();
         let elapsed = now.duration_since(self.last_fps_update);
@@ -114,10 +191,12 @@ impl Renderer {
             self.last_fps_update = now;
         }
 
+        // Préparation de la frame
         let output = self.ctx.surface.get_current_texture()?;
-        let view = output
+        let swapchain_view = output
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
+
         let mut actions_to_send = Vec::new();
 
         let mut encoder = self
@@ -127,22 +206,154 @@ impl Renderer {
                 label: Some("Main Encoder"),
             });
 
-        // 1. Game Layer
-        draw_game(
-            &self.ctx,
-            &mut self.resources,
-            &mut encoder,
-            &view,
-            &self.current_state,
-            self.current_fps,
-        );
+        let is_editor = matches!(self.current_state, RenderState::Editor(_));
 
-        // 2. UI Layer
+        // =================================================================================
+        // 1. GAME RENDERING LAYER (Offscreen ou Onscreen)
+        // =================================================================================
+
+        if is_editor {
+            // --- MODE ÉDITEUR : RENDU OFFSCREEN ---
+
+            // 1. Récupérer la résolution désirée depuis l'éditeur
+            let w = self.skin_editor.state.preview_width;
+            let h = self.skin_editor.state.preview_height;
+            self.ensure_offscreen_texture(w, h);
+
+            if let Some(target_view) = &self.offscreen_view {
+                // 2. Adapter le système de coordonnées à la résolution offscreen
+                self.resources.pixel_system.update_size(w, h, None);
+
+                // 3. Créer l'état factice (Mock)
+                let mock_state = create_mock_state(self.skin_editor.state.current_scene);
+
+                // 4. Rendu WGPU (Jeu / Background / Notes)
+                draw_game(
+                    &self.ctx,
+                    &mut self.resources,
+                    &mut encoder,
+                    target_view,
+                    &mock_state,
+                    self.current_fps,
+                );
+
+                // 5. Rendu EGUI OFFSCREEN (Menus SongSelect / Result)
+                // C'est ici qu'on dessine l'UI du menu DANS la texture
+                match &mock_state {
+                    RenderState::Menu(menu_state) => {
+                        self.offscreen_ui.begin_frame(window); // Dummy inputs pour l'offscreen
+                        let ctx_off = self.offscreen_ui.ctx.clone();
+
+                        let hit_win = crate::models::engine::hit_window::HitWindow::new();
+                        let menus = &self.resources.skin.menus;
+
+                        let to_egui = |c: [f32; 4]| {
+                            egui::Color32::from_rgba_unmultiplied(
+                                (c[0] * 255.) as u8,
+                                (c[1] * 255.) as u8,
+                                (c[2] * 255.) as u8,
+                                (c[3] * 255.) as u8,
+                            )
+                        };
+
+                        let panel_textures =
+                            crate::views::components::menu::song_select::UIPanelTextures {
+                                beatmap_info_bg: self
+                                    .resources
+                                    .beatmap_info_bg_texture
+                                    .as_ref()
+                                    .map(|t| t.id()),
+                                search_panel_bg: self
+                                    .resources
+                                    .search_panel_bg_texture
+                                    .as_ref()
+                                    .map(|t| t.id()),
+                                search_bar: self
+                                    .resources
+                                    .search_bar_texture
+                                    .as_ref()
+                                    .map(|t| t.id()),
+                                leaderboard_bg: self
+                                    .resources
+                                    .leaderboard_bg_texture
+                                    .as_ref()
+                                    .map(|t| t.id()),
+                            };
+
+                        // Rendu du menu avec la taille offscreen
+                        self.song_select_screen.render(
+                            &ctx_off,
+                            menu_state,
+                            target_view,
+                            w as f32,
+                            h as f32, // Dimensions de la preview !
+                            &hit_win,
+                            self.resources.settings.hit_window_mode,
+                            self.resources.settings.hit_window_value,
+                            self.resources.song_button_texture.as_ref().map(|t| t.id()),
+                            self.resources
+                                .song_button_selected_texture
+                                .as_ref()
+                                .map(|t| t.id()),
+                            self.resources
+                                .difficulty_button_texture
+                                .as_ref()
+                                .map(|t| t.id()),
+                            self.resources
+                                .difficulty_button_selected_texture
+                                .as_ref()
+                                .map(|t| t.id()),
+                            to_egui(menus.song_select.song_button.selected_border_color),
+                            to_egui(menus.song_select.difficulty_button.selected_text_color),
+                            &panel_textures,
+                        );
+
+                        // Finaliser le rendu Egui offscreen dans la texture
+                        self.offscreen_ui
+                            .end_frame_and_draw(&self.ctx, &mut encoder, target_view);
+                    }
+                    RenderState::Result(data) => {
+                        self.offscreen_ui.begin_frame(window);
+                        let ctx_off = self.offscreen_ui.ctx.clone();
+                        let hit_win = crate::models::engine::hit_window::HitWindow::new();
+
+                        self.result_screen.render(&ctx_off, data, &hit_win);
+
+                        self.offscreen_ui
+                            .end_frame_and_draw(&self.ctx, &mut encoder, target_view);
+                    }
+                    _ => {} // En jeu (InGame), le HUD est géré par draw_game via wgpu_text
+                }
+
+                // 6. Restaurer la taille réelle de la fenêtre pour le rendu principal
+                self.resources.pixel_system.update_size(
+                    self.ctx.config.width,
+                    self.ctx.config.height,
+                    None,
+                );
+            }
+        } else {
+            // --- MODE NORMAL : RENDU ONSCREEN ---
+            draw_game(
+                &self.ctx,
+                &mut self.resources,
+                &mut encoder,
+                &swapchain_view,
+                &self.current_state,
+                self.current_fps,
+            );
+        }
+
+        // =================================================================================
+        // 2. UI LAYER PRINCIPALE (SWAPCHAIN)
+        // =================================================================================
+
         self.ui.begin_frame(window);
         let ctx_egui = self.ui.ctx.clone();
 
         match &self.current_state {
             RenderState::Menu(menu_state) => {
+                // Gestion de la fenêtre de Settings (Popup)
                 if menu_state.show_settings {
                     let (snapshot, result) = {
                         let settings = &mut self.resources.settings;
@@ -163,17 +374,18 @@ impl Renderer {
                     if let Some(volume) = result.volume_changed {
                         actions_to_send.push(GameAction::UpdateVolume(volume));
                     }
-
+                    if let Some((mode, value)) = result.hit_window_changed {
+                        actions_to_send.push(GameAction::UpdateHitWindow { mode, value });
+                    }
                     if result.keybinds_updated {
                         actions_to_send.push(GameAction::ReloadKeybinds);
                     }
-
                     if result.request_toggle {
                         actions_to_send.push(GameAction::ToggleSettings);
                     }
                 }
 
-                let colors = &self.resources.skin.colors;
+                let menus = &self.resources.skin.menus;
                 let to_egui = |c: [f32; 4]| {
                     egui::Color32::from_rgba_unmultiplied(
                         (c[0] * 255.) as u8,
@@ -182,10 +394,7 @@ impl Renderer {
                         (c[3] * 255.) as u8,
                     )
                 };
-                let dummy_win = crate::models::engine::hit_window::HitWindow::new();
-
-                // Créer un hit_window à jour avec les settings actuels
-                let current_hit_window = match self.resources.settings.hit_window_mode {
+                let mut hit_window = match self.resources.settings.hit_window_mode {
                     crate::models::settings::HitWindowMode::OsuOD => {
                         crate::models::engine::hit_window::HitWindow::from_osu_od(
                             self.resources.settings.hit_window_value,
@@ -197,44 +406,54 @@ impl Renderer {
                         )
                     }
                 };
-
-                // Build panel textures struct
                 let panel_textures = crate::views::components::menu::song_select::UIPanelTextures {
-                    beatmap_info_bg: self.resources.beatmap_info_bg_texture.as_ref().map(|t| t.id()),
-                    search_panel_bg: self.resources.search_panel_bg_texture.as_ref().map(|t| t.id()),
+                    beatmap_info_bg: self
+                        .resources
+                        .beatmap_info_bg_texture
+                        .as_ref()
+                        .map(|t| t.id()),
+                    search_panel_bg: self
+                        .resources
+                        .search_panel_bg_texture
+                        .as_ref()
+                        .map(|t| t.id()),
                     search_bar: self.resources.search_bar_texture.as_ref().map(|t| t.id()),
-                    leaderboard_bg: self.resources.leaderboard_bg_texture.as_ref().map(|t| t.id()),
+                    leaderboard_bg: self
+                        .resources
+                        .leaderboard_bg_texture
+                        .as_ref()
+                        .map(|t| t.id()),
                 };
 
-                let (action_opt, result_data, search_request, _calculator_changed) = self.song_select_screen.render(
-                    &ctx_egui,
-                    menu_state,
-                    &view,
-                    self.ctx.config.width as f32,
-                    self.ctx.config.height as f32,
-                    &current_hit_window,
-                    self.resources.settings.hit_window_mode,
-                    self.resources.settings.hit_window_value,
-                    self.resources.song_button_texture.as_ref().map(|t| t.id()),
-                    self.resources
-                        .song_button_selected_texture
-                        .as_ref()
-                        .map(|t| t.id()),
-                    self.resources
-                        .difficulty_button_texture
-                        .as_ref()
-                        .map(|t| t.id()),
-                    self.resources
-                        .difficulty_button_selected_texture
-                        .as_ref()
-                        .map(|t| t.id()),
-                    to_egui(colors.selected_color),
-                    to_egui(colors.difficulty_selected_color),
-                    &panel_textures,
-                );
-                
-                // Handle calculator change
-                if let Some(calc_id) = _calculator_changed {
+                let (action_opt, result_data, search_request, calculator_changed) =
+                    self.song_select_screen.render(
+                        &ctx_egui,
+                        menu_state,
+                        &swapchain_view,
+                        self.ctx.config.width as f32,
+                        self.ctx.config.height as f32,
+                        &hit_window,
+                        self.resources.settings.hit_window_mode,
+                        self.resources.settings.hit_window_value,
+                        self.resources.song_button_texture.as_ref().map(|t| t.id()),
+                        self.resources
+                            .song_button_selected_texture
+                            .as_ref()
+                            .map(|t| t.id()),
+                        self.resources
+                            .difficulty_button_texture
+                            .as_ref()
+                            .map(|t| t.id()),
+                        self.resources
+                            .difficulty_button_selected_texture
+                            .as_ref()
+                            .map(|t| t.id()),
+                        to_egui(menus.song_select.song_button.selected_border_color),
+                        to_egui(menus.song_select.difficulty_button.selected_text_color),
+                        &panel_textures,
+                    );
+
+                if let Some(calc_id) = calculator_changed {
                     actions_to_send.push(GameAction::SetCalculator(calc_id));
                 }
 
@@ -255,171 +474,85 @@ impl Renderer {
                     }
                 }
 
-                // Traiter les clics sur les scores (ouvrir l'écran de résultat)
                 if let Some(result_data) = result_data {
-                    // Envoyer l'action au thread de logique pour changer d'état
                     actions_to_send.push(GameAction::SetResult(result_data));
                 }
 
-                // Traiter les requêtes de recherche
                 if let Some(filters) = search_request {
                     actions_to_send.push(GameAction::ApplySearch(filters));
                 }
             }
 
-            // --- ÉDITEUR CORRIGÉ ---
-            RenderState::Editor(snapshot) => {
-                // Capturer les événements de souris pour l'éditeur
-                let is_dragging = ctx_egui.input(|i| i.pointer.primary_down());
-
-                if let (Some(target), true) = (snapshot.target, is_dragging) {
-                    // Calculer le delta depuis la dernière position
-                    // On utilise le delta de la souris depuis egui
-                    let delta = ctx_egui.input(|i| {
-                        let delta = i.pointer.delta();
-                        (delta.x, delta.y)
-                    });
-
-                    if delta.0 != 0.0 || delta.1 != 0.0 {
-                        // Envoyer l'action de modification
-                        actions_to_send.push(GameAction::EditorModify {
-                            x: delta.0,
-                            y: delta.1,
-                        });
-                    }
+            RenderState::Editor(_snapshot) => {
+                // Affiche l'UI de l'éditeur
+                // Affiche l'UI de l'éditeur
+                if self
+                    .skin_editor
+                    .show(&ctx_egui, &mut self.resources.skin, self.offscreen_id)
+                {
+                    let s = self.resources.skin.clone();
+                    self.resources.reload_textures(&self.ctx, &ctx_egui, &s);
                 }
 
-                if let Some((target, mode, dx, dy)) = snapshot.modification {
-                    let config = &mut self.resources.skin.config;
-                    let speed = 2.0;
+                // MISE À JOUR TEMPS RÉEL DES POSITIONS
+                // On met à jour les RenderResources avec les dimensions de la preview
+                // si elle existe, sinon avec la taille écran.
+                // Cela permet de voir les éléments bouger instantanément.
+                let (w, h) = if let Some(_) = &self.offscreen_view {
+                    (
+                        self.skin_editor.state.preview_width as f32,
+                        self.skin_editor.state.preview_height as f32,
+                    )
+                } else {
+                    (self.ctx.config.width as f32, self.ctx.config.height as f32)
+                };
 
-                    match (target, mode) {
-                        // Redimensionnement
-                        (EditorTarget::Notes, EditMode::Resize) => {
-                            config.note_width_px += dx * speed;
-                            config.note_height_px -= dy * speed;
-                        }
-                        (EditorTarget::Receptors, EditMode::Resize) => {
-                            config.receptor_width_px += dx * speed;
-                            config.receptor_height_px -= dy * speed;
-                        }
-                        (EditorTarget::Combo, EditMode::Resize) => {
-                            config.combo_text_size -= dy * speed
-                        }
-                        (EditorTarget::Score, EditMode::Resize) => {
-                            config.score_text_size -= dy * speed
-                        }
-                        (EditorTarget::Accuracy, EditMode::Resize) => {
-                            config.accuracy_text_size -= dy * speed
-                        }
-                        (EditorTarget::Judgement, EditMode::Resize) => {
-                            config.judgement_text_size -= dy * speed
-                        }
-                        (EditorTarget::HitBar, EditMode::Resize) => {
-                            config.hit_bar_height_px -= dy * speed
-                        }
-
-                        // Déplacement (Valable pour TOUS les targets)
-                        (t, EditMode::Move) => {
-                            let pos_opt = match t {
-                                EditorTarget::Notes
-                                | EditorTarget::Lanes
-                                | EditorTarget::Receptors => &mut config.playfield_pos,
-                                EditorTarget::Combo => &mut config.combo_pos,
-                                EditorTarget::Score => &mut config.score_pos,
-                                EditorTarget::Accuracy => &mut config.accuracy_pos,
-                                EditorTarget::Judgement => &mut config.judgement_pos,
-                                EditorTarget::HitBar => &mut config.hit_bar_pos,
-                                _ => &mut None,
-                            };
-                            let p = pos_opt.get_or_insert(UIElementPos { x: 0., y: 0. });
-                            p.x += dx * speed;
-                            p.y -= dy * speed;
-                        }
-                        _ => {}
-                    }
-                    self.resources.update_component_positions(
-                        self.ctx.config.width as f32,
-                        self.ctx.config.height as f32,
-                    );
-                }
-
-                if snapshot.save_requested {
-                    let _ = self.resources.skin.save_user_config();
-                }
-
-                egui::Window::new("Editor")
-                    .anchor(egui::Align2::RIGHT_TOP, [-10.0, 10.0])
-                    .show(&ctx_egui, |ui| {
-                        ui.label(&snapshot.status_text);
-
-                        // Affichage conditionnel selon le mode
-                        if let Some(target) = snapshot.target {
-                            let config = &self.resources.skin.config;
-                            let text = match (target, snapshot.mode) {
-                                // Mode MOVE : On affiche la position
-                                (t, EditMode::Move) => {
-                                    let pos = match t {
-                                        EditorTarget::Notes
-                                        | EditorTarget::Lanes
-                                        | EditorTarget::Receptors => config.playfield_pos,
-                                        EditorTarget::Combo => config.combo_pos,
-                                        EditorTarget::Score => config.score_pos,
-                                        EditorTarget::Accuracy => config.accuracy_pos,
-                                        EditorTarget::Judgement => config.judgement_pos,
-                                        EditorTarget::HitBar => config.hit_bar_pos,
-                                        _ => None,
-                                    }
-                                    .unwrap_or(UIElementPos { x: 0., y: 0. });
-                                    format!("Pos: X {:.0} Y {:.0}", pos.x, pos.y)
-                                }
-                                // Mode RESIZE : On affiche la taille
-                                (EditorTarget::Notes, EditMode::Resize) => format!(
-                                    "Size: W {:.0} H {:.0}",
-                                    config.note_width_px, config.note_height_px
-                                ),
-                                (EditorTarget::Receptors, EditMode::Resize) => format!(
-                                    "Size: W {:.0} H {:.0}",
-                                    config.receptor_width_px, config.receptor_height_px
-                                ),
-                                (EditorTarget::Combo, EditMode::Resize) => {
-                                    format!("Size: {:.0}", config.combo_text_size)
-                                }
-                                (EditorTarget::Score, EditMode::Resize) => {
-                                    format!("Size: {:.0}", config.score_text_size)
-                                }
-                                (EditorTarget::Accuracy, EditMode::Resize) => {
-                                    format!("Size: {:.0}", config.accuracy_text_size)
-                                }
-                                (EditorTarget::Judgement, EditMode::Resize) => {
-                                    format!("Size: {:.0}", config.judgement_text_size)
-                                }
-                                (EditorTarget::HitBar, EditMode::Resize) => {
-                                    format!("Height: {:.0}", config.hit_bar_height_px)
-                                }
-                                _ => "Mode not supported".to_string(),
-                            };
-                            ui.label(
-                                egui::RichText::new(text)
-                                    .color(egui::Color32::YELLOW)
-                                    .size(20.0),
-                            );
-                        }
-
-                        if ui.button("Save Config (S)").clicked() {
-                            actions_to_send.push(GameAction::EditorSave);
-                        }
-                    });
+                self.resources.update_component_positions(w, h);
             }
 
             RenderState::Result(data) => {
+                let mut hit_window_updated = false;
+
+                if data.show_settings {
+                    let (snapshot, result) = {
+                        let settings = &mut self.resources.settings;
+                        let snapshot = SettingsSnapshot::capture(settings);
+                        let result = render_settings_window(&ctx_egui, settings, &snapshot);
+                        (snapshot, result)
+                    };
+
+                    if self.resources.settings.current_skin != snapshot.skin {
+                        self.resources.settings.save();
+                        self.resources = RenderResources::new(&self.ctx, &ctx_egui);
+                        self.resources.update_component_positions(
+                            self.ctx.config.width as f32,
+                            self.ctx.config.height as f32,
+                        );
+                    }
+
+                    if let Some(volume) = result.volume_changed {
+                        actions_to_send.push(GameAction::UpdateVolume(volume));
+                    }
+                    if let Some((mode, value)) = result.hit_window_changed {
+                        actions_to_send.push(GameAction::UpdateHitWindow { mode, value });
+                        hit_window_updated = true;
+                    }
+                    if result.keybinds_updated {
+                        actions_to_send.push(GameAction::ReloadKeybinds);
+                    }
+                    if result.request_toggle {
+                        actions_to_send.push(GameAction::ToggleSettings);
+                    }
+                }
+
+                // Only render result screen if settings didn't just trigger a re-judge
+                // (though technically concurrent rendering is fine, this follows Menu pattern)
                 let hit_win = crate::models::engine::hit_window::HitWindow::new();
                 if self.result_screen.render(&ctx_egui, data, &hit_win) {
                     actions_to_send.push(GameAction::Back);
                 }
             }
 
-            // Practice Mode overlay pendant le gameplay
             RenderState::InGame(snapshot) => {
                 if snapshot.practice_mode {
                     egui::Area::new(egui::Id::new("practice_overlay"))
@@ -438,7 +571,8 @@ impl Renderer {
             _ => {}
         }
 
-        self.ui.end_frame_and_draw(&self.ctx, &mut encoder, &view);
+        self.ui
+            .end_frame_and_draw(&self.ctx, &mut encoder, &swapchain_view);
         self.ctx.queue.submit(std::iter::once(encoder.finish()));
         output.present();
 

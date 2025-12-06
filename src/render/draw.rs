@@ -31,7 +31,6 @@ pub fn draw_game(
             });
             draw_gameplay(ctx, res, encoder, view, snapshot, fps);
         }
-        // CORRECTION : Gestion de l'Editor (comme InGame pour le fond)
         RenderState::Editor(snapshot) => {
             encoder.begin_render_pass(&RenderPassDescriptor {
                 label: Some("Editor Clear"),
@@ -48,7 +47,6 @@ pub fn draw_game(
                 timestamp_writes: None,
                 occlusion_query_set: None,
             });
-            // On dessine le jeu figé en fond
             draw_gameplay(ctx, res, encoder, view, &snapshot.game, fps);
         }
         RenderState::Menu(_) => {
@@ -121,7 +119,6 @@ fn draw_background(
     }
 }
 
-// CORRECTION : pub fn pour être accessible depuis renderer.rs
 pub fn draw_gameplay(
     ctx: &RenderContext,
     res: &mut RenderResources,
@@ -135,8 +132,10 @@ pub fn draw_gameplay(
         queue: &ctx.queue,
         text_brush: &mut res.text_brush,
         render_pipeline: &res.render_pipeline,
+        progress_pipeline: &res.progress_pipeline,
         instance_buffer: &res.instance_buffer,
         receptor_buffer: &res.receptor_buffer,
+        progress_buffer: &res.progress_buffer,
         note_bind_groups: &res.note_bind_groups,
         receptor_bind_groups: &res.receptor_bind_groups,
         receptor_pressed_bind_groups: &res.receptor_pressed_bind_groups,
@@ -153,6 +152,21 @@ pub fn draw_gameplay(
         master_volume: 1.0,
     };
 
+    // Get colors from new skin structure
+    let judgement = &res.skin.hud.judgement;
+    let colors = crate::models::stats::JudgementColors {
+        marv: judgement.marv.color,
+        perfect: judgement.perfect.color,
+        great: judgement.great.color,
+        good: judgement.good.color,
+        bad: judgement.bad.color,
+        miss: judgement.miss.color,
+        ghost_tap: judgement.ghost_tap.color,
+    };
+
+    // Get labels from new skin structure
+    let labels = res.skin.get_judgement_labels();
+
     let _ = res.gameplay_view.render(
         &mut view_ctx,
         encoder,
@@ -164,5 +178,10 @@ pub fn draw_gameplay(
         &mut res.judgement_flash,
         &mut res.hit_bar,
         &mut res.nps_display,
+        &mut res.notes_remaining_display,
+        &mut res.scroll_speed_display,
+        &mut res.time_left_display,
+        &colors,
+        &labels,
     );
 }

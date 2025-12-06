@@ -35,6 +35,7 @@ impl ResultStateController {
                 beatmap_hash: hash,
                 rate,
                 judge_text,
+                show_settings: false,
             });
             state.should_close_result = false;
         }

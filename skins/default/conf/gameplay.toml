@@ -1,0 +1,87 @@
+[playfield]
+column_width = 100.0
+receptor_spacing = 44.0
+hit_position_y = 0.0
+
+[playfield.position]
+x = 993.9598999023438
+y = 94.25175476074219
+
+[playfield.note_size]
+x = 110.0
+y = 107.0
+
+[playfield.receptor_size]
+x = 132.0
+y = 208.0
+
+[notes.note]
+color = [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+]
+
+[notes.note.size]
+x = 0.0
+y = 0.0
+
+[notes.hold]
+color = [
+    0.800000011920929,
+    0.800000011920929,
+    1.0,
+    1.0,
+]
+body_width = 90.0
+
+[notes.hold.end_size]
+x = 90.0
+y = 30.0
+
+[notes.burst]
+color = [
+    1.0,
+    0.800000011920929,
+    0.20000000298023224,
+    1.0,
+]
+
+[notes.burst.body_size]
+x = 90.0
+y = 1.0
+
+[notes.burst.end_size]
+x = 90.0
+y = 30.0
+
+[notes.mine]
+color = [
+    1.0,
+    0.0,
+    0.0,
+    1.0,
+]
+
+[notes.mine.size]
+x = 90.0
+y = 90.0
+
+[receptors]
+color = [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+]
+pressed_color = [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+]
+
+[receptors.size]
+x = 0.0
+y = 0.0

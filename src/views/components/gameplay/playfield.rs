@@ -1,5 +1,6 @@
 use crate::models::engine::{
-    HIT_LINE_Y, InstanceRaw, NUM_COLUMNS, NoteData, NoteType, PixelSystem, PlayfieldConfig, VISIBLE_DISTANCE,
+    HIT_LINE_Y, InstanceRaw, NUM_COLUMNS, NoteData, NoteType, PixelSystem, PlayfieldConfig,
+    VISIBLE_DISTANCE,
 };
 
 /// Type of visual element to render.
@@ -82,7 +83,7 @@ impl PlayfieldDisplay {
         let spacing_norm = pixel_system.x_pixels_to_normalized(self.config.receptor_spacing_pixels);
         let note_width_norm = pixel_system.x_pixels_to_normalized(self.config.note_width_pixels);
         let note_height_norm = pixel_system.y_pixels_to_normalized(self.config.note_height_pixels);
-        
+
         // LN body/end width is 95% of note width for visual distinction
         let ln_width_norm = note_width_norm * 0.95;
 
@@ -133,12 +134,17 @@ impl PlayfieldDisplay {
                     });
                 }
 
-                NoteType::Hold { duration_ms, is_held, .. } => {
+                NoteType::Hold {
+                    duration_ms,
+                    is_held,
+                    ..
+                } => {
                     let end_time = note.timestamp_ms + duration_ms;
                     let end_progress = (end_time - song_time) / scroll_speed_ms;
                     let end_y_pos = (HIT_LINE_Y as f64
                         + y_offset_norm as f64
-                        + (VISIBLE_DISTANCE as f64 * end_progress)) as f32;
+                        + (VISIBLE_DISTANCE as f64 * end_progress))
+                        as f32;
 
                     // If being held, clamp the start to the hit line (don't go below receptors)
                     let hit_line_y = HIT_LINE_Y + y_offset_norm;
@@ -186,12 +192,17 @@ impl PlayfieldDisplay {
                     });
                 }
 
-                NoteType::Burst { duration_ms, current_hits, .. } => {
+                NoteType::Burst {
+                    duration_ms,
+                    current_hits,
+                    ..
+                } => {
                     let end_time = note.timestamp_ms + duration_ms;
                     let end_progress = (end_time - song_time) / scroll_speed_ms;
                     let end_y_pos = (HIT_LINE_Y as f64
                         + y_offset_norm as f64
-                        + (VISIBLE_DISTANCE as f64 * end_progress)) as f32;
+                        + (VISIBLE_DISTANCE as f64 * end_progress))
+                        as f32;
 
                     // If started hitting, clamp the start to the hit line
                     let hit_line_y = HIT_LINE_Y + y_offset_norm;

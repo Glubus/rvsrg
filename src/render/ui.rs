@@ -25,14 +25,11 @@ impl UiOverlay {
             None,
         );
 
-        // Correction : Utilisation de la struct RendererOptions
-        // et du champ depth_stencil_format (au lieu de depth_format)
         let renderer = EguiRenderer::new(
             device,
             output_format,
             RendererOptions {
                 depth_stencil_format: None,
-                // msaa_samples et dithering sont gérés par les valeurs par défaut ou implicitement
                 ..Default::default()
             },
         );
@@ -52,6 +49,34 @@ impl UiOverlay {
     pub fn begin_frame(&mut self, window: &Window) {
         let raw_input = self.state.take_egui_input(window);
         self.ctx.begin_pass(raw_input);
+    }
+
+    /// Enregistre une texture WGPU pour qu'elle soit utilisable par Egui (ui.image).
+    pub fn register_texture(
+        &mut self,
+        device: &Device,
+        texture_view: &wgpu::TextureView,
+        filter: wgpu::FilterMode,
+    ) -> egui::TextureId {
+        self.renderer
+            .register_native_texture(device, texture_view, filter)
+    }
+
+    /// Met à jour une texture existante (utile si la résolution change, mais souvent on réenregistre).
+    pub fn update_texture(
+        &mut self,
+        device: &Device,
+        id: egui::TextureId,
+        texture_view: &wgpu::TextureView,
+        filter: wgpu::FilterMode,
+    ) {
+        self.renderer
+            .update_egui_texture_from_wgpu_texture(device, texture_view, filter, id);
+    }
+
+    /// Libère une texture Egui.
+    pub fn free_texture(&mut self, id: egui::TextureId) {
+        self.renderer.free_texture(&id);
     }
 
     pub fn end_frame_and_draw(
@@ -91,7 +116,6 @@ impl UiOverlay {
                     load: wgpu::LoadOp::Load,
                     store: wgpu::StoreOp::Store,
                 },
-                // Correction : Ajout du champ depth_slice manquant
                 depth_slice: None,
             })],
             depth_stencil_attachment: None,
@@ -99,7 +123,6 @@ impl UiOverlay {
             occlusion_query_set: None,
         });
 
-        // Hack de lifetime nécessaire pour Egui + WGPU
         let rpass_static = unsafe {
             std::mem::transmute::<&mut wgpu::RenderPass<'_>, &mut wgpu::RenderPass<'static>>(
                 &mut render_pass,

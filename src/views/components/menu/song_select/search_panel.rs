@@ -122,11 +122,7 @@ impl SearchPanel {
             .show(ui, |ui| {
                 // Header with title and active indicator
                 ui.horizontal(|ui| {
-                    ui.label(
-                        RichText::new("🔍")
-                            .size(16.0)
-                            .color(colors.accent),
-                    );
+                    ui.label(RichText::new("🔍").size(16.0).color(colors.accent));
                     ui.add_space(4.0);
                     ui.label(
                         RichText::new("Search")
@@ -142,11 +138,7 @@ impl SearchPanel {
                                 .inner_margin(Margin::symmetric(6, 2))
                                 .fill(colors.search_active)
                                 .show(ui, |ui| {
-                                    ui.label(
-                                        RichText::new("●")
-                                            .size(8.0)
-                                            .color(colors.panel_bg),
-                                    );
+                                    ui.label(RichText::new("●").size(8.0).color(colors.panel_bg));
                                 });
                         });
                     }
@@ -188,7 +180,8 @@ impl SearchPanel {
         let available_width = ui.available_width();
         let bar_height = 32.0;
 
-        let (rect, _) = ui.allocate_exact_size(Vec2::new(available_width, bar_height), egui::Sense::hover());
+        let (rect, _) =
+            ui.allocate_exact_size(Vec2::new(available_width, bar_height), egui::Sense::hover());
 
         if let Some(bar_tex) = search_bar_texture {
             ui.painter().image(
@@ -203,7 +196,8 @@ impl SearchPanel {
             } else {
                 colors.panel_secondary
             };
-            ui.painter().rect_filled(rect, CornerRadius::same(8), bar_bg);
+            ui.painter()
+                .rect_filled(rect, CornerRadius::same(8), bar_bg);
             ui.painter().rect_stroke(
                 rect,
                 CornerRadius::same(8),
@@ -219,15 +213,15 @@ impl SearchPanel {
                 .layout(egui::Layout::left_to_right(egui::Align::Center)),
         );
 
-        child_ui.label(
-            RichText::new("⌕")
-                .size(12.0)
-                .color(colors.text_muted),
-        );
+        child_ui.label(RichText::new("⌕").size(12.0).color(colors.text_muted));
         child_ui.add_space(4.0);
 
         let text_edit = TextEdit::singleline(&mut self.form_filters.query)
-            .hint_text(RichText::new("Artist, title...").color(colors.text_muted).size(11.0))
+            .hint_text(
+                RichText::new("Artist, title...")
+                    .color(colors.text_muted)
+                    .size(11.0),
+            )
             .text_color(colors.text_primary)
             .frame(false)
             .desired_width(available_width - 40.0);
@@ -235,9 +229,14 @@ impl SearchPanel {
         child_ui.add(text_edit).changed()
     }
 
-    fn render_collapsible_source_metric(&mut self, ui: &mut Ui, colors: &SearchPanelColors, has_bg: bool) -> bool {
+    fn render_collapsible_source_metric(
+        &mut self,
+        ui: &mut Ui,
+        colors: &SearchPanelColors,
+        has_bg: bool,
+    ) -> bool {
         let mut changed = false;
-        
+
         let header_bg = if has_bg {
             Color32::from_rgba_unmultiplied(0, 0, 0, 80)
         } else {
@@ -252,19 +251,19 @@ impl SearchPanel {
             .stroke(Stroke::new(1.0, colors.panel_border))
             .show(ui, |ui| {
                 ui.horizontal(|ui| {
-                    let arrow = if self.source_metric_expanded { "▼" } else { "▶" };
-                    ui.label(
-                        RichText::new(arrow)
-                            .size(9.0)
-                            .color(colors.accent),
-                    );
+                    let arrow = if self.source_metric_expanded {
+                        "▼"
+                    } else {
+                        "▶"
+                    };
+                    ui.label(RichText::new(arrow).size(9.0).color(colors.accent));
                     ui.add_space(3.0);
                     ui.label(
                         RichText::new("Source & Metric")
                             .size(11.0)
                             .color(colors.text_secondary),
                     );
-                    
+
                     // Show current values in collapsed state
                     if !self.source_metric_expanded {
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -299,7 +298,12 @@ impl SearchPanel {
         changed
     }
 
-    fn render_source_and_metric(&mut self, ui: &mut Ui, colors: &SearchPanelColors, has_bg: bool) -> bool {
+    fn render_source_and_metric(
+        &mut self,
+        ui: &mut Ui,
+        colors: &SearchPanelColors,
+        has_bg: bool,
+    ) -> bool {
         let mut changed = false;
         let dropdown_bg = if has_bg {
             Color32::from_rgba_unmultiplied(0, 0, 0, 140)
@@ -317,11 +321,7 @@ impl SearchPanel {
                 .stroke(Stroke::new(1.0, colors.panel_border))
                 .show(ui, |ui| {
                     ui.horizontal(|ui| {
-                        ui.label(
-                            RichText::new("Source:")
-                                .size(10.0)
-                                .color(colors.text_muted),
-                        );
+                        ui.label(RichText::new("Source:").size(10.0).color(colors.text_muted));
 
                         ComboBox::from_id_salt("source_combo")
                             .selected_text(
@@ -358,11 +358,7 @@ impl SearchPanel {
                 .stroke(Stroke::new(1.0, colors.panel_border))
                 .show(ui, |ui| {
                     ui.horizontal(|ui| {
-                        ui.label(
-                            RichText::new("Metric:")
-                                .size(10.0)
-                                .color(colors.text_muted),
-                        );
+                        ui.label(RichText::new("Metric:").size(10.0).color(colors.text_muted));
 
                         ComboBox::from_id_salt("metric_combo")
                             .selected_text(
@@ -397,9 +393,14 @@ impl SearchPanel {
         changed
     }
 
-    fn render_collapsible_filters(&mut self, ui: &mut Ui, colors: &SearchPanelColors, has_bg: bool) -> bool {
+    fn render_collapsible_filters(
+        &mut self,
+        ui: &mut Ui,
+        colors: &SearchPanelColors,
+        has_bg: bool,
+    ) -> bool {
         let mut changed = false;
-        
+
         let header_bg = if has_bg {
             Color32::from_rgba_unmultiplied(0, 0, 0, 80)
         } else {
@@ -412,7 +413,10 @@ impl SearchPanel {
             self.form_filters.max_rating.is_some(),
             self.form_filters.min_duration_seconds.is_some(),
             self.form_filters.max_duration_seconds.is_some(),
-        ].iter().filter(|&&x| x).count();
+        ]
+        .iter()
+        .filter(|&&x| x)
+        .count();
 
         // Collapsible header
         let header_response = Frame::default()
@@ -423,18 +427,14 @@ impl SearchPanel {
             .show(ui, |ui| {
                 ui.horizontal(|ui| {
                     let arrow = if self.filters_expanded { "▼" } else { "▶" };
-                    ui.label(
-                        RichText::new(arrow)
-                            .size(9.0)
-                            .color(colors.accent),
-                    );
+                    ui.label(RichText::new(arrow).size(9.0).color(colors.accent));
                     ui.add_space(3.0);
                     ui.label(
                         RichText::new("Filters")
                             .size(11.0)
                             .color(colors.text_secondary),
                     );
-                    
+
                     // Show active count badge
                     if active_count > 0 {
                         ui.add_space(4.0);
@@ -462,15 +462,11 @@ impl SearchPanel {
         // Content (only if expanded)
         if self.filters_expanded {
             ui.add_space(4.0);
-            
+
             // Rating section
-            ui.label(
-                RichText::new("Rating")
-                    .size(10.0)
-                    .color(colors.text_muted),
-            );
+            ui.label(RichText::new("Rating").size(10.0).color(colors.text_muted));
             ui.add_space(2.0);
-            
+
             changed |= Self::toggle_slider_static(
                 ui,
                 "Min",
@@ -501,7 +497,7 @@ impl SearchPanel {
                     .color(colors.text_muted),
             );
             ui.add_space(2.0);
-            
+
             changed |= Self::toggle_slider_static(
                 ui,
                 "Min",
@@ -552,7 +548,14 @@ impl SearchPanel {
                 .corner_radius(CornerRadius::same(3))
                 .inner_margin(Margin::same(1))
                 .fill(if active { colors.accent } else { checkbox_bg })
-                .stroke(Stroke::new(1.0, if active { colors.accent } else { colors.panel_border }))
+                .stroke(Stroke::new(
+                    1.0,
+                    if active {
+                        colors.accent
+                    } else {
+                        colors.panel_border
+                    },
+                ))
                 .show(ui, |ui| {
                     ui.add_space(10.0);
                 })
@@ -568,11 +571,11 @@ impl SearchPanel {
                 changed = true;
             }
 
-            ui.label(
-                RichText::new(label)
-                    .size(10.0)
-                    .color(if active { colors.text_primary } else { colors.text_muted }),
-            );
+            ui.label(RichText::new(label).size(10.0).color(if active {
+                colors.text_primary
+            } else {
+                colors.text_muted
+            }));
 
             if active {
                 let mut value = target.unwrap_or(default_value) as f32;

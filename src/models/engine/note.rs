@@ -8,7 +8,7 @@ use std::path::PathBuf;
 pub enum NoteType {
     /// Simple tap note - press and release.
     Tap,
-    
+
     /// Hold/long note - press and hold for duration.
     Hold {
         duration_ms: f64,
@@ -17,10 +17,10 @@ pub enum NoteType {
         /// Whether currently being held.
         is_held: bool,
     },
-    
+
     /// Mine/bomb - must NOT be pressed (penalty if hit).
     Mine,
-    
+
     /// Burst/mash note - must be pressed multiple times within duration.
     Burst {
         duration_ms: f64,
@@ -100,7 +100,11 @@ impl NoteType {
     /// Resets the runtime state (for new gameplay session).
     pub fn reset(&mut self) {
         match self {
-            NoteType::Hold { start_time, is_held, .. } => {
+            NoteType::Hold {
+                start_time,
+                is_held,
+                ..
+            } => {
                 *start_time = None;
                 *is_held = false;
             }

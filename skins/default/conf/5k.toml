@@ -1,0 +1,5 @@
+# 5K Key Mode Configuration
+# Uses default images for all columns (symmetric)
+
+[[receptors]]
+# All columns use the same default receptor images

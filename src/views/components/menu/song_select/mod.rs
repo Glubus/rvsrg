@@ -188,10 +188,10 @@ impl SongSelectScreen {
                                 let rate_specific_ratings = beatmap.as_ref().and_then(|bm| {
                                     menu_state.get_cached_ratings_for(&bm.beatmap.hash, rate)
                                 });
-                                
+
                                 // Get current difficulty from cache (for custom calculators)
                                 let current_ssr = menu_state.get_current_difficulty();
-                                
+
                                 if let Some(new_calc) = self.beatmap_info.render(
                                     ui,
                                     bs,
@@ -283,7 +283,12 @@ impl SongSelectScreen {
                     })
             });
 
-        (action_triggered, result_data_triggered, search_request, calculator_changed)
+        (
+            action_triggered,
+            result_data_triggered,
+            search_request,
+            calculator_changed,
+        )
     }
 
     fn render_beatmap_footer(&mut self, ui: &mut egui::Ui, menu_state: &MenuState) {

@@ -1,0 +1,360 @@
+[score]
+color = [
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+]
+scale = 24.0
+format = "{score}"
+visible = true
+
+[score.position]
+x = 1811.0
+y = 71.695068359375
+
+[score.size]
+x = 200.0
+y = 40.0
+
+[combo]
+color = [
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+]
+scale = 124.0
+format = "{combo}x"
+visible = true
+
+[combo.position]
+x = 1010.7833862304688
+y = 331.9722900390625
+
+[combo.size]
+x = 150.0
+y = 60.0
+
+[accuracy]
+color = [
+    0.41012752056121826,
+    0.0,
+    0.0,
+    1.0,
+]
+scale = 20.0
+format = "{accuracy:.2}%"
+visible = true
+
+[accuracy.position]
+x = 413.65472412109375
+y = 148.8136444091797
+
+[accuracy.size]
+x = 120.0
+y = 30.0
+
+[nps]
+color = [
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+]
+scale = 173.0
+format = "{nps:.1} NPS"
+visible = true
+
+[nps.position]
+x = 6.578817844390869
+y = 833.9732055664063
+
+[nps.size]
+x = 100.0
+y = 30.0
+
+[hit_bar]
+bar_color = [
+    1.0,
+    1.0,
+    1.0,
+    0.800000011920929,
+]
+indicator_color = [
+    1.0,
+    0.0,
+    0.0,
+    1.0,
+]
+scale = 32.0
+visible = true
+
+[hit_bar.position]
+x = 995.8447265625
+y = 425.5368957519531
+
+[hit_bar.size]
+x = 300.0
+y = 20.0
+
+[judgement]
+show_timing = true
+
+[judgement.marv]
+label = ":)"
+color = [
+    0.0,
+    1.0,
+    0.8581819534301758,
+    1.0,
+]
+visible = true
+
+[judgement.marv.position]
+x = 992.048828125
+y = 436.0853576660156
+
+[judgement.marv.size]
+x = 200.0
+y = 50.0
+
+[judgement.perfect]
+label = "superman"
+color = [
+    0.9510827660560608,
+    0.951082706451416,
+    0.6778626441955566,
+    1.0,
+]
+visible = true
+
+[judgement.perfect.position]
+x = 1413.6192626953125
+y = 336.9797668457031
+
+[judgement.perfect.size]
+x = 200.0
+y = 50.0
+
+[judgement.great]
+label = "Super"
+color = [
+    0.019002467393875122,
+    0.20902720093727112,
+    0.01900251768529415,
+    1.0,
+]
+visible = true
+
+[judgement.great.position]
+x = 1413.6192626953125
+y = 336.9797668457031
+
+[judgement.great.size]
+x = 200.0
+y = 50.0
+
+[judgement.good]
+label = "Best"
+color = [
+    0.0000002384185791015625,
+    0.0,
+    0.5,
+    1.0,
+]
+visible = true
+
+[judgement.good.position]
+x = 1413.6192626953125
+y = 336.9797668457031
+
+[judgement.good.size]
+x = 200.0
+y = 50.0
+
+[judgement.bad]
+label = "Bad"
+color = [
+    0.014090349897742271,
+    0.00020495035278145224,
+    0.007265313062816858,
+    1.0,
+]
+visible = true
+
+[judgement.bad.position]
+x = 1413.6192626953125
+y = 336.9797668457031
+
+[judgement.bad.size]
+x = 200.0
+y = 50.0
+
+[judgement.miss]
+label = "Shit"
+color = [
+    1.0,
+    0.0,
+    0.0,
+    1.0,
+]
+visible = true
+
+[judgement.miss.position]
+x = 1413.6192626953125
+y = 336.9797668457031
+
+[judgement.miss.size]
+x = 200.0
+y = 50.0
+
+[judgement.ghost_tap]
+label = "Ghost Tap"
+color = [
+    0.5,
+    0.5,
+    0.5,
+    1.0,
+]
+visible = true
+
+[judgement.ghost_tap.position]
+x = 1413.6192626953125
+y = 336.9797668457031
+
+[judgement.ghost_tap.size]
+x = 200.0
+y = 50.0
+
+[judgement_panel]
+text_scale = 16.0
+visible = true
+marv_color = [
+    0.0,
+    1.0,
+    1.0,
+    1.0,
+]
+perfect_color = [
+    1.0,
+    0.9999997615814209,
+    0.0,
+    1.0,
+]
+great_color = [
+    0.0,
+    1.0,
+    0.0000002384185791015625,
+    1.0,
+]
+good_color = [
+    0.0000002384185791015625,
+    0.0,
+    0.5,
+    1.0,
+]
+bad_color = [
+    1.0,
+    0.4099999666213989,
+    0.7099995613098145,
+    1.0,
+]
+miss_color = [
+    1.0,
+    0.0,
+    0.0,
+    1.0,
+]
+ghost_tap_color = [
+    0.5,
+    0.5,
+    0.5,
+    1.0,
+]
+
+[judgement_panel.position]
+x = 139.31405639648438
+y = 545.5665893554688
+
+[judgement_panel.size]
+x = 200.0
+y = 200.0
+
+[notes_remaining]
+color = [
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+]
+scale = 16.0
+format = "Notes: {remaining}"
+visible = true
+
+[notes_remaining.position]
+x = 50.0
+y = 500.0
+
+[notes_remaining.size]
+x = 150.0
+y = 30.0
+
+[scroll_speed]
+color = [
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+]
+scale = 16.0
+format = "Speed: {speed:.0}"
+visible = true
+
+[scroll_speed.position]
+x = 50.0
+y = 530.0
+
+[scroll_speed.size]
+x = 150.0
+y = 30.0
+
+[time_left]
+mode = "Bar"
+progress_color = [
+    0.4743185043334961,
+    0.0,
+    0.0,
+    0.4313725531101227,
+]
+background_color = [
+    0.0,
+    0.0,
+    0.0,
+    0.1921568661928177,
+]
+border_color = [
+    0.765513002872467,
+    0.8958130478858948,
+    0.7872297167778015,
+    1.0,
+]
+text_color = [
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+]
+border_width = 12.0
+circle_radius = 67.0
+text_scale = 24.0
+format = "{remaining}"
+visible = true
+
+[time_left.position]
+x = 743.0339965820313
+y = 23.374427795410156
+
+[time_left.size]
+x = 445.0
+y = 28.0

@@ -90,7 +90,7 @@ impl CalculationContext {
         use rosu_map::section::hit_objects::HitObjectKind;
 
         let key_count = map.circle_size as u8;
-        
+
         // Parse notes from hit objects
         let notes: Vec<NoteData> = map
             .hit_objects
@@ -106,9 +106,7 @@ impl CalculationContext {
                 )?;
 
                 match &obj.kind {
-                    HitObjectKind::Circle(_) => {
-                        Some(NoteData::tap(obj.start_time, column))
-                    }
+                    HitObjectKind::Circle(_) => Some(NoteData::tap(obj.start_time, column)),
                     HitObjectKind::Hold(hold) => {
                         Some(NoteData::hold(obj.start_time, column, hold.duration))
                     }

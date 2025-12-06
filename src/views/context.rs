@@ -14,14 +14,16 @@ pub struct GameplayRenderContext<'a> {
 
     // Pipelines & Buffers
     pub render_pipeline: &'a RenderPipeline,
+    pub progress_pipeline: &'a RenderPipeline, // NEW
     pub instance_buffer: &'a Buffer,
     pub receptor_buffer: &'a Buffer,
+    pub progress_buffer: &'a Buffer, // NEW
 
     // Bind Groups (Textures)
     pub note_bind_groups: &'a [BindGroup],
     pub receptor_bind_groups: &'a [BindGroup],
     pub receptor_pressed_bind_groups: &'a [BindGroup],
-    
+
     // Special note type bind groups
     pub mine_bind_group: Option<&'a BindGroup>,
     pub hold_body_bind_group: Option<&'a BindGroup>,

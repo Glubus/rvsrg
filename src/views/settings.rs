@@ -24,6 +24,7 @@ pub struct SettingsWindowResult {
     pub request_toggle: bool,
     pub volume_changed: Option<f32>,
     pub keybinds_updated: bool,
+    pub hit_window_changed: Option<(HitWindowMode, f64)>,
 }
 
 pub fn render_settings_window(
@@ -33,6 +34,7 @@ pub fn render_settings_window(
 ) -> SettingsWindowResult {
     let mut request_toggle = false;
     let mut volume_changed = None;
+    let mut hit_window_changed = None;
     let mut open = true;
     let mut keybinds_updated = false;
 
@@ -166,6 +168,8 @@ pub fn render_settings_window(
                         "Settings: Hit window updated -> mode {:?}, value {:.2}",
                         settings.hit_window_mode, settings.hit_window_value
                     );
+                    hit_window_changed =
+                        Some((settings.hit_window_mode, settings.hit_window_value));
                 }
 
                 if (settings.master_volume - snapshot.master_volume).abs() > f32::EPSILON {
@@ -190,5 +194,6 @@ pub fn render_settings_window(
         request_toggle,
         volume_changed,
         keybinds_updated,
+        hit_window_changed,
     }
 }

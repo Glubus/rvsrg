@@ -1,0 +1,135 @@
+holds = []
+bursts = []
+mines = []
+
+[[receptors]]
+color = [
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+]
+pressed_color = [
+    0.8000000715255737,
+    0.800000011920929,
+    1.0,
+    1.0,
+]
+image = "receptors/leftReceptor.png"
+pressed_image = "receptors/leftReceptorD.png"
+
+[receptors.size]
+x = 90.0
+y = 90.0
+
+[[receptors]]
+color = [
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+]
+pressed_color = [
+    0.8000000715255737,
+    0.800000011920929,
+    1.0,
+    1.0,
+]
+image = "receptors/downReceptor.png"
+pressed_image = "receptors/downReceptorD.png"
+
+[receptors.size]
+x = 90.0
+y = 90.0
+
+[[receptors]]
+color = [
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+]
+pressed_color = [
+    0.8000000715255737,
+    0.800000011920929,
+    1.0,
+    1.0,
+]
+image = "receptors/upReceptor.png"
+pressed_image = "receptors/upReceptorD.png"
+
+[receptors.size]
+x = 90.0
+y = 90.0
+
+[[receptors]]
+color = [
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+]
+pressed_color = [
+    0.8000000715255737,
+    0.800000011920929,
+    1.0,
+    1.0,
+]
+image = "receptors/rightReceptor.png"
+pressed_image = "receptors/rightReceptorD.png"
+
+[receptors.size]
+x = 90.0
+y = 90.0
+
+[[notes]]
+color = [
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+]
+image = "left.png"
+
+[notes.size]
+x = 90.0
+y = 90.0
+
+[[notes]]
+color = [
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+]
+image = "up.png"
+
+[notes.size]
+x = 90.0
+y = 90.0
+
+[[notes]]
+color = [
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+]
+image = "down.png"
+
+[notes.size]
+x = 90.0
+y = 90.0
+
+[[notes]]
+color = [
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+]
+image = "right.png"
+
+[notes.size]
+x = 90.0
+y = 90.0

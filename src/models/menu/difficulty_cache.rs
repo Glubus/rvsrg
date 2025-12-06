@@ -36,12 +36,7 @@ impl DifficultyCache {
     }
 
     /// Gets a cached rating, if available.
-    pub fn get(
-        &self,
-        beatmap_hash: &str,
-        calculator_id: &str,
-        rate: f64,
-    ) -> Option<&BeatmapSsr> {
+    pub fn get(&self, beatmap_hash: &str, calculator_id: &str, rate: f64) -> Option<&BeatmapSsr> {
         let key = (
             beatmap_hash.to_string(),
             calculator_id.to_string(),
@@ -51,21 +46,11 @@ impl DifficultyCache {
     }
 
     /// Stores a rating in the cache.
-    pub fn insert(
-        &mut self,
-        beatmap_hash: &str,
-        calculator_id: &str,
-        rate: f64,
-        ssr: BeatmapSsr,
-    ) {
+    pub fn insert(&mut self, beatmap_hash: &str, calculator_id: &str, rate: f64, ssr: BeatmapSsr) {
         // Simple eviction: clear half the cache when full
         if self.cache.len() >= self.max_size {
-            let keys_to_remove: Vec<_> = self
-                .cache
-                .keys()
-                .take(self.max_size / 2)
-                .cloned()
-                .collect();
+            let keys_to_remove: Vec<_> =
+                self.cache.keys().take(self.max_size / 2).cloned().collect();
             for key in keys_to_remove {
                 self.cache.remove(&key);
             }
@@ -80,12 +65,7 @@ impl DifficultyCache {
     }
 
     /// Checks if a rating is cached.
-    pub fn contains(
-        &self,
-        beatmap_hash: &str,
-        calculator_id: &str,
-        rate: f64,
-    ) -> bool {
+    pub fn contains(&self, beatmap_hash: &str, calculator_id: &str, rate: f64) -> bool {
         let key = (
             beatmap_hash.to_string(),
             calculator_id.to_string(),
@@ -118,7 +98,3 @@ impl DifficultyCache {
             .collect()
     }
 }
-
-
-
-

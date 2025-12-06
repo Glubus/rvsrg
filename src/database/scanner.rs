@@ -12,7 +12,7 @@ use std::io::Read;
 use std::path::{Path, PathBuf};
 
 /// Scans the `songs/` directory and fills the database.
-/// 
+///
 /// Note: This scanner now only extracts basic metadata (hash, notes, duration, nps).
 /// Difficulty ratings are NOT calculated here - they are computed on-demand
 /// when the user selects a beatmap in the song select menu.
