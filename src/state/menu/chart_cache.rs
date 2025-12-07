@@ -18,4 +18,3 @@ pub struct ChartCache {
     /// Chemin vers le fichier .osu.
     pub map_path: PathBuf,
 }
-

@@ -12,4 +12,3 @@ pub mod time_left;
 
 // pub use scroll_speed::ScrollSpeedDisplay;
 // pub use time_left::TimeLeftDisplay;
-

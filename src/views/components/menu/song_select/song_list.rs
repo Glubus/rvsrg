@@ -1,5 +1,5 @@
 use crate::input::events::GameAction;
-use crate::models::menu::MenuState;
+use crate::state::MenuState;
 use crate::views::components::menu::song_select::difficulty_card::DifficultyCard;
 use crate::views::components::menu::song_select::song_card::SongCard;
 use egui::{Align, Color32, ScrollArea, TextureId, scroll_area::ScrollBarVisibility};
@@ -175,4 +175,3 @@ impl SongList {
         action_triggered
     }
 }
-

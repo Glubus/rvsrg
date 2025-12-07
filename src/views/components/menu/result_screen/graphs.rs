@@ -242,4 +242,3 @@ fn get_color_for_timing(timing: f64, hit_window: &HitWindow) -> Color32 {
         Color32::RED
     }
 }
-

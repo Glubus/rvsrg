@@ -40,4 +40,3 @@ pub fn edit_font(ui: &mut Ui, skin: &mut Skin) -> bool {
 
     changed
 }
-

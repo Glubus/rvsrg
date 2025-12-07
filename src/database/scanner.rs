@@ -156,4 +156,3 @@ fn calculate_file_hash(file_path: &Path) -> Result<String, std::io::Error> {
 
     Ok(hash_string)
 }
-

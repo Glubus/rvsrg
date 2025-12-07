@@ -1,7 +1,5 @@
 //! Render resources (pipelines, buffers, bind groups).
 
-
-
 use crate::models::engine::{InstanceRaw, NUM_COLUMNS, PixelSystem, PlayfieldConfig};
 use crate::models::settings::SettingsState;
 use crate::models::skin::Skin;
@@ -880,4 +878,3 @@ impl RenderResources {
         }
     }
 }
-

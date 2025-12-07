@@ -239,4 +239,3 @@ pub fn edit_playfield_position(ui: &mut Ui, skin: &mut Skin) -> bool {
 
     changed
 }
-

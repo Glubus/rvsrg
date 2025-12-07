@@ -5,9 +5,9 @@ use std::path::Path;
 use crate::database::replay_storage;
 use crate::models::engine::NoteData;
 use crate::models::engine::hit_window::HitWindow;
-use crate::models::menu::GameResultData;
 use crate::models::replay::{ReplayData, ReplayResult, simulate_replay};
 use crate::models::stats::HitStats;
+use crate::state::GameResultData;
 use crate::views::components::menu::song_select::leaderboard_card::LeaderboardCard;
 use egui::{Color32, ScrollArea};
 
@@ -30,13 +30,9 @@ impl ScoreCard {
         replay: &crate::database::models::Replay,
         total_notes: usize,
     ) -> Option<Self> {
-        // Load replay data from compressed file
-        let replay_data = match replay_storage::load_replay_from_path(Path::new(&replay.file_path))
-        {
-            Ok(data_str) => serde_json::from_str::<ReplayData>(&data_str)
-                .unwrap_or_else(|_| ReplayData::empty()),
-            Err(_) => ReplayData::empty(),
-        };
+        // Load replay data from compressed file (binary)
+        let replay_data = replay_storage::load_replay_from_path(Path::new(&replay.file_path))
+            .unwrap_or_else(|_| ReplayData::empty());
 
         Some(ScoreCard {
             timestamp: replay.timestamp,

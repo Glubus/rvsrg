@@ -149,7 +149,7 @@ pub enum GameAction {
 
     // Result screen
     /// Navigate to result screen with data.
-    SetResult(crate::models::menu::GameResultData),
+    SetResult(crate::state::GameResultData),
 
     // Debug
     /// Launch a debug map with all note types for testing.
@@ -162,4 +162,3 @@ pub enum InputCommand {
     /// Reload keybind configuration.
     ReloadKeybinds(HashMap<String, Vec<String>>),
 }
-

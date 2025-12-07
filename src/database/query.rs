@@ -273,7 +273,7 @@ pub async fn search_beatmapsets(
 // REPLAY QUERIES
 // ============================================================================
 
-/// Inserts a replay: compresses data with Brotli, saves to file, stores path in DB.
+/// Inserts a replay: compresses data with Brotli (binary), saves to file, stores path in DB.
 pub async fn insert_replay(
     pool: &SqlitePool,
     beatmap_hash: &str,
@@ -282,16 +282,18 @@ pub async fn insert_replay(
     accuracy: f64,
     max_combo: i32,
     rate: f64,
-    data: &str,
+    data: &crate::models::replay::ReplayData,
 ) -> Result<String, sqlx::Error> {
     // Generate deterministic hash
+    // We serialize data to simple JSON string just for the hash entropy
+    let data_str = serde_json::to_string(data).unwrap_or_default();
     let hash_input = format!(
         "{}:{}:{}:{}:{}:{}:{}",
-        beatmap_hash, timestamp, score, accuracy, max_combo, rate, data
+        beatmap_hash, timestamp, score, accuracy, max_combo, rate, data_str
     );
     let hash = format!("{:x}", md5::compute(hash_input));
 
-    // Save compressed replay to file
+    // Save compressed replay to file (binary)
     let file_path = crate::database::replay_storage::save_replay(&hash, data).map_err(|e| {
         sqlx::Error::Io(std::io::Error::other(format!(
             "Failed to save replay: {}",

@@ -1,7 +1,5 @@
 //! Database manager handling background operations.
 
-
-
 use crate::database::connection::Database;
 use crate::database::models::{BeatmapWithRatings, Beatmapset, Replay};
 use crate::database::query::{clear_all, get_all_beatmapsets};
@@ -55,7 +53,7 @@ pub struct SaveReplayCommand {
     pub accuracy: f64,
     pub max_combo: i32,
     pub rate: f64,
-    pub data: String,
+    pub data: crate::models::replay::ReplayData,
 }
 
 #[derive(Debug)]
@@ -347,4 +345,3 @@ impl DbManager {
         let _ = self.send_command(DbCommand::FetchLeaderboard(beatmap_hash.to_string()));
     }
 }
-

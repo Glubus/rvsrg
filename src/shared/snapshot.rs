@@ -5,8 +5,8 @@
 
 use crate::input::events::{EditMode, EditorTarget};
 use crate::models::engine::NoteData;
-use crate::models::menu::{GameResultData, MenuState};
 use crate::models::stats::{HitStats, Judgement};
+use crate::state::{GameResultData, MenuState};
 use std::time::Instant;
 
 /// High-level render state representing the current game mode.
@@ -84,4 +84,3 @@ pub struct GameplaySnapshot {
     /// Total map duration (for progress graph).
     pub map_duration: f64,
 }
-

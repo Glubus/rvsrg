@@ -13,4 +13,3 @@ pub use instance::InstanceRaw;
 pub use note::{NoteData, NoteType, load_map, load_map_safe};
 pub use pixel_system::PixelSystem;
 pub use playfield::PlayfieldConfig;
-

@@ -1,5 +1,5 @@
 //! Stats panel for the result screen (score, accuracy, judgement bars).
-use crate::models::menu::GameResultData;
+use crate::state::GameResultData;
 use egui::{Align2, Color32, FontId, Pos2, Rect, RichText, Ui, Vec2};
 
 pub fn render_stats(ui: &mut Ui, data: &GameResultData) {
@@ -178,4 +178,3 @@ pub fn render_stats(ui: &mut Ui, data: &GameResultData) {
         });
     });
 }
-

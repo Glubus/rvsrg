@@ -9,19 +9,25 @@
 //! - Difficulty ratings are calculated ON-DEMAND when a map is selected
 //! - Ratings are cached in memory (not DB) for the session
 
+pub mod actions;
+mod chart_cache;
+mod difficulty_cache;
+mod rate_cache;
 
+// Re-exports
+pub use chart_cache::ChartCache;
+pub use difficulty_cache::DifficultyCache;
+pub use rate_cache::RateCacheEntry;
 
-use super::{ChartCache, DifficultyCache, RateCacheEntry};
 use crate::database::models::Replay;
 use crate::database::{BeatmapRating, BeatmapWithRatings, Beatmapset, Database};
 use crate::difficulty::{self, BeatmapSsr};
 use crate::models::search::MenuSearchFilters;
+use crate::state::result::GameResultData;
 use crate::views::components::menu::song_select::CalculatorOption;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
-
-use super::GameResultData;
 
 /// Constants for pagination
 pub const PAGE_SIZE: usize = 50;
@@ -31,7 +37,8 @@ pub const PRELOAD_MARGIN: usize = 10;
 #[derive(Clone, Debug)]
 pub struct MenuState {
     // Current beatmapsets (loaded via pagination or full load for backwards compat)
-    pub beatmapsets: Vec<(Beatmapset, Vec<BeatmapWithRatings>)>,
+    // Wrapped in Arc for O(1) clones in create_snapshot()
+    pub beatmapsets: Arc<Vec<(Beatmapset, Vec<BeatmapWithRatings>)>>,
 
     // Pagination state
     pub total_count: usize,
@@ -57,8 +64,11 @@ pub struct MenuState {
     pub last_result: Option<GameResultData>,
     pub should_close_result: bool,
 
-    // Rate cache (available rates per beatmap)
-    pub rate_cache: HashMap<String, RateCacheEntry>,
+    // Rate cache (available rates per beatmap) - Arc for O(1) clones
+    pub rate_cache: Arc<HashMap<String, RateCacheEntry>>,
+
+    // Failed rate calculations (to avoid retrying)
+    pub failed_rate_hashes: HashSet<String>,
 
     // On-demand difficulty cache (in RAM only!)
     pub difficulty_cache: DifficultyCache,
@@ -76,14 +86,14 @@ pub struct MenuState {
     pub leaderboard_scores: Vec<Replay>,
     pub leaderboard_hash: Option<String>,
 
-    // Chart cache for gameplay
-    pub chart_cache: Option<ChartCache>,
+    // Chart cache for gameplay - Arc for O(1) clones
+    pub chart_cache: Arc<Option<ChartCache>>,
 }
 
 impl MenuState {
     pub fn new() -> Self {
         Self {
-            beatmapsets: Vec::new(),
+            beatmapsets: Arc::new(Vec::new()),
             total_count: 0,
             current_offset: 0,
             start_index: 0,
@@ -98,7 +108,8 @@ impl MenuState {
             rate: 1.0,
             last_result: None,
             should_close_result: false,
-            rate_cache: HashMap::new(),
+            rate_cache: Arc::new(HashMap::new()),
+            failed_rate_hashes: HashSet::new(),
             difficulty_cache: DifficultyCache::new(),
             active_calculator: "etterna".to_string(),
             available_calculators: vec![
@@ -108,7 +119,7 @@ impl MenuState {
             search_filters: MenuSearchFilters::default(),
             leaderboard_scores: Vec::new(),
             leaderboard_hash: None,
-            chart_cache: None,
+            chart_cache: Arc::new(None),
         }
     }
 
@@ -124,10 +135,10 @@ impl MenuState {
         let beatmap_hash = selected.beatmap.hash.clone();
         let beatmap_path = PathBuf::from(&selected.beatmap.path);
 
-        if let Some(ref cache) = self.chart_cache
-            && cache.beatmap_hash == beatmap_hash
-        {
-            return false;
+        if let Some(ref cache) = *self.chart_cache {
+            if cache.beatmap_hash == beatmap_hash {
+                return false;
+            }
         }
 
         match crate::models::engine::load_map_safe(&beatmap_path) {
@@ -137,28 +148,28 @@ impl MenuState {
                     beatmap_hash,
                     chart.len()
                 );
-                self.chart_cache = Some(ChartCache {
+                self.chart_cache = Arc::new(Some(ChartCache {
                     beatmap_hash,
                     chart,
                     audio_path,
                     map_path: beatmap_path,
-                });
+                }));
                 true
             }
             None => {
                 log::error!("MENU: Failed to load chart for caching");
-                self.chart_cache = None;
+                self.chart_cache = Arc::new(None);
                 false
             }
         }
     }
 
     pub fn get_cached_chart(&self) -> Option<&ChartCache> {
-        self.chart_cache.as_ref()
+        (*self.chart_cache).as_ref()
     }
 
     pub fn get_cached_chart_note_count(&self) -> usize {
-        self.chart_cache
+        (*self.chart_cache)
             .as_ref()
             .map(|c| c.chart.len())
             .unwrap_or(0)
@@ -253,15 +264,21 @@ impl MenuState {
         let beatmap_hash = selected.beatmap.hash.clone();
         let beatmap_path = selected.beatmap.path.clone();
 
+        // Skip if already known to fail
+        if self.failed_rate_hashes.contains(&beatmap_hash) {
+            return None;
+        }
+
         if !self.rate_cache.contains_key(&beatmap_hash) {
             let map = match rosu_map::Beatmap::from_path(&beatmap_path) {
                 Ok(map) => map,
                 Err(err) => {
-                    log::error!(
+                    log::debug!(
                         "MENU: Failed to load beatmap {} to compute rates: {}",
                         beatmap_hash,
                         err
                     );
+                    self.failed_rate_hashes.insert(beatmap_hash);
                     return None;
                 }
             };
@@ -273,14 +290,11 @@ impl MenuState {
                     if let Some(rate) = adjusted_rate {
                         self.rate = rate;
                     }
-                    self.rate_cache.insert(beatmap_hash.clone(), entry);
+                    Arc::make_mut(&mut self.rate_cache).insert(beatmap_hash.clone(), entry);
                 }
-                Err(err) => {
-                    log::error!(
-                        "MENU: Unable to compute rates for {}: {}",
-                        beatmap_hash,
-                        err
-                    );
+                Err(_) => {
+                    // Silently skip unsupported maps (7K, etc.)
+                    self.failed_rate_hashes.insert(beatmap_hash);
                     return None;
                 }
             }
@@ -302,20 +316,21 @@ impl MenuState {
         let total_count = beatmapsets.len();
 
         if let Ok(mut state) = menu_state.lock() {
-            state.beatmapsets = beatmapsets;
+            state.beatmapsets = Arc::new(beatmapsets);
             state.total_count = total_count;
             state.current_offset = 0;
             state.selected_index = 0;
             state.selected_difficulty_index = 0;
             state.end_index = state.visible_count.min(state.beatmapsets.len());
             state.start_index = 0;
-            state.rate_cache.clear();
+            Arc::make_mut(&mut state.rate_cache).clear();
+            state.failed_rate_hashes.clear();
             state.difficulty_cache.clear();
             state.rate = 1.0;
             state.search_filters = MenuSearchFilters::default();
             state.leaderboard_scores.clear();
             state.leaderboard_hash = None;
-            state.chart_cache = None;
+            state.chart_cache = Arc::new(None);
         }
         Ok(())
     }
@@ -443,4 +458,3 @@ impl MenuState {
         vec![("etterna", "Etterna (MinaCalc)"), ("osu", "osu! (rosu-pp)")]
     }
 }
-

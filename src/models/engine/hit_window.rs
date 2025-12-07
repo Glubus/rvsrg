@@ -1,7 +1,5 @@
 //! Hit window timing configuration.
 
-
-
 use crate::models::stats::Judgement;
 
 /// Hit window timing thresholds in milliseconds.
@@ -104,4 +102,3 @@ impl HitWindow {
         }
     }
 }
-

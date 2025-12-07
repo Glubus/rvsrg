@@ -21,8 +21,8 @@ use wgpu::TextureView;
 use winit::dpi::PhysicalSize;
 
 use crate::input::events::GameAction;
-use crate::models::menu::{GameResultData, MenuState};
 use crate::models::search::MenuSearchFilters;
+use crate::state::{GameResultData, MenuState};
 use crate::views::components::menu::song_select::beatmap_info::BeatmapInfo;
 use crate::views::components::menu::song_select::leaderboard::{Leaderboard, ScoreCard};
 use crate::views::components::menu::song_select::search_panel::{SearchPanel, SearchPanelEvent};

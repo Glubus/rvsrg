@@ -4,8 +4,8 @@ receptor_spacing = 44.0
 hit_position_y = 0.0
 
 [playfield.position]
-x = 993.9598999023438
-y = 94.25175476074219
+x = 996.9182739257813
+y = 27.687755584716797
 
 [playfield.note_size]
 x = 110.0

@@ -75,4 +75,3 @@ impl MenuSearchFilters {
             || self.max_duration_seconds.is_some()
     }
 }
-

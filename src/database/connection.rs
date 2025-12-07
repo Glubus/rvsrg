@@ -59,9 +59,24 @@ impl Database {
             MIGRATION_CREATE_BEATMAP,
             MIGRATION_CREATE_REPLAY,
             MIGRATION_CREATE_BEATMAP_RATING,
-            MIGRATION_REPLAY_FILE_STORAGE,
         ] {
             sqlx::query(migration).execute(&self.pool).await?;
+        }
+
+        // Conditional migration: Replay File Storage
+        // This migration drops the 'replay' table, so we MUST NOT run it
+        // if the table is already in the new format (has 'file_path' column).
+        let has_file_path: Option<i32> = sqlx::query_scalar(
+            "SELECT 1 FROM pragma_table_info('replay') WHERE name = 'file_path'",
+        )
+        .fetch_optional(&self.pool)
+        .await?;
+
+        if has_file_path.is_none() {
+            log::info!("DB: Applying migration MIGRATION_REPLAY_FILE_STORAGE");
+            sqlx::query(MIGRATION_REPLAY_FILE_STORAGE)
+                .execute(&self.pool)
+                .await?;
         }
 
         Ok(())
@@ -153,7 +168,7 @@ impl Database {
         accuracy: f64,
         max_combo: i32,
         rate: f64,
-        data: &str,
+        data: &crate::models::replay::ReplayData,
     ) -> Result<String, sqlx::Error> {
         query::insert_replay(
             &self.pool,

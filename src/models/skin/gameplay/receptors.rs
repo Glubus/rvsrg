@@ -66,4 +66,3 @@ pub struct ReceptorDefaults {
     #[serde(default)]
     pub pressed_image: Option<String>,
 }
-

@@ -42,4 +42,3 @@ pub struct SongSelectConfig {
     #[serde(default)]
     pub rating_colors: RatingColorsConfig,
 }
-

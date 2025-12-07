@@ -352,4 +352,3 @@ pub fn x_to_column(x: i32) -> Option<usize> {
         }
     }
 }
-

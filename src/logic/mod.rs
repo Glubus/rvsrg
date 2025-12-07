@@ -5,11 +5,9 @@
 
 pub mod audio;
 pub mod audio_thread;
-pub mod engine;
-pub mod state;
 
 use crate::database::DbManager;
-use crate::logic::state::GlobalState;
+use crate::state::GlobalState;
 use crate::system::bus::{SystemBus, SystemEvent};
 use std::thread;
 use std::time::{Duration, Instant};
@@ -96,4 +94,3 @@ pub fn start_thread(bus: SystemBus, db_manager: DbManager) {
         })
         .expect("Failed to spawn Logic thread");
 }
-

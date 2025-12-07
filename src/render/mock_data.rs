@@ -1,8 +1,8 @@
 use crate::database::models::{Beatmap, BeatmapRating, BeatmapWithRatings, Beatmapset};
 use crate::models::engine::NoteData;
-use crate::models::menu::{GameResultData, MenuState};
 use crate::models::stats::{HitStats, Judgement};
 use crate::shared::snapshot::{GameplaySnapshot, RenderState};
+use crate::state::{GameResultData, MenuState};
 use crate::views::components::editor::layout::EditorScene;
 use std::time::Instant;
 
@@ -107,8 +107,7 @@ fn create_mock_menu() -> RenderState {
         technical: 12.0,
     }];
 
-    state
-        .beatmapsets
+    std::sync::Arc::make_mut(&mut state.beatmapsets)
         .push((set1, vec![BeatmapWithRatings::new(bm1, ratings)]));
     state.selected_index = 0;
 
@@ -137,4 +136,3 @@ fn create_mock_result() -> RenderState {
         show_settings: false,
     })
 }
-

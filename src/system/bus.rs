@@ -126,4 +126,3 @@ impl Default for SystemBus {
         Self::new()
     }
 }
-

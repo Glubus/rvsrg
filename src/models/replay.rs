@@ -3,8 +3,6 @@
 //! This module handles recording and playback of user inputs for replays,
 //! as well as deterministic simulation to recalculate scores.
 
-
-
 use crate::models::engine::NoteData;
 use crate::models::engine::hit_window::HitWindow;
 use crate::models::settings::HitWindowMode;
@@ -12,17 +10,28 @@ use crate::models::stats::{HitStats, Judgement};
 use serde::{Deserialize, Serialize};
 
 /// Current replay format version for compatibility.
-pub const REPLAY_FORMAT_VERSION: u8 = 2;
+pub const REPLAY_FORMAT_VERSION: u8 = 3;
 
 /// A single user input (press or release).
+/// Compressed to save space (5 bytes total).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ReplayInput {
-    /// Absolute time in ms since map start (after rate applied).
-    pub timestamp_ms: f64,
-    /// Column index (0-based).
-    pub column: usize,
-    /// `true` = press, `false` = release.
-    pub is_press: bool,
+    /// Absolute time in ms since map start (quantized to nearest ms).
+    pub timestamp_ms: i32,
+    /// Packed data: (column << 1) | is_press
+    /// Bit 0: is_press (1 = press, 0 = release)
+    /// Bits 1-7: column index
+    pub payload: u8,
+}
+
+impl ReplayInput {
+    /// Unpack column and is_press from payload.
+    #[inline]
+    pub fn unpack(&self) -> (usize, bool) {
+        let is_press = (self.payload & 1) != 0;
+        let column = (self.payload >> 1) as usize;
+        (column, is_press)
+    }
 }
 
 /// Minimal replay data containing only raw inputs.
@@ -98,15 +107,15 @@ impl ReplayData {
     /// Used when retrying from a checkpoint.
     pub fn truncate_inputs_after(&mut self, timestamp_ms: f64) {
         self.inputs
-            .retain(|input| input.timestamp_ms < timestamp_ms);
+            .retain(|input| (input.timestamp_ms as f64) < timestamp_ms);
     }
 
     /// Adds an input (press or release).
     pub fn add_input(&mut self, timestamp_ms: f64, column: usize, is_press: bool) {
+        let payload = ((column as u8) << 1) | (is_press as u8);
         self.inputs.push(ReplayInput {
-            timestamp_ms,
-            column,
-            is_press,
+            timestamp_ms: timestamp_ms.round() as i32,
+            payload,
         });
     }
 
@@ -206,9 +215,9 @@ pub struct HitTiming {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct GhostTap {
     /// Timestamp of the ghost tap.
-    pub timestamp_ms: f64,
+    pub timestamp_ms: i32,
     /// Column index.
-    pub column: usize,
+    pub column: u8,
 }
 
 /// Complete result of a replay simulation.
@@ -266,6 +275,9 @@ pub fn simulate_replay(
     let mut head_index: usize = 0;
 
     for input in &replay_data.inputs {
+        let (input_column, is_press) = input.unpack();
+        let input_timestamp_ms = input.timestamp_ms as f64;
+
         // Before processing this input, check for missed notes
         while head_index < chart.len() {
             if note_hit[head_index] {
@@ -276,7 +288,7 @@ pub fn simulate_replay(
             let note = &chart[head_index];
             let miss_deadline = note.timestamp_ms + hit_window.miss_ms;
 
-            if input.timestamp_ms > miss_deadline {
+            if input_timestamp_ms > miss_deadline {
                 // Miss!
                 note_hit[head_index] = true;
                 result.hit_stats.miss += 1;
@@ -296,12 +308,12 @@ pub fn simulate_replay(
         }
 
         // Only process presses (releases are ignored for scoring)
-        if !input.is_press {
+        if !is_press {
             continue;
         }
 
         // Find the best note to hit in this column
-        let current_time = input.timestamp_ms;
+        let current_time = input_timestamp_ms;
         let mut best_match: Option<(usize, f64)> = None;
         let search_limit = current_time + hit_window.miss_ms;
 
@@ -312,7 +324,7 @@ pub fn simulate_replay(
                 break;
             }
 
-            if note.column == input.column && !note_hit[i] {
+            if note.column == input_column && !note_hit[i] {
                 let diff = (note.timestamp_ms - current_time).abs();
                 if diff <= hit_window.miss_ms
                     && best_match.is_none_or(|(_, best_diff)| diff < best_diff)
@@ -369,8 +381,8 @@ pub fn simulate_replay(
             // Ghost tap - no corresponding note
             result.hit_stats.ghost_tap += 1;
             result.ghost_taps.push(GhostTap {
-                timestamp_ms: current_time,
-                column: input.column,
+                timestamp_ms: input_timestamp_ms as i32, // Stored as i32
+                column: input_column as u8,
             });
         }
     }
@@ -404,4 +416,3 @@ pub fn rejudge_replay(
 ) -> ReplayResult {
     simulate_replay(replay_data, chart, new_hit_window)
 }
-

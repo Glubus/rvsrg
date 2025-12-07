@@ -4,7 +4,7 @@ pub mod graphs;
 pub mod stats;
 
 use crate::models::engine::hit_window::HitWindow;
-use crate::models::menu::GameResultData;
+use crate::state::GameResultData;
 use egui::{Color32, Key, RichText};
 
 pub struct ResultScreen;
@@ -93,4 +93,3 @@ impl ResultScreen {
         should_close
     }
 }
-

@@ -4,8 +4,6 @@
 //! Each element contains its own position, size, colors, and optional images.
 //! Supports multi-keymode (4K, 5K, 6K, 7K) with per-column configurations.
 
-
-
 pub mod common;
 pub mod editor;
 pub mod gameplay;
@@ -18,14 +16,9 @@ pub use common::{
     /*get_image_from_list,*/ load_toml, /*resolve_image*/
 };
 pub use editor::EditorConfig;
-pub use gameplay::{
-    /*BurstConfig,*/ GameplayDefaults,
-    /*HoldConfig,*/ KeyModeConfig,
-};
+pub use gameplay::{/*BurstConfig,*/ GameplayDefaults, /*HoldConfig,*/ KeyModeConfig};
 pub use general::SkinGeneral;
-pub use hud::{
-    HudConfig, JudgementLabels,
-};
+pub use hud::{HudConfig, JudgementLabels};
 pub use menus::MenusConfig;
 
 use std::collections::HashMap;
@@ -466,4 +459,3 @@ pub fn init_skin_structure() -> Result<(), String> {
 
     Ok(())
 }
-

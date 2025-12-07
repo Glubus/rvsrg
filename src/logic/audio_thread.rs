@@ -242,4 +242,3 @@ pub fn start_audio_thread(bus: SystemBus) {
         })
         .expect("Failed to spawn Audio thread");
 }
-

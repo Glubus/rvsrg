@@ -98,4 +98,3 @@ impl DifficultyCache {
             .collect()
     }
 }
-

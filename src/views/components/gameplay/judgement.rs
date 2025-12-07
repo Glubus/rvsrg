@@ -176,4 +176,3 @@ impl JudgementFlash {
         }]
     }
 }
-

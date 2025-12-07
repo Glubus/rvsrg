@@ -1,7 +1,5 @@
 //! Gameplay rendering view.
 
-
-
 use bytemuck;
 use wgpu::{
     CommandEncoder, LoadOp, Operations, RenderPassColorAttachment, RenderPassDescriptor, StoreOp,
@@ -385,4 +383,3 @@ impl GameplayView {
         Ok(())
     }
 }
-

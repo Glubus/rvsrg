@@ -24,4 +24,3 @@ pub struct GameplayDefaults {
     #[serde(default)]
     pub receptors: ReceptorDefaults,
 }
-

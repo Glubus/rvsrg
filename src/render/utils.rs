@@ -232,4 +232,3 @@ pub fn load_text_brush(
 
     BrushBuilder::using_font(final_font).build(device, width, height, format)
 }
-

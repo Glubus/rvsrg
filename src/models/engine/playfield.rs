@@ -1,7 +1,5 @@
 //! Playfield configuration and layout.
 
-
-
 /// Configuration for the playfield layout.
 #[derive(Clone)]
 pub struct PlayfieldConfig {
@@ -39,4 +37,3 @@ impl PlayfieldConfig {
         self.column_width_pixels = self.note_width_pixels;
     }
 }
-

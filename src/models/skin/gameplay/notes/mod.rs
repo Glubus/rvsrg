@@ -27,4 +27,3 @@ pub struct NotesDefaults {
     #[serde(default)]
     pub mine: MineConfig,
 }
-

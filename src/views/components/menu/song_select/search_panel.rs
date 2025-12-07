@@ -5,8 +5,8 @@ use egui::{
     StrokeKind, TextEdit, TextureId, Ui, Vec2,
 };
 
-use crate::models::menu::MenuState;
 use crate::models::search::{MenuSearchFilters, RatingMetric, RatingSource};
+use crate::state::MenuState;
 
 /// Message emitted by the search panel when the user applies filters.
 pub enum SearchPanelEvent {
@@ -593,4 +593,3 @@ impl SearchPanel {
         changed
     }
 }
-

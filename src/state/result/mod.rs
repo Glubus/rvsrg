@@ -1,4 +1,6 @@
-//! Données de résultat de partie.
+//! Result state module.
+
+pub mod actions;
 
 use crate::models::replay::{ReplayData, ReplayResult};
 use crate::models::stats::HitStats;
@@ -19,4 +21,3 @@ pub struct GameResultData {
     pub judge_text: String,
     pub show_settings: bool,
 }
-
