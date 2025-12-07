@@ -32,3 +32,4 @@ impl Default for MineConfig {
         }
     }
 }
+

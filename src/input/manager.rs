@@ -183,3 +183,4 @@ impl InputManager {
             .insert(KeyCode::F10, GameAction::LaunchDebugMap);
     }
 }
+

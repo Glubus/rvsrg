@@ -83,3 +83,4 @@ pub fn edit_6k_columns(ui: &mut Ui, skin: &mut Skin) -> bool {
 pub fn edit_7k_columns(ui: &mut Ui, skin: &mut Skin) -> bool {
     edit_columns(ui, skin, 7)
 }
+

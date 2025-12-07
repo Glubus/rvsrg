@@ -1,6 +1,6 @@
 //! Gameplay rendering view.
 
-#![allow(dead_code)]
+
 
 use bytemuck;
 use wgpu::{
@@ -385,3 +385,4 @@ impl GameplayView {
         Ok(())
     }
 }
+

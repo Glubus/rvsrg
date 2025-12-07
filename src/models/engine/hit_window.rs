@@ -1,6 +1,6 @@
 //! Hit window timing configuration.
 
-#![allow(dead_code)]
+
 
 use crate::models::stats::Judgement;
 
@@ -104,3 +104,4 @@ impl HitWindow {
         }
     }
 }
+

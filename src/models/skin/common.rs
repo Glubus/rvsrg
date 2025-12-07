@@ -73,3 +73,4 @@ pub fn get_image_from_list(list: &[String], idx: usize) -> Option<&String> {
         Some(&list[0])
     }
 }
+

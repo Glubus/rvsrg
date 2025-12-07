@@ -1,11 +1,8 @@
 //! Raw sqlx query helpers for the persistent database layer.
 
-#![allow(dead_code)]
 #![allow(clippy::too_many_arguments)]
 
-use crate::database::models::{
-    Beatmap, BeatmapLight, BeatmapRating, BeatmapWithRatings, Beatmapset, BeatmapsetLight, Replay,
-};
+use crate::database::models::{Beatmap, BeatmapRating, BeatmapWithRatings, Beatmapset, Replay};
 use crate::models::search::MenuSearchFilters;
 use sqlx::SqlitePool;
 use std::collections::HashMap;
@@ -120,49 +117,6 @@ pub async fn insert_beatmap(
     }
 }
 
-/// Inserts or updates a rating entry for a beatmap.
-pub async fn upsert_beatmap_rating(
-    pool: &SqlitePool,
-    beatmap_hash: &str,
-    name: &str,
-    overall: f64,
-    stream: f64,
-    jumpstream: f64,
-    handstream: f64,
-    stamina: f64,
-    jackspeed: f64,
-    chordjack: f64,
-    technical: f64,
-) -> Result<(), sqlx::Error> {
-    sqlx::query(
-        "INSERT INTO beatmap_rating (
-            beatmap_hash, name, overall, stream, jumpstream, handstream, stamina, jackspeed, chordjack, technical
-        ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)
-         ON CONFLICT(beatmap_hash, name) DO UPDATE SET
-            overall = excluded.overall,
-            stream = excluded.stream,
-            jumpstream = excluded.jumpstream,
-            handstream = excluded.handstream,
-            stamina = excluded.stamina,
-            jackspeed = excluded.jackspeed,
-            chordjack = excluded.chordjack,
-            technical = excluded.technical",
-    )
-    .bind(beatmap_hash)
-    .bind(name)
-    .bind(overall)
-    .bind(stream)
-    .bind(jumpstream)
-    .bind(handstream)
-    .bind(stamina)
-    .bind(jackspeed)
-    .bind(chordjack)
-    .bind(technical)
-    .execute(pool)
-    .await?;
-    Ok(())
-}
-
 /// Retrieves every rating for a specific beatmap.
 pub async fn get_ratings_for_beatmap(
     pool: &SqlitePool,
@@ -228,139 +182,6 @@ pub async fn get_all_beatmapsets(
     }
 
     Ok(result)
-}
-
-// ============================================================================
-// PAGINATION QUERIES (new)
-// ============================================================================
-
-/// Counts the total number of beatmapsets.
-pub async fn count_beatmapsets(pool: &SqlitePool) -> Result<i32, sqlx::Error> {
-    let count: Option<i64> = sqlx::query_scalar("SELECT COUNT(*) FROM beatmapset")
-        .fetch_optional(pool)
-        .await?;
-    Ok(count.unwrap_or(0) as i32)
-}
-
-/// Counts beatmapsets matching the given filters.
-pub async fn count_beatmapsets_filtered(
-    pool: &SqlitePool,
-    filters: &MenuSearchFilters,
-) -> Result<usize, sqlx::Error> {
-    let query_text = filters.query.to_lowercase();
-    let query_like = format!("%{}%", query_text);
-
-    let min_duration_active = filters.min_duration_seconds.is_some() as i32;
-    let min_duration_ms = filters
-        .min_duration_seconds
-        .map(|s| (s * 1000.0) as i32)
-        .unwrap_or(0);
-
-    let max_duration_active = filters.max_duration_seconds.is_some() as i32;
-    let max_duration_ms = filters
-        .max_duration_seconds
-        .map(|s| (s * 1000.0) as i32)
-        .unwrap_or(0);
-
-    let count: Option<i64> = sqlx::query_scalar(
-        r#"
-        SELECT COUNT(DISTINCT bs.id)
-        FROM beatmapset bs
-        JOIN beatmap b ON b.beatmapset_id = bs.id
-        WHERE
-            (?1 = '' OR LOWER(bs.title) LIKE ?2 OR LOWER(bs.artist) LIKE ?2 OR LOWER(IFNULL(b.difficulty_name, '')) LIKE ?2)
-            AND (?3 = 0 OR b.duration_ms >= ?4)
-            AND (?5 = 0 OR b.duration_ms <= ?6)
-        "#,
-    )
-    .bind(query_text.trim())
-    .bind(query_like)
-    .bind(min_duration_active)
-    .bind(min_duration_ms)
-    .bind(max_duration_active)
-    .bind(max_duration_ms)
-    .fetch_optional(pool)
-    .await?;
-
-    Ok(count.unwrap_or(0) as usize)
-}
-
-/// Retrieves a page of beatmapsets (lightweight, no ratings).
-pub async fn get_beatmapsets_page(
-    pool: &SqlitePool,
-    offset: usize,
-    limit: usize,
-    filters: &MenuSearchFilters,
-) -> Result<Vec<BeatmapsetLight>, sqlx::Error> {
-    let query_text = filters.query.to_lowercase();
-    let query_like = format!("%{}%", query_text);
-
-    let min_duration_active = filters.min_duration_seconds.is_some() as i32;
-    let min_duration_ms = filters
-        .min_duration_seconds
-        .map(|s| (s * 1000.0) as i32)
-        .unwrap_or(0);
-
-    let max_duration_active = filters.max_duration_seconds.is_some() as i32;
-    let max_duration_ms = filters
-        .max_duration_seconds
-        .map(|s| (s * 1000.0) as i32)
-        .unwrap_or(0);
-
-    let beatmapsets: Vec<Beatmapset> = sqlx::query_as(
-        r#"
-        SELECT DISTINCT bs.id, bs.path, bs.image_path, bs.artist, bs.title
-        FROM beatmapset bs
-        JOIN beatmap b ON b.beatmapset_id = bs.id
-        WHERE
-            (?1 = '' OR LOWER(bs.title) LIKE ?2 OR LOWER(bs.artist) LIKE ?2 OR LOWER(IFNULL(b.difficulty_name, '')) LIKE ?2)
-            AND (?3 = 0 OR b.duration_ms >= ?4)
-            AND (?5 = 0 OR b.duration_ms <= ?6)
-        ORDER BY bs.artist, bs.title
-        LIMIT ?7 OFFSET ?8
-        "#,
-    )
-    .bind(query_text.trim())
-    .bind(query_like)
-    .bind(min_duration_active)
-    .bind(min_duration_ms)
-    .bind(max_duration_active)
-    .bind(max_duration_ms)
-    .bind(limit as i64)
-    .bind(offset as i64)
-    .fetch_all(pool)
-    .await?;
-
-    let mut result = Vec::new();
-
-    for beatmapset in beatmapsets {
-        let beatmaps: Vec<Beatmap> = sqlx::query_as(
-            "SELECT hash, beatmapset_id, path, difficulty_name, note_count, duration_ms, nps FROM beatmap WHERE beatmapset_id = ?1 ORDER BY difficulty_name",
-        )
-        .bind(beatmapset.id)
-        .fetch_all(pool)
-        .await?;
-
-        let light_beatmaps: Vec<BeatmapLight> =
-            beatmaps.into_iter().map(BeatmapLight::from).collect();
-        result.push(BeatmapsetLight::new(beatmapset, light_beatmaps));
-    }
-
-    Ok(result)
-}
-
-/// Retrieves a single beatmap by hash.
-pub async fn get_beatmap_by_hash(
-    pool: &SqlitePool,
-    hash: &str,
-) -> Result<Option<Beatmap>, sqlx::Error> {
-    let beatmap: Option<Beatmap> = sqlx::query_as(
-        "SELECT hash, beatmapset_id, path, difficulty_name, note_count, duration_ms, nps FROM beatmap WHERE hash = ?1",
-    )
-    .bind(hash)
-    .fetch_optional(pool)
-    .await?;
-    Ok(beatmap)
 }
 
 // ============================================================================
@@ -452,7 +273,7 @@ pub async fn search_beatmapsets(
 // REPLAY QUERIES
 // ============================================================================
 
-/// Inserts a replay and derives a deterministic hash.
+/// Inserts a replay: compresses data with Brotli, saves to file, stores path in DB.
 pub async fn insert_replay(
     pool: &SqlitePool,
     beatmap_hash: &str,
@@ -463,14 +284,24 @@ pub async fn insert_replay(
     rate: f64,
     data: &str,
 ) -> Result<String, sqlx::Error> {
+    // Generate deterministic hash
     let hash_input = format!(
         "{}:{}:{}:{}:{}:{}:{}",
         beatmap_hash, timestamp, score, accuracy, max_combo, rate, data
     );
     let hash = format!("{:x}", md5::compute(hash_input));
 
+    // Save compressed replay to file
+    let file_path = crate::database::replay_storage::save_replay(&hash, data).map_err(|e| {
+        sqlx::Error::Io(std::io::Error::other(format!(
+            "Failed to save replay: {}",
+            e
+        )))
+    })?;
+
+    // Insert into database with file_path
     sqlx::query(
-        "INSERT INTO replay (hash, beatmap_hash, timestamp, score, accuracy, max_combo, rate, data) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)"
+        "INSERT INTO replay (hash, beatmap_hash, timestamp, score, accuracy, max_combo, rate, file_path) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)"
     )
     .bind(&hash)
     .bind(beatmap_hash)
@@ -479,7 +310,7 @@ pub async fn insert_replay(
     .bind(accuracy)
     .bind(max_combo)
     .bind(rate)
-    .bind(data)
+    .bind(&file_path)
     .execute(pool)
     .await?;
     Ok(hash)
@@ -491,20 +322,9 @@ pub async fn get_replays_for_beatmap(
     beatmap_hash: &str,
 ) -> Result<Vec<Replay>, sqlx::Error> {
     let replays: Vec<Replay> = sqlx::query_as(
-        "SELECT hash, beatmap_hash, timestamp, score, accuracy, max_combo, rate, data FROM replay WHERE beatmap_hash = ?1 ORDER BY rate DESC, accuracy DESC, timestamp DESC LIMIT 10"
+        "SELECT hash, beatmap_hash, timestamp, score, accuracy, max_combo, rate, file_path FROM replay WHERE beatmap_hash = ?1 ORDER BY rate DESC, accuracy DESC, timestamp DESC LIMIT 10"
     )
     .bind(beatmap_hash)
-    .fetch_all(pool)
-    .await?;
-    Ok(replays)
-}
-
-/// Retrieves the top scores sorted by rate then accuracy (cross-beatmap).
-pub async fn get_top_scores(pool: &SqlitePool, limit: i32) -> Result<Vec<Replay>, sqlx::Error> {
-    let replays: Vec<Replay> = sqlx::query_as(
-        "SELECT hash, beatmap_hash, timestamp, score, accuracy, max_combo, rate, data FROM replay ORDER BY rate DESC, accuracy DESC, timestamp DESC LIMIT ?1"
-    )
-    .bind(limit)
     .fetch_all(pool)
     .await?;
     Ok(replays)

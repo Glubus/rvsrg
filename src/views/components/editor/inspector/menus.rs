@@ -319,3 +319,4 @@ pub fn edit_panel_style(ui: &mut Ui, skin: &mut Skin) -> bool {
 
     changed
 }
+

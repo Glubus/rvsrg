@@ -1,6 +1,6 @@
 //! Utility to convert screen pixels into normalized coordinates.
 
-#![allow(dead_code)]
+
 
 /// Handles pixel-to-normalized coordinate conversion.
 #[derive(Clone)]
@@ -47,3 +47,4 @@ impl PixelSystem {
         self.aspect_ratio = forced_ratio.unwrap_or(width as f32 / height as f32);
     }
 }
+

@@ -1,6 +1,5 @@
 use crate::models::engine::InstanceRaw; // Assurez-vous que ce modèle est accessible via models
 use crate::shaders::constants::MAIN_SHADER_SRC;
-use image::GenericImageView;
 use std::path::Path;
 use wgpu::{BindGroupLayout, Device, Queue, RenderPipeline, Sampler, Texture, TextureFormat};
 use wgpu_text::{BrushBuilder, TextBrush};
@@ -233,3 +232,4 @@ pub fn load_text_brush(
 
     BrushBuilder::using_font(final_font).build(device, width, height, format)
 }
+

@@ -103,6 +103,7 @@ impl GameEngine {
     const PRE_ROLL_MS: f64 = 3000.0;
 
     /// Creates a new `GameEngine` by loading the map from a file.
+    /// Returns `None` if the map cannot be loaded.
     pub fn new(
         bus: &SystemBus,
         map_path: PathBuf,
@@ -110,17 +111,22 @@ impl GameEngine {
         beatmap_hash: Option<String>,
         hit_window_mode: HitWindowMode,
         hit_window_value: f64,
-    ) -> Self {
-        let (audio_path, chart) = load_map(map_path);
-        Self::from_cached(
-            bus,
-            chart,
-            audio_path,
-            rate,
-            beatmap_hash,
-            hit_window_mode,
-            hit_window_value,
-        )
+    ) -> Option<Self> {
+        match load_map(map_path.clone()) {
+            Ok((audio_path, chart)) => Some(Self::from_cached(
+                bus,
+                chart,
+                audio_path,
+                rate,
+                beatmap_hash,
+                hit_window_mode,
+                hit_window_value,
+            )),
+            Err(e) => {
+                log::error!("ENGINE: Failed to load map {:?}: {}", map_path, e);
+                None
+            }
+        }
     }
 
     /// Creates a `GameEngine` from pre-loaded chart and audio path.
@@ -810,3 +816,4 @@ impl GameEngine {
         self.chart.clone()
     }
 }
+

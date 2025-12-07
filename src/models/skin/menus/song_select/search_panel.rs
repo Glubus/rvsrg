@@ -45,3 +45,4 @@ impl Default for SearchPanelConfig {
         }
     }
 }
+

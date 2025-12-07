@@ -1,6 +1,6 @@
 //! Playfield configuration and layout.
 
-#![allow(dead_code)]
+
 
 /// Configuration for the playfield layout.
 #[derive(Clone)]
@@ -39,3 +39,4 @@ impl PlayfieldConfig {
         self.column_width_pixels = self.note_width_pixels;
     }
 }
+

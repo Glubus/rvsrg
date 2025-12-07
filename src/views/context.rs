@@ -1,6 +1,6 @@
 //! Render context structures.
 
-#![allow(dead_code)]
+
 
 use crate::models::engine::PixelSystem;
 use wgpu::{BindGroup, Buffer, Device, Queue, RenderPipeline, TextureView};
@@ -39,3 +39,4 @@ pub struct GameplayRenderContext<'a> {
     pub fps: f64,
     pub master_volume: f32,
 }
+

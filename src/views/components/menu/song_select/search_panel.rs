@@ -593,3 +593,4 @@ impl SearchPanel {
         changed
     }
 }
+

@@ -13,8 +13,8 @@ use std::thread;
 use std::time::Duration;
 
 struct AudioWorker {
-    _stream: OutputStream,
-    stream_handle: OutputStreamHandle,
+    _stream: Option<OutputStream>,
+    stream_handle: Option<OutputStreamHandle>,
     sink: Option<Sink>,
     current_path: Option<PathBuf>,
     speed: f32,
@@ -22,22 +22,46 @@ struct AudioWorker {
     sample_rate: u32,
     channels: u16,
     position_counter: Arc<std::sync::atomic::AtomicU64>,
+    /// True if audio is available, false for silent mode
+    has_audio: bool,
 }
 
 impl AudioWorker {
     fn new(bus: &SystemBus) -> Self {
-        let (_stream, stream_handle) = OutputStream::try_default().expect("No audio device found");
-
-        Self {
-            _stream,
-            stream_handle,
-            sink: None,
-            current_path: None,
-            speed: 1.0,
-            volume: 1.0,
-            sample_rate: 44100,
-            channels: 2,
-            position_counter: bus.audio_position.clone(),
+        match OutputStream::try_default() {
+            Ok((_stream, stream_handle)) => {
+                log::info!("AUDIO: Device found, audio enabled");
+                Self {
+                    _stream: Some(_stream),
+                    stream_handle: Some(stream_handle),
+                    sink: None,
+                    current_path: None,
+                    speed: 1.0,
+                    volume: 1.0,
+                    sample_rate: 44100,
+                    channels: 2,
+                    position_counter: bus.audio_position.clone(),
+                    has_audio: true,
+                }
+            }
+            Err(e) => {
+                log::warn!(
+                    "AUDIO: No audio device found ({}), running in silent mode",
+                    e
+                );
+                Self {
+                    _stream: None,
+                    stream_handle: None,
+                    sink: None,
+                    current_path: None,
+                    speed: 1.0,
+                    volume: 1.0,
+                    sample_rate: 44100,
+                    channels: 2,
+                    position_counter: bus.audio_position.clone(),
+                    has_audio: false,
+                }
+            }
         }
     }
 
@@ -86,6 +110,11 @@ impl AudioWorker {
     }
 
     fn load_from_position(&mut self, position_secs: f32, bus: &SystemBus) {
+        // Skip if no audio device available
+        if !self.has_audio {
+            return;
+        }
+
         let Some(path) = &self.current_path else {
             return;
         };
@@ -128,7 +157,14 @@ impl AudioWorker {
             position_counter: self.position_counter.clone(),
         };
 
-        let sink = Sink::try_new(&self.stream_handle).expect("Failed to create sink");
+        let Some(stream_handle) = &self.stream_handle else {
+            return;
+        };
+
+        let Ok(sink) = Sink::try_new(stream_handle) else {
+            log::error!("AUDIO: Failed to create sink");
+            return;
+        };
         sink.set_speed(self.speed);
         sink.set_volume(self.volume);
         sink.append(monitor);
@@ -206,3 +242,4 @@ pub fn start_audio_thread(bus: SystemBus) {
         })
         .expect("Failed to spawn Audio thread");
 }
+

@@ -84,3 +84,4 @@ pub struct GameplaySnapshot {
     /// Total map duration (for progress graph).
     pub map_duration: f64,
 }
+

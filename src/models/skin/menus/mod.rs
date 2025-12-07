@@ -17,3 +17,4 @@ pub struct MenusConfig {
     #[serde(default)]
     pub panels: PanelStyleConfig,
 }
+

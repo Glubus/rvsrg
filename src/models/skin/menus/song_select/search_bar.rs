@@ -78,3 +78,4 @@ impl Default for SearchBarConfig {
         }
     }
 }
+

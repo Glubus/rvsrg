@@ -9,7 +9,7 @@
 //! - Difficulty ratings are calculated ON-DEMAND when a map is selected
 //! - Ratings are cached in memory (not DB) for the session
 
-#![allow(dead_code)]
+
 
 use super::{ChartCache, DifficultyCache, RateCacheEntry};
 use crate::database::models::Replay;
@@ -443,3 +443,4 @@ impl MenuState {
         vec![("etterna", "Etterna (MinaCalc)"), ("osu", "osu! (rosu-pp)")]
     }
 }
+

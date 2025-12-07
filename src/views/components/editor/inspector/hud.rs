@@ -191,3 +191,4 @@ pub fn edit_nps(ui: &mut Ui, skin: &mut Skin) -> bool {
 
     changed
 }
+

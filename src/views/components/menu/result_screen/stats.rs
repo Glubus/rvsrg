@@ -178,3 +178,4 @@ pub fn render_stats(ui: &mut Ui, data: &GameResultData) {
         });
     });
 }
+

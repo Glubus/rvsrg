@@ -6,11 +6,9 @@ pub mod playfield;
 pub mod receptors;
 
 pub use key_modes::KeyModeConfig;
-pub use notes::{
-    BurstConfig, HoldConfig, MineConfig, NoteColumnConfig, NoteDefaults, NotesDefaults,
-};
+pub use notes::NotesDefaults;
 pub use playfield::PlayfieldConfig;
-pub use receptors::{ReceptorColumnConfig, ReceptorDefaults};
+pub use receptors::ReceptorDefaults;
 
 use serde::{Deserialize, Serialize};
 
@@ -26,3 +24,4 @@ pub struct GameplayDefaults {
     #[serde(default)]
     pub receptors: ReceptorDefaults,
 }
+

@@ -17,13 +17,11 @@ mod logic;
 mod render;
 mod system;
 
-mod core;
 mod database;
 mod difficulty;
 mod models;
 mod shaders;
 mod shared;
-mod states;
 mod views;
 
 use crate::database::DbManager;

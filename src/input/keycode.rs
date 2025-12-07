@@ -62,3 +62,4 @@ pub fn parse_keycode(s: &str) -> Option<KeyCode> {
         _ => None,
     }
 }
+

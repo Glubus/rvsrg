@@ -11,3 +11,4 @@ pub struct EditorConfig {
     // - Tool icons
     // - Preview settings
 }
+

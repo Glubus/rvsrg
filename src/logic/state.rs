@@ -447,7 +447,7 @@ impl GameAction {
                         beatmap_hash,
                         state.settings.hit_window_mode,
                         state.settings.hit_window_value,
-                    )
+                    )?
                 } else {
                     return None;
                 };
@@ -497,7 +497,7 @@ impl GameAction {
                         beatmap_hash,
                         state.settings.hit_window_mode,
                         state.settings.hit_window_value,
-                    )
+                    )?
                 } else {
                     return None;
                 };
@@ -536,7 +536,7 @@ impl GameAction {
                         None,
                         state.settings.hit_window_mode,
                         state.settings.hit_window_value,
-                    )
+                    )?
                 } else {
                     return None;
                 };
@@ -867,3 +867,4 @@ fn create_debug_chart() -> Vec<crate::models::engine::NoteData> {
 
     notes
 }
+

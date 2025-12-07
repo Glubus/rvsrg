@@ -1,15 +1,14 @@
 //! Render resources (pipelines, buffers, bind groups).
 
-#![allow(dead_code)]
+
 
 use crate::models::engine::{InstanceRaw, NUM_COLUMNS, PixelSystem, PlayfieldConfig};
 use crate::models::settings::SettingsState;
 use crate::models::skin::Skin;
 use crate::render::context::RenderContext;
 use crate::render::utils::*;
-use crate::render::utils::*;
 use crate::shaders::constants::{BACKGROUND_SHADER_SRC, PROGRESS_SHADER_SRC, QUAD_SHADER_SRC};
-use crate::views::components::common::primitives::{ProgressInstance, QuadInstance}; // From primitives
+use crate::views::components::common::primitives::ProgressInstance; // From primitives
 use crate::views::components::{
     AccuracyDisplay, ComboDisplay, HitBarDisplay, JudgementFlash, JudgementPanel,
     NotesRemainingDisplay, NpsDisplay, PlayfieldDisplay, ScoreDisplay, ScrollSpeedDisplay,
@@ -270,8 +269,12 @@ impl RenderResources {
 
         let settings = SettingsState::load();
         let _ = crate::models::skin::init_skin_structure();
-        let mut skin =
-            Skin::load(&settings.current_skin).unwrap_or_else(|_| Skin::load("default").unwrap());
+        let mut skin = Skin::load(&settings.current_skin)
+            .or_else(|_| Skin::load("default"))
+            .unwrap_or_else(|e| {
+                log::error!("RESOURCES: Failed to load any skin: {}", e);
+                Skin::default()
+            });
         skin.load_key_mode(NUM_COLUMNS);
 
         let load_egui_tex = |path: Option<PathBuf>, name: &str| -> Option<egui::TextureHandle> {
@@ -877,3 +880,4 @@ impl RenderResources {
         }
     }
 }
+

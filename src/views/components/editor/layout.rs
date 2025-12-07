@@ -89,14 +89,14 @@ impl SkinEditorLayout {
                 ui.add(
                     DragValue::new(&mut self.state.preview_width)
                         .speed(1.0)
-                        .clamp_range(320..=3840)
+                        .range(320..=3840)
                         .suffix("px"),
                 );
                 ui.label("x");
                 ui.add(
                     DragValue::new(&mut self.state.preview_height)
                         .speed(1.0)
-                        .clamp_range(240..=2160)
+                        .range(240..=2160)
                         .suffix("px"),
                 );
 

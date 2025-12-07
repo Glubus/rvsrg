@@ -1,6 +1,5 @@
 //! Song selection screen components.
 
-#![allow(dead_code)]
 #![allow(clippy::too_many_arguments)]
 
 pub(super) mod beatmap_info;
@@ -21,7 +20,7 @@ use md5::Digest;
 use wgpu::TextureView;
 use winit::dpi::PhysicalSize;
 
-use crate::core::input::actions::UIAction;
+use crate::input::events::GameAction;
 use crate::models::menu::{GameResultData, MenuState};
 use crate::models::search::MenuSearchFilters;
 use crate::views::components::menu::song_select::beatmap_info::BeatmapInfo;
@@ -140,7 +139,7 @@ impl SongSelectScreen {
         diff_sel_color: Color32,
         panel_textures: &UIPanelTextures,
     ) -> (
-        Option<UIAction>,
+        Option<GameAction>,
         Option<GameResultData>,
         Option<MenuSearchFilters>,
         Option<String>, // Calculator changed

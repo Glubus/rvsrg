@@ -698,3 +698,4 @@ pub fn default_calculators() -> Vec<CalculatorOption> {
         CalculatorOption::new("osu", "osu!"),
     ]
 }
+

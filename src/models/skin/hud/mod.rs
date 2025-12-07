@@ -61,3 +61,4 @@ pub struct HudConfig {
     #[serde(default)]
     pub time_left: TimeLeftConfig,
 }
+

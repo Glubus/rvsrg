@@ -10,7 +10,6 @@ pub mod score;
 pub mod scroll_speed;
 pub mod time_left;
 
-pub use notes_remaining::NotesRemainingDisplay;
-pub use playfield::{NoteInstance, NoteVisual, PlayfieldDisplay};
 // pub use scroll_speed::ScrollSpeedDisplay;
 // pub use time_left::TimeLeftDisplay;
+

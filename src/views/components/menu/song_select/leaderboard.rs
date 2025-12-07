@@ -1,7 +1,8 @@
 //! Leaderboard display component.
 
-#![allow(dead_code)]
+use std::path::Path;
 
+use crate::database::replay_storage;
 use crate::models::engine::NoteData;
 use crate::models::engine::hit_window::HitWindow;
 use crate::models::menu::GameResultData;
@@ -29,8 +30,13 @@ impl ScoreCard {
         replay: &crate::database::models::Replay,
         total_notes: usize,
     ) -> Option<Self> {
-        let replay_data = serde_json::from_str::<ReplayData>(&replay.data)
-            .unwrap_or_else(|_| ReplayData::empty());
+        // Load replay data from compressed file
+        let replay_data = match replay_storage::load_replay_from_path(Path::new(&replay.file_path))
+        {
+            Ok(data_str) => serde_json::from_str::<ReplayData>(&data_str)
+                .unwrap_or_else(|_| ReplayData::empty()),
+            Err(_) => ReplayData::empty(),
+        };
 
         Some(ScoreCard {
             timestamp: replay.timestamp,

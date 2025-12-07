@@ -1,4 +1,4 @@
-use crate::core::input::actions::UIAction;
+use crate::input::events::GameAction;
 use crate::models::menu::MenuState;
 use crate::views::components::menu::song_select::difficulty_card::DifficultyCard;
 use crate::views::components::menu::song_select::song_card::SongCard;
@@ -46,7 +46,7 @@ impl SongList {
         diff_sel_tex: Option<TextureId>,
         song_sel_color: Color32,
         diff_sel_color: Color32,
-    ) -> Option<UIAction> {
+    ) -> Option<GameAction> {
         let beatmapsets = &menu_state.beatmapsets;
         let current_from_state = menu_state.selected_index;
         let selected_difficulty_index = menu_state.selected_difficulty_index;
@@ -134,14 +134,14 @@ impl SongList {
 
                         if sense.clicked() || sense.double_clicked() {
                             // On émet l'action au lieu de changer l'état
-                            action_triggered = Some(UIAction::SetSelection(id));
+                            action_triggered = Some(GameAction::SetSelection(id));
                             response.scroll_to_me(Some(Align::Center));
 
                             // IMPORTANT : On rend le focus pour que les touches (E, Espace) remarchent tout de suite
                             ui.ctx().memory_mut(|m| m.surrender_focus(response.id));
 
                             if sense.double_clicked() {
-                                // On pourrait envoyer UIAction::Select ici aussi pour lancer direct
+                                // On pourrait envoyer GameAction::Select ici aussi pour lancer direct
                             }
                         }
 
@@ -160,7 +160,7 @@ impl SongList {
                                 let diff_sense = diff_response.interact(egui::Sense::click());
 
                                 if diff_sense.clicked() {
-                                    action_triggered = Some(UIAction::SetDifficulty(diff_idx));
+                                    action_triggered = Some(GameAction::SetDifficulty(diff_idx));
                                     ui.ctx().memory_mut(|m| m.surrender_focus(diff_response.id));
                                 }
                             }
@@ -175,3 +175,4 @@ impl SongList {
         action_triggered
     }
 }
+

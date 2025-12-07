@@ -112,3 +112,4 @@ impl HitBarDisplay {
         sections
     }
 }
+

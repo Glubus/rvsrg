@@ -93,3 +93,4 @@ impl ResultScreen {
         should_close
     }
 }
+

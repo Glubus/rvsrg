@@ -162,3 +162,4 @@ pub enum InputCommand {
     /// Reload keybind configuration.
     ReloadKeybinds(HashMap<String, Vec<String>>),
 }
+

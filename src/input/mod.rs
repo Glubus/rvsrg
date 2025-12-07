@@ -43,3 +43,4 @@ pub fn start_thread(bus: SystemBus, mut manager: InputManager) {
         })
         .expect("Failed to spawn Input thread");
 }
+

@@ -60,3 +60,4 @@ impl Default for NotesRemainingConfig {
         }
     }
 }
+

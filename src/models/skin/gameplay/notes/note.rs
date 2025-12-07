@@ -47,3 +47,4 @@ pub struct NoteDefaults {
     #[serde(default)]
     pub image: Option<String>,
 }
+

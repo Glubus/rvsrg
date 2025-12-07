@@ -53,3 +53,4 @@ impl Default for JudgementFlashMiss {
         }
     }
 }
+

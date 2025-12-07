@@ -96,3 +96,4 @@ pub fn start_thread(bus: SystemBus, db_manager: DbManager) {
         })
         .expect("Failed to spawn Logic thread");
 }
+

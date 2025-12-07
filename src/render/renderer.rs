@@ -1,8 +1,5 @@
 //! Main renderer orchestrating all graphics operations.
 
-#![allow(dead_code)]
-
-use crate::core::input::actions::UIAction;
 use crate::input::events::GameAction;
 use crate::render::context::RenderContext;
 use crate::render::draw::draw_game;
@@ -394,7 +391,7 @@ impl Renderer {
                         (c[3] * 255.) as u8,
                     )
                 };
-                let mut hit_window = match self.resources.settings.hit_window_mode {
+                let hit_window = match self.resources.settings.hit_window_mode {
                     crate::models::settings::HitWindowMode::OsuOD => {
                         crate::models::engine::hit_window::HitWindow::from_osu_od(
                             self.resources.settings.hit_window_value,
@@ -459,15 +456,15 @@ impl Renderer {
 
                 if let Some(a) = action_opt {
                     match a {
-                        UIAction::SetSelection(i) => {
+                        GameAction::SetSelection(i) => {
                             actions_to_send.push(GameAction::SetSelection(i))
                         }
-                        UIAction::SetDifficulty(i) => {
+                        GameAction::SetDifficulty(i) => {
                             actions_to_send.push(GameAction::SetDifficulty(i))
                         }
-                        UIAction::Select => actions_to_send.push(GameAction::Confirm),
-                        UIAction::Back => actions_to_send.push(GameAction::Back),
-                        UIAction::ToggleSettings => {
+                        GameAction::Confirm => actions_to_send.push(GameAction::Confirm),
+                        GameAction::Back => actions_to_send.push(GameAction::Back),
+                        GameAction::ToggleSettings => {
                             actions_to_send.push(GameAction::ToggleSettings)
                         }
                         _ => {}

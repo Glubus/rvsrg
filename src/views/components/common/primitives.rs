@@ -80,3 +80,4 @@ pub fn progress_from_rect(
         padding: [0.0, 0.0],
     }
 }
+

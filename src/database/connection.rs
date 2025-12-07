@@ -1,10 +1,6 @@
 //! Database connection helpers built on top of sqlx/SQLite.
 
-#![allow(dead_code)]
-
-use crate::database::models::{
-    Beatmap, BeatmapLight, BeatmapRating, BeatmapWithRatings, Beatmapset, BeatmapsetLight,
-};
+use crate::database::models::{BeatmapRating, BeatmapWithRatings, Beatmapset};
 use crate::database::query;
 use crate::models::search::MenuSearchFilters;
 use sqlx::{SqlitePool, sqlite::SqliteConnectOptions};
@@ -15,6 +11,7 @@ const MIGRATION_CREATE_BEATMAP: &str = include_str!("migrations/002_create_beatm
 const MIGRATION_CREATE_REPLAY: &str = include_str!("migrations/003_create_replay.sql");
 const MIGRATION_CREATE_BEATMAP_RATING: &str =
     include_str!("migrations/005_create_beatmap_rating.sql");
+const MIGRATION_REPLAY_FILE_STORAGE: &str = include_str!("migrations/006_replay_file_storage.sql");
 
 pub struct Database {
     pool: SqlitePool,
@@ -62,6 +59,7 @@ impl Database {
             MIGRATION_CREATE_BEATMAP,
             MIGRATION_CREATE_REPLAY,
             MIGRATION_CREATE_BEATMAP_RATING,
+            MIGRATION_REPLAY_FILE_STORAGE,
         ] {
             sqlx::query(migration).execute(&self.pool).await?;
         }
@@ -114,36 +112,6 @@ impl Database {
         .await
     }
 
-    /// Inserts or updates SR/ratings for a beatmap.
-    pub async fn upsert_beatmap_rating(
-        &self,
-        beatmap_hash: &str,
-        name: &str,
-        overall: f64,
-        stream: f64,
-        jumpstream: f64,
-        handstream: f64,
-        stamina: f64,
-        jackspeed: f64,
-        chordjack: f64,
-        technical: f64,
-    ) -> Result<(), sqlx::Error> {
-        query::upsert_beatmap_rating(
-            &self.pool,
-            beatmap_hash,
-            name,
-            overall,
-            stream,
-            jumpstream,
-            handstream,
-            stamina,
-            jackspeed,
-            chordjack,
-            technical,
-        )
-        .await
-    }
-
     /// Fetches all ratings for a beatmap.
     pub async fn get_ratings_for_beatmap(
         &self,
@@ -170,38 +138,6 @@ impl Database {
         filters: &MenuSearchFilters,
     ) -> Result<Vec<(Beatmapset, Vec<BeatmapWithRatings>)>, sqlx::Error> {
         query::search_beatmapsets(&self.pool, filters).await
-    }
-
-    /// Counts beatmapsets in the database.
-    pub async fn count_beatmapsets(&self) -> Result<i32, sqlx::Error> {
-        query::count_beatmapsets(&self.pool).await
-    }
-
-    // ========================================================================
-    // PAGINATION METHODS (new)
-    // ========================================================================
-
-    /// Counts beatmapsets matching the given filters.
-    pub async fn count_beatmapsets_filtered(
-        &self,
-        filters: &MenuSearchFilters,
-    ) -> Result<usize, sqlx::Error> {
-        query::count_beatmapsets_filtered(&self.pool, filters).await
-    }
-
-    /// Retrieves a page of beatmapsets (lightweight, no ratings).
-    pub async fn get_beatmapsets_page(
-        &self,
-        offset: usize,
-        limit: usize,
-        filters: &MenuSearchFilters,
-    ) -> Result<Vec<BeatmapsetLight>, sqlx::Error> {
-        query::get_beatmapsets_page(&self.pool, offset, limit, filters).await
-    }
-
-    /// Retrieves a single beatmap by hash.
-    pub async fn get_beatmap_by_hash(&self, hash: &str) -> Result<Option<Beatmap>, sqlx::Error> {
-        query::get_beatmap_by_hash(&self.pool, hash).await
     }
 
     // ========================================================================
@@ -238,13 +174,5 @@ impl Database {
         beatmap_hash: &str,
     ) -> Result<Vec<crate::database::models::Replay>, sqlx::Error> {
         query::get_replays_for_beatmap(&self.pool, beatmap_hash).await
-    }
-
-    /// Retrieves the top scores ordered by accuracy.
-    pub async fn get_top_scores(
-        &self,
-        limit: i32,
-    ) -> Result<Vec<crate::database::models::Replay>, sqlx::Error> {
-        query::get_top_scores(&self.pool, limit).await
     }
 }

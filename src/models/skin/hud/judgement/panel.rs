@@ -91,3 +91,4 @@ impl Default for JudgementPanelConfig {
         }
     }
 }
+

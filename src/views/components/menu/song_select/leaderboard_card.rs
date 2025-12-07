@@ -219,3 +219,4 @@ fn format_date(timestamp: i64) -> String {
         format!("{}w ago", diff / 604800)
     }
 }
+

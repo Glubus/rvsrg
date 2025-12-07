@@ -57,3 +57,4 @@ impl Default for DifficultyButtonConfig {
         }
     }
 }
+

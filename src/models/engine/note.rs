@@ -227,13 +227,16 @@ impl NoteData {
 }
 
 /// Charge une map depuis un fichier .osu.
-/// Retourne le chemin audio et la liste des notes.
-///
-/// # Panics
-/// Panic si le fichier ne peut pas être lu ou si la map contient des colonnes invalides.
-pub fn load_map(path: PathBuf) -> (PathBuf, Vec<NoteData>) {
-    let map = rosu_map::Beatmap::from_path(&path).unwrap();
-    let audio_path = path.parent().unwrap().join(map.audio_file);
+/// Retourne le chemin audio et la liste des notes, ou une erreur si le chargement échoue.
+pub fn load_map(path: PathBuf) -> Result<(PathBuf, Vec<NoteData>), String> {
+    let map = rosu_map::Beatmap::from_path(&path)
+        .map_err(|e| format!("Failed to load beatmap {:?}: {}", path, e))?;
+
+    let audio_path = path
+        .parent()
+        .ok_or_else(|| format!("Invalid path (no parent): {:?}", path))?
+        .join(&map.audio_file);
+
     let key_count = map.circle_size as u8;
 
     let mut notes = Vec::new();
@@ -243,7 +246,7 @@ pub fn load_map(path: PathBuf) -> (PathBuf, Vec<NoteData>) {
         }
     }
 
-    (audio_path, notes)
+    Ok((audio_path, notes))
 }
 
 /// Charge une map depuis un fichier .osu, version safe qui retourne Option.
@@ -349,3 +352,4 @@ pub fn x_to_column(x: i32) -> Option<usize> {
         }
     }
 }
+

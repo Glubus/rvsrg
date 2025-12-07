@@ -197,3 +197,4 @@ pub fn render_settings_window(
         hit_window_changed,
     }
 }
+

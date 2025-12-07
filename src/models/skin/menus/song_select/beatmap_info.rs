@@ -52,3 +52,4 @@ impl Default for BeatmapInfoConfig {
         }
     }
 }
+

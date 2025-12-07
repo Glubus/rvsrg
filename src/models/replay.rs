@@ -3,7 +3,7 @@
 //! This module handles recording and playback of user inputs for replays,
 //! as well as deterministic simulation to recalculate scores.
 
-#![allow(dead_code)]
+
 
 use crate::models::engine::NoteData;
 use crate::models::engine::hit_window::HitWindow;
@@ -404,3 +404,4 @@ pub fn rejudge_replay(
 ) -> ReplayResult {
     simulate_replay(replay_data, chart, new_hit_window)
 }
+
