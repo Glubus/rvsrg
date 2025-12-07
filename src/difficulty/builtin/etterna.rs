@@ -1,6 +1,6 @@
 //! Etterna difficulty calculator using MinaCalc.
 
-use crate::difficulty::{BeatmapSsr, CalcError, CalculationContext, DifficultyCalculator};
+use crate::difficulty::{BeatmapSsr, CalcError};
 use minacalc_rs::{AllRates, Calc, HashMapCalcExt, OsuCalcExt};
 use std::sync::{Arc, Mutex, OnceLock};
 
@@ -36,22 +36,12 @@ where
 }
 
 /// Etterna difficulty calculator using MinaCalc.
-#[derive(Debug, Clone)]
-pub struct EtternaCalculator {
-    version: String,
-}
-
-impl Default for EtternaCalculator {
-    fn default() -> Self {
-        Self::new()
-    }
-}
+#[derive(Debug, Clone, Default)]
+pub struct EtternaCalculator;
 
 impl EtternaCalculator {
     pub fn new() -> Self {
-        Self {
-            version: "v4.0".to_string(),
-        }
+        Self
     }
 
     /// Calculate difficulty for a beatmap at a specific rate.
@@ -139,58 +129,3 @@ impl EtternaCalculator {
         })
     }
 }
-
-impl DifficultyCalculator for EtternaCalculator {
-    fn id(&self) -> &str {
-        "etterna"
-    }
-
-    fn display_name(&self) -> &str {
-        "Etterna (MinaCalc)"
-    }
-
-    fn version(&self) -> &str {
-        &self.version
-    }
-
-    fn calculate(&self, ctx: &CalculationContext) -> Result<BeatmapSsr, CalcError> {
-        // For the trait implementation, we need the raw beatmap.
-        // This is a simplified calculation based on NPS when no beatmap is available.
-        // In practice, calculate_from_beatmap should be used directly with the beatmap.
-
-        let base = ctx.nps * ctx.rate;
-        let duration_factor = if ctx.duration_ms > 180000.0 {
-            1.15
-        } else if ctx.duration_ms > 120000.0 {
-            1.08
-        } else {
-            1.0
-        };
-
-        let overall = base * 2.5 * duration_factor;
-
-        Ok(BeatmapSsr {
-            overall,
-            stream: overall * 0.85,
-            jumpstream: overall * 0.90,
-            handstream: overall * 0.75,
-            stamina: overall * duration_factor,
-            jackspeed: overall * 0.60,
-            chordjack: overall * 0.65,
-            technical: overall * 0.50,
-        })
-    }
-
-    fn supports_arbitrary_rates(&self) -> bool {
-        false
-    }
-
-    fn available_rates(&self) -> Option<Vec<f64>> {
-        // MinaCalc provides discrete rates
-        Some(vec![
-            0.7, 0.8, 0.85, 0.9, 0.95, 1.0, 1.05, 1.1, 1.15, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8,
-            1.9, 2.0,
-        ])
-    }
-}
-

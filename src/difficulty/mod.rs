@@ -12,7 +12,7 @@ pub mod calculator;
 
 // Re-export commonly used types
 pub use builtin::{EtternaCalculator, OsuCalculator};
-pub use calculator::{CalcError, CalculationContext, DifficultyCalculator};
+pub use calculator::CalcError;
 
 use minacalc_rs::Calc;
 use rosu_map::Beatmap;
@@ -191,18 +191,4 @@ pub fn calculate_on_demand(
             calculator_id
         ))),
     }
-}
-
-/// Calculate difficulty for all calculators at a given rate.
-pub fn calculate_all_calculators(
-    map: &Beatmap,
-    rate: f64,
-) -> Result<Vec<BeatmapRatingValue>, CalcError> {
-    let etterna_ssr = EtternaCalculator::calculate_from_beatmap(map, rate)?;
-    let osu_ssr = OsuCalculator::calculate_from_beatmap(map, &etterna_ssr, rate)?;
-
-    Ok(vec![
-        BeatmapRatingValue::new("etterna", etterna_ssr),
-        BeatmapRatingValue::new("osu", osu_ssr),
-    ])
 }
