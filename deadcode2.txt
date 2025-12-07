@@ -1,0 +1,1082 @@
+warning: unused variable: `keys_held`
+   --> src\logic\engine.rs:540:13
+    |
+540 |         let keys_held = self.keys_held.clone();
+    |             ^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_keys_held`
+    |
+    = note: `#[warn(unused_variables)]` on by default
+
+warning: variable `hit_window_updated` is assigned to, but never used
+   --> src\render\renderer.rs:511:25
+    |
+511 |                 let mut hit_window_updated = false;
+    |                         ^^^^^^^^^^^^^^^^^^
+    |
+    = note: consider using `_hit_window_updated` instead
+
+warning: value assigned to `hit_window_updated` is never read
+   --> src\render\renderer.rs:535:25
+    |
+535 |                         hit_window_updated = true;
+    |                         ^^^^^^^^^^^^^^^^^^
+    |
+    = help: maybe it is overwritten before being read?
+    = note: `#[warn(unused_assignments)]` on by default
+
+warning: unused variable: `song_button_texture`
+   --> src\render\resources.rs:294:13
+    |
+294 |         let song_button_texture = load_egui_tex(skin.get_song_button_image(), "song_btn");
+    |             ^^^^^^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_song_button_texture`
+
+warning: unused variable: `song_button_selected_texture`
+   --> src\render\resources.rs:295:13
+    |
+295 |         let song_button_selected_texture =
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_song_button_selected_texture`
+
+warning: unused variable: `difficulty_button_texture`
+   --> src\render\resources.rs:297:13
+    |
+297 |         let difficulty_button_texture =
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_difficulty_button_texture`
+
+warning: unused variable: `difficulty_button_selected_texture`
+   --> src\render\resources.rs:299:13
+    |
+299 |         let difficulty_button_selected_texture =
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_difficulty_button_selected_texture`
+
+warning: unused variable: `beatmap_info_bg_texture`
+   --> src\render\resources.rs:302:13
+    |
+302 |         let beatmap_info_bg_texture =
+    |             ^^^^^^^^^^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_beatmap_info_bg_texture`
+
+warning: unused variable: `search_panel_bg_texture`
+   --> src\render\resources.rs:304:13
+    |
+304 |         let search_panel_bg_texture =
+    |             ^^^^^^^^^^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_search_panel_bg_texture`
+
+warning: unused variable: `search_bar_texture`
+   --> src\render\resources.rs:306:13
+    |
+306 |         let search_bar_texture = load_egui_tex(skin.get_search_bar_image(), "search_bar");
+    |             ^^^^^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_search_bar_texture`
+
+warning: unused variable: `leaderboard_bg_texture`
+   --> src\render\resources.rs:307:13
+    |
+307 |         let leaderboard_bg_texture =
+    |             ^^^^^^^^^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_leaderboard_bg_texture`
+
+warning: unused variable: `mine_bind_group`
+   --> src\render\resources.rs:632:13
+    |
+632 |         let mine_bind_group =
+    |             ^^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_mine_bind_group`
+
+warning: unused variable: `hold_body_bind_group`
+   --> src\render\resources.rs:634:13
+    |
+634 |         let hold_body_bind_group =
+    |             ^^^^^^^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_hold_body_bind_group`
+
+warning: unused variable: `hold_end_bind_group`
+   --> src\render\resources.rs:636:13
+    |
+636 |         let hold_end_bind_group =
+    |             ^^^^^^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_hold_end_bind_group`
+
+warning: unused variable: `burst_body_bind_group`
+   --> src\render\resources.rs:638:13
+    |
+638 |         let burst_body_bind_group =
+    |             ^^^^^^^^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_burst_body_bind_group`
+
+warning: unused variable: `burst_end_bind_group`
+   --> src\render\resources.rs:640:13
+    |
+640 |         let burst_end_bind_group =
+    |             ^^^^^^^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_burst_end_bind_group`
+
+warning: unused variable: `screen_height`
+   --> src\render\resources.rs:733:69
+    |
+733 |     pub fn update_component_positions(&mut self, screen_width: f32, screen_height: f32) {
+    |                                                                     ^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_screen_height`
+
+warning: associated function `from_winit` is never used
+  --> src\input\events.rs:24:12
+   |
+20 | impl RawInputEvent {
+   | ------------------ associated function in this implementation
+...
+24 |     pub fn from_winit(event: &WindowEvent) -> Option<Self> {
+   |            ^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` on by default
+
+warning: variant `Counter` is never constructed
+  --> src\input\events.rs:55:5
+   |
+48 | pub enum EditorTarget {
+   |          ------------ variant in this enum
+...
+55 |     Counter,
+   |     ^^^^^^^
+   |
+   = note: `EditorTarget` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+
+warning: variants `TogglePause` and `EditorModify` are never constructed
+   --> src\input\events.rs:99:5
+    |
+ 78 | pub enum GameAction {
+    |          ---------- variants in this enum
+...
+ 99 |     TogglePause,
+    |     ^^^^^^^^^^^
+...
+131 |     EditorModify { x: f32, y: f32 },
+    |     ^^^^^^^^^^^^
+    |
+    = note: `GameAction` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+
+warning: method `pause` is never used
+  --> src\logic\audio.rs:50:12
+   |
+25 | impl AudioManager {
+   | ----------------- method in this implementation
+...
+50 |     pub fn pause(&self) {
+   |            ^^^^^
+
+warning: field `max_combo` is never read
+  --> src\logic\engine.rs:31:5
+   |
+26 | struct CheckpointState {
+   |        --------------- field in this struct
+...
+31 |     max_combo: u32,
+   |     ^^^^^^^^^
+   |
+   = note: `CheckpointState` has a derived impl for the trait `Clone`, but this is intentionally ignored during dead code analysis
+
+warning: fields `hit_window_mode` and `hit_window_value` are never read
+  --> src\logic\engine.rs:77:9
+   |
+39 | pub struct GameEngine {
+   |            ---------- fields in this struct
+...
+77 |     pub hit_window_mode: HitWindowMode,
+   |         ^^^^^^^^^^^^^^^
+78 |     /// Hit window value (OD value or judge level).
+79 |     pub hit_window_value: f64,
+   |         ^^^^^^^^^^^^^^^^
+
+warning: methods `get_checkpoints`, `get_time`, and `update_hit_window` are never used
+   --> src\logic\engine.rs:437:12
+    |
+101 | impl GameEngine {
+    | --------------- methods in this implementation
+...
+437 |     pub fn get_checkpoints(&self) -> &[f64] {
+    |            ^^^^^^^^^^^^^^^
+...
+745 |     pub fn get_time(&self) -> f64 {
+    |            ^^^^^^^^
+...
+805 |     pub fn update_hit_window(&mut self, mode: HitWindowMode, value: f64) {
+    |            ^^^^^^^^^^^^^^^^^
+
+warning: field `last_frame_time` is never read
+  --> src\render\renderer.rs:43:5
+   |
+19 | pub struct Renderer {
+   |            -------- field in this struct
+...
+43 |     last_frame_time: std::time::Instant,
+   |     ^^^^^^^^^^^^^^^
+
+warning: fields `quad_pipeline`, `quad_buffer`, `editor_status_text`, `editor_values_text`, `leaderboard_scores_loaded`, and `current_leaderboard_hash` are never read
+  --> src\render\resources.rs:24:9
+   |
+20 | pub struct RenderResources {
+   |            --------------- fields in this struct
+...
+24 |     pub quad_pipeline: wgpu::RenderPipeline,
+   |         ^^^^^^^^^^^^^
+...
+29 |     pub quad_buffer: wgpu::Buffer,
+   |         ^^^^^^^^^^^
+...
+63 |     pub editor_status_text: Option<String>,
+   |         ^^^^^^^^^^^^^^^^^^
+64 |     pub editor_values_text: Option<String>,
+   |         ^^^^^^^^^^^^^^^^^^
+65 |     pub leaderboard_scores_loaded: bool,
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^
+66 |     pub current_leaderboard_hash: Option<String>,
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: method `update_texture` is never used
+  --> src\render\ui.rs:66:12
+   |
+16 | impl UiOverlay {
+   | -------------- method in this implementation
+...
+66 |     pub fn update_texture(
+   |            ^^^^^^^^^^^^^^
+
+warning: variants `FocusLost` and `FocusGained` are never constructed
+  --> src\system\bus.rs:19:5
+   |
+15 | pub enum SystemEvent {
+   |          ----------- variants in this enum
+...
+19 |     FocusLost,
+   |     ^^^^^^^^^
+20 |     /// Window gained focus.
+21 |     FocusGained,
+   |     ^^^^^^^^^^^
+   |
+   = note: `SystemEvent` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+
+warning: variant `Pause` is never constructed
+  --> src\system\bus.rs:34:5
+   |
+28 | pub enum AudioCommand {
+   |          ------------ variant in this enum
+...
+34 |     Pause,
+   |     ^^^^^
+   |
+   = note: `AudioCommand` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+
+warning: multiple methods are never used
+   --> src\database\connection.rs:74:18
+    |
+ 19 | impl Database {
+    | ------------- methods in this implementation
+...
+ 74 |     pub async fn clear_all(&self) -> Result<(), sqlx::Error> {
+    |                  ^^^^^^^^^
+...
+ 90 |     pub async fn insert_beatmap(
+    |                  ^^^^^^^^^^^^^^
+...
+114 |     pub async fn upsert_beatmap_rating(
+    |                  ^^^^^^^^^^^^^^^^^^^^^
+...
+144 |     pub async fn get_ratings_for_beatmap(
+    |                  ^^^^^^^^^^^^^^^^^^^^^^^
+...
+152 |     pub async fn get_all_beatmap_ratings(&self) -> Result<Vec<BeatmapRating>, sqlx::Error> {
+    |                  ^^^^^^^^^^^^^^^^^^^^^^^
+...
+157 |     pub async fn get_all_beatmapsets(
+    |                  ^^^^^^^^^^^^^^^^^^^
+...
+172 |     pub async fn count_beatmapsets(&self) -> Result<i32, sqlx::Error> {
+    |                  ^^^^^^^^^^^^^^^^^
+...
+181 |     pub async fn count_beatmapsets_filtered(
+    |                  ^^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+189 |     pub async fn get_beatmap_by_hash(&self, hash: &str) -> Result<Option<Beatmap>, sqlx::Error> {
+    |                  ^^^^^^^^^^^^^^^^^^^
+...
+230 |     pub async fn get_top_scores(
+    |                  ^^^^^^^^^^^^^^
+
+warning: variant `Shutdown` is never constructed
+  --> src\database\manager.rs:69:5
+   |
+62 | pub enum DbCommand {
+   |          --------- variant in this enum
+...
+69 |     Shutdown,
+   |     ^^^^^^^^
+   |
+   = note: `DbCommand` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
+
+warning: field `path` is never read
+ --> src\database\models.rs:8:9
+  |
+6 | pub struct Beatmapset {
+  |            ---------- field in this struct
+7 |     pub id: i64,
+8 |     pub path: String,
+  |         ^^^^
+  |
+  = note: `Beatmapset` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+
+warning: fields `beatmapset_id`, `duration_ms`, and `nps` are never read
+  --> src\database\models.rs:17:9
+   |
+15 | pub struct Beatmap {
+   |            ------- fields in this struct
+16 |     pub hash: String, // MD5 hash acting as primary key
+17 |     pub beatmapset_id: i64,
+   |         ^^^^^^^^^^^^^
+...
+21 |     pub duration_ms: i32,
+   |         ^^^^^^^^^^^
+22 |     pub nps: f64,
+   |         ^^^
+   |
+   = note: `Beatmap` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+
+warning: field `id` is never read
+  --> src\database\models.rs:27:9
+   |
+26 | pub struct BeatmapRating {
+   |            ------------- field in this struct
+27 |     pub id: i64,
+   |         ^^
+   |
+   = note: `BeatmapRating` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+
+warning: field `rate` is never read
+  --> src\database\models.rs:46:9
+   |
+42 | pub struct BeatmapRatingV2 {
+   |            --------------- field in this struct
+...
+46 |     pub rate: f64,
+   |         ^^^^
+   |
+   = note: `BeatmapRatingV2` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+
+warning: field `hash` is never read
+  --> src\database\models.rs:89:9
+   |
+88 | pub struct Replay {
+   |            ------ field in this struct
+89 |     pub hash: String,
+   |         ^^^^
+   |
+   = note: `Replay` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+
+warning: function `upsert_beatmap_rating` is never used
+   --> src\database\query.rs:121:14
+    |
+121 | pub async fn upsert_beatmap_rating(
+    |              ^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `count_beatmapsets` is never used
+   --> src\database\query.rs:235:14
+    |
+235 | pub async fn count_beatmapsets(pool: &SqlitePool) -> Result<i32, sqlx::Error> {
+    |              ^^^^^^^^^^^^^^^^^
+
+warning: function `count_beatmapsets_filtered` is never used
+   --> src\database\query.rs:243:14
+    |
+243 | pub async fn count_beatmapsets_filtered(
+    |              ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `get_beatmap_by_hash` is never used
+   --> src\database\query.rs:286:14
+    |
+286 | pub async fn get_beatmap_by_hash(
+    |              ^^^^^^^^^^^^^^^^^^^
+
+warning: function `get_top_scores` is never used
+   --> src\database\query.rs:436:14
+    |
+436 | pub async fn get_top_scores(pool: &SqlitePool, limit: i32) -> Result<Vec<Replay>, sqlx::Error> {
+    |              ^^^^^^^^^^^^^^
+
+warning: function `calculate_all_calculators` is never used
+   --> src\difficulty\mod.rs:197:8
+    |
+197 | pub fn calculate_all_calculators(
+    |        ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: field `version` is never read
+  --> src\difficulty\builtin\etterna.rs:41:5
+   |
+40 | pub struct EtternaCalculator {
+   |            ----------------- field in this struct
+41 |     version: String,
+   |     ^^^^^^^
+   |
+   = note: `EtternaCalculator` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+
+warning: field `version` is never read
+  --> src\difficulty\builtin\osu.rs:12:5
+   |
+11 | pub struct OsuCalculator {
+   |            ------------- field in this struct
+12 |     version: String,
+   |     ^^^^^^^
+   |
+   = note: `OsuCalculator` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+
+warning: struct `CalculationContext` is never constructed
+  --> src\difficulty\calculator.rs:42:12
+   |
+42 | pub struct CalculationContext {
+   |            ^^^^^^^^^^^^^^^^^^
+
+warning: associated functions `new` and `from_beatmap` are never used
+  --> src\difficulty\calculator.rs:61:12
+   |
+59 | impl CalculationContext {
+   | ----------------------- associated functions in this implementation
+60 |     /// Creates a new context from already-parsed notes.
+61 |     pub fn new(notes: Vec<NoteData>, key_count: u8, bpm: f64, rate: f64) -> Self {
+   |            ^^^
+...
+89 |     pub fn from_beatmap(map: &Beatmap, rate: f64) -> Self {
+   |            ^^^^^^^^^^^^
+
+warning: trait `DifficultyCalculator` is never used
+   --> src\difficulty\calculator.rs:131:11
+    |
+131 | pub trait DifficultyCalculator: Send + Sync + Debug {
+    |           ^^^^^^^^^^^^^^^^^^^^
+
+warning: associated function `from_custom` is never used
+  --> src\models\engine\hit_window.rs:72:12
+   |
+18 | impl HitWindow {
+   | -------------- associated function in this implementation
+...
+72 |     pub fn from_custom(marv: f64, perf: f64, great: f64, good: f64, bad: f64, miss: f64) -> Self {
+   |            ^^^^^^^^^^^
+
+warning: methods `is_hold`, `is_mine`, `is_tap`, `is_burst`, `required_hits`, and `should_hit` are never used
+  --> src\models\engine\note.rs:53:12
+   |
+33 | impl NoteType {
+   | ------------- methods in this implementation
+...
+53 |     pub fn is_hold(&self) -> bool {
+   |            ^^^^^^^
+...
+58 |     pub fn is_mine(&self) -> bool {
+   |            ^^^^^^^
+...
+63 |     pub fn is_tap(&self) -> bool {
+   |            ^^^^^^
+...
+68 |     pub fn is_burst(&self) -> bool {
+   |            ^^^^^^^^
+...
+82 |     pub fn required_hits(&self) -> u8 {
+   |            ^^^^^^^^^^^^^
+...
+91 |     pub fn should_hit(&self) -> bool {
+   |            ^^^^^^^^^^
+
+warning: multiple methods are never used
+   --> src\models\engine\note.rs:180:12
+    |
+132 | impl NoteData {
+    | ------------- methods in this implementation
+...
+180 |     pub fn is_hold(&self) -> bool {
+    |            ^^^^^^^
+...
+185 |     pub fn is_mine(&self) -> bool {
+    |            ^^^^^^^
+...
+190 |     pub fn is_tap(&self) -> bool {
+    |            ^^^^^^
+...
+195 |     pub fn is_burst(&self) -> bool {
+    |            ^^^^^^^^
+...
+200 |     pub fn hold_duration_ms(&self) -> f64 {
+    |            ^^^^^^^^^^^^^^^^
+...
+205 |     pub fn should_hit(&self) -> bool {
+    |            ^^^^^^^^^^
+...
+210 |     pub fn required_hits(&self) -> u8 {
+    |            ^^^^^^^^^^^^^
+...
+215 |     pub fn has_duration(&self) -> bool {
+    |            ^^^^^^^^^^^^
+
+warning: function `parse_hit_object_column` is never used
+   --> src\models\engine\note.rs:287:8
+    |
+287 | pub fn parse_hit_object_column(hit_object: &HitObject) -> Option<usize> {
+    |        ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `x_to_column` is never used
+   --> src\models\engine\note.rs:307:8
+    |
+307 | pub fn x_to_column(x: i32) -> Option<usize> {
+    |        ^^^^^^^^^^^
+
+warning: method `pixels_to_normalized` is never used
+  --> src\models\engine\pixel_system.rs:37:12
+   |
+14 | impl PixelSystem {
+   | ---------------- method in this implementation
+...
+37 |     pub fn pixels_to_normalized(&self, pixels: f32) -> f32 {
+   |            ^^^^^^^^^^^^^^^^^^^^
+
+warning: methods `decrease_note_size` and `increase_note_size` are never used
+  --> src\models\engine\playfield.rs:31:12
+   |
+18 | impl PlayfieldConfig {
+   | -------------------- methods in this implementation
+...
+31 |     pub fn decrease_note_size(&mut self) {
+   |            ^^^^^^^^^^^^^^^^^^
+...
+36 |     pub fn increase_note_size(&mut self) {
+   |            ^^^^^^^^^^^^^^^^^^
+
+warning: field `map_path` is never read
+  --> src\models\menu\chart_cache.rs:19:9
+   |
+11 | pub struct ChartCache {
+   |            ---------- field in this struct
+...
+19 |     pub map_path: PathBuf,
+   |         ^^^^^^^^
+   |
+   = note: `ChartCache` has derived impls for the traits `Debug` and `Clone`, but these are intentionally ignored during dead code analysis
+
+warning: associated items `with_max_size`, `contains`, `clear`, `len`, `is_empty`, and `get_all_for_beatmap` are never used
+  --> src\models\menu\difficulty_cache.rs:31:12
+   |
+23 | impl DifficultyCache {
+   | -------------------- associated items in this implementation
+...
+31 |     pub fn with_max_size(max_size: usize) -> Self {
+   |            ^^^^^^^^^^^^^
+...
+68 |     pub fn contains(&self, beatmap_hash: &str, calculator_id: &str, rate: f64) -> bool {
+   |            ^^^^^^^^
+...
+78 |     pub fn clear(&mut self) {
+   |            ^^^^^
+...
+83 |     pub fn len(&self) -> usize {
+   |            ^^^
+...
+88 |     pub fn is_empty(&self) -> bool {
+   |            ^^^^^^^^
+...
+93 |     pub fn get_all_for_beatmap(&self, beatmap_hash: &str) -> Vec<(String, f64, &BeatmapSsr)> {
+   |            ^^^^^^^^^^^^^^^^^^^
+
+warning: constant `PAGE_SIZE` is never used
+  --> src\models\menu\state.rs:27:11
+   |
+27 | pub const PAGE_SIZE: usize = 50;
+   |           ^^^^^^^^^
+
+warning: constant `PRELOAD_MARGIN` is never used
+  --> src\models\menu\state.rs:28:11
+   |
+28 | pub const PRELOAD_MARGIN: usize = 10;
+   |           ^^^^^^^^^^^^^^
+
+warning: multiple fields are never read
+  --> src\models\menu\state.rs:37:9
+   |
+32 | pub struct MenuState {
+   |            --------- fields in this struct
+...
+37 |     pub total_count: usize,
+   |         ^^^^^^^^^^^
+38 |     pub current_offset: usize,
+   |         ^^^^^^^^^^^^^^
+...
+48 |     pub in_menu: bool,
+   |         ^^^^^^^
+49 |     pub in_editor: bool,
+   |         ^^^^^^^^^
+50 |     pub show_result: bool,
+   |         ^^^^^^^^^^^
+...
+57 |     pub last_result: Option<GameResultData>,
+   |         ^^^^^^^^^^^
+58 |     pub should_close_result: bool,
+   |         ^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `MenuState` has derived impls for the traits `Debug` and `Clone`, but these are intentionally ignored during dead code analysis
+
+warning: associated items `get_cached_chart_note_count`, `load_from_db`, `get_visible_items`, `get_relative_selected_index`, `get_selected_difficulty_name`, and `available_calculators` are never used
+   --> src\models\menu\state.rs:160:12
+    |
+ 83 | impl MenuState {
+    | -------------- associated items in this implementation
+...
+160 |     pub fn get_cached_chart_note_count(&self) -> usize {
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+297 |     pub async fn load_from_db(
+    |                  ^^^^^^^^^^^^
+...
+323 |     pub fn get_visible_items(&self) -> &[(Beatmapset, Vec<BeatmapWithRatings>)] {
+    |            ^^^^^^^^^^^^^^^^^
+...
+331 |     pub fn get_relative_selected_index(&self) -> usize {
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+417 |     pub fn get_selected_difficulty_name(&self) -> Option<String> {
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+442 |     pub fn available_calculators(&self) -> Vec<(&'static str, &'static str)> {
+    |            ^^^^^^^^^^^^^^^^^^^^^
+
+warning: associated items `new_practice`, `get_last_checkpoint`, `to_json`, and `from_json` are never used
+   --> src\models\replay.rs:71:12
+    |
+ 56 | impl ReplayData {
+    | --------------- associated items in this implementation
+...
+ 71 |     pub fn new_practice(rate: f64, hit_window_mode: HitWindowMode, hit_window_value: f64) -> Self {
+    |            ^^^^^^^^^^^^
+...
+ 92 |     pub fn get_last_checkpoint(&self) -> Option<f64> {
+    |            ^^^^^^^^^^^^^^^^^^^
+...
+126 |     pub fn to_json(&self) -> Result<String, serde_json::Error> {
+    |            ^^^^^^^
+...
+131 |     pub fn from_json(json: &str) -> Result<Self, serde_json::Error> {
+    |            ^^^^^^^^^
+
+warning: function `rejudge_hit_timings` is never used
+   --> src\models\replay.rs:171:8
+    |
+171 | pub fn rejudge_hit_timings(hit_timings: &[HitTiming], hit_window: &HitWindow) -> (HitStats, f64) {
+    |        ^^^^^^^^^^^^^^^^^^^
+
+warning: function `rejudge_replay` is never used
+   --> src\models\replay.rs:400:8
+    |
+400 | pub fn rejudge_replay(
+    |        ^^^^^^^^^^^^^^
+
+warning: fields `editor` and `background` are never read
+  --> src\models\skin\mod.rs:43:9
+   |
+37 | pub struct Skin {
+   |            ---- fields in this struct
+...
+43 |     pub editor: EditorConfig,
+   |         ^^^^^^
+...
+49 |     pub background: Option<PathBuf>,
+   |         ^^^^^^^^^^
+   |
+   = note: `Skin` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+
+warning: method `get_key_mode` is never used
+   --> src\models\skin\mod.rs:166:12
+    |
+ 67 | impl Skin {
+    | --------- method in this implementation
+...
+166 |     pub fn get_key_mode(&mut self, key_count: usize) -> Option<&KeyModeConfig> {
+    |            ^^^^^^^^^^^^
+
+warning: associated function `new` is never used
+  --> src\models\skin\common.rs:15:12
+   |
+14 | impl Vec2Conf {
+   | ------------- associated function in this implementation
+15 |     pub fn new(x: f32, y: f32) -> Self {
+   |            ^^^
+
+warning: function `resolve_image` is never used
+  --> src\models\skin\common.rs:58:8
+   |
+58 | pub fn resolve_image(base: &Path, image: &Option<String>, fallback: &str) -> Option<PathBuf> {
+   |        ^^^^^^^^^^^^^
+
+warning: function `get_image_from_list` is never used
+  --> src\models\skin\common.rs:66:8
+   |
+66 | pub fn get_image_from_list(list: &[String], idx: usize) -> Option<&String> {
+   |        ^^^^^^^^^^^^^^^^^^^
+
+warning: constant `WHITE` is never used
+  --> src\models\skin\common.rs:27:15
+   |
+27 |     pub const WHITE: Color = [1.0, 1.0, 1.0, 1.0];
+   |               ^^^^^
+
+warning: constant `BLACK` is never used
+  --> src\models\skin\common.rs:28:15
+   |
+28 |     pub const BLACK: Color = [0.0, 0.0, 0.0, 1.0];
+   |               ^^^^^
+
+warning: constant `RED` is never used
+  --> src\models\skin\common.rs:29:15
+   |
+29 |     pub const RED: Color = [1.0, 0.0, 0.0, 1.0];
+   |               ^^^
+
+warning: constant `GREEN` is never used
+  --> src\models\skin\common.rs:30:15
+   |
+30 |     pub const GREEN: Color = [0.0, 1.0, 0.0, 1.0];
+   |               ^^^^^
+
+warning: constant `BLUE` is never used
+  --> src\models\skin\common.rs:31:15
+   |
+31 |     pub const BLUE: Color = [0.0, 0.0, 1.0, 1.0];
+   |               ^^^^
+
+warning: constant `YELLOW` is never used
+  --> src\models\skin\common.rs:32:15
+   |
+32 |     pub const YELLOW: Color = [1.0, 1.0, 0.0, 1.0];
+   |               ^^^^^^
+
+warning: constant `CYAN` is never used
+  --> src\models\skin\common.rs:33:15
+   |
+33 |     pub const CYAN: Color = [0.0, 1.0, 1.0, 1.0];
+   |               ^^^^
+
+warning: constant `MAGENTA` is never used
+  --> src\models\skin\common.rs:34:15
+   |
+34 |     pub const MAGENTA: Color = [1.0, 0.0, 1.0, 1.0];
+   |               ^^^^^^^
+
+warning: constant `GRAY` is never used
+  --> src\models\skin\common.rs:35:15
+   |
+35 |     pub const GRAY: Color = [0.5, 0.5, 0.5, 1.0];
+   |               ^^^^
+
+warning: constant `PINK` is never used
+  --> src\models\skin\common.rs:36:15
+   |
+36 |     pub const PINK: Color = [1.0, 0.41, 0.71, 1.0];
+   |               ^^^^
+
+warning: enum `MainToLogic` is never used
+ --> src\shared\messages.rs:8:10
+  |
+8 | pub enum MainToLogic {
+  |          ^^^^^^^^^^^
+
+warning: enum `LogicToMain` is never used
+  --> src\shared\messages.rs:21:10
+   |
+21 | pub enum LogicToMain {
+   |          ^^^^^^^^^^^
+
+warning: enum `AudioCommand` is never used
+  --> src\shared\messages.rs:32:10
+   |
+32 | pub enum AudioCommand {
+   |          ^^^^^^^^^^^^
+
+warning: enum `EditorCommand` is never used
+  --> src\shared\messages.rs:38:10
+   |
+38 | pub enum EditorCommand {
+   |          ^^^^^^^^^^^^^
+
+warning: fields `target`, `mode`, `status_text`, `modification`, and `save_requested` are never read
+  --> src\shared\snapshot.rs:33:9
+   |
+29 | pub struct EditorSnapshot {
+   |            -------------- fields in this struct
+...
+33 |     pub target: Option<EditorTarget>,
+   |         ^^^^^^
+34 |     /// Current edit mode (Resize/Move).
+35 |     pub mode: EditMode,
+   |         ^^^^
+36 |     /// Status text for the editor UI.
+37 |     pub status_text: String,
+   |         ^^^^^^^^^^^
+38 |     /// Pending modification command: (target, mode, dx, dy).
+39 |     pub modification: Option<(EditorTarget, EditMode, f32, f32)>,
+   |         ^^^^^^^^^^^^
+40 |     /// Whether save was requested.
+41 |     pub save_requested: bool,
+   |         ^^^^^^^^^^^^^^
+   |
+   = note: `EditorSnapshot` has derived impls for the traits `Debug` and `Clone`, but these are intentionally ignored during dead code analysis
+
+warning: enum `StateTransition` is never used
+  --> src\states\mod.rs:21:10
+   |
+21 | pub enum StateTransition {
+   |          ^^^^^^^^^^^^^^^
+
+warning: struct `StateContext` is never constructed
+  --> src\states\mod.rs:29:12
+   |
+29 | pub struct StateContext {
+   |            ^^^^^^^^^^^^
+
+warning: associated items `new`, `with_renderer`, `with_db_manager`, and `send_to_logic` are never used
+  --> src\states\mod.rs:38:12
+   |
+36 | impl StateContext {
+   | ----------------- associated items in this implementation
+37 |     // Updated constructor to inject new dependencies.
+38 |     pub fn new(
+   |            ^^^
+...
+50 |     pub fn with_renderer<F, R>(&mut self, f: F) -> Option<R>
+   |            ^^^^^^^^^^^^^
+...
+61 |     pub fn with_db_manager<F, R>(&mut self, f: F) -> Option<R>
+   |            ^^^^^^^^^^^^^^^
+...
+73 |     pub fn send_to_logic(&self, msg: MainToLogic) {
+   |            ^^^^^^^^^^^^^
+
+warning: trait `GameState` is never used
+  --> src\states\mod.rs:80:11
+   |
+80 | pub trait GameState {
+   |           ^^^^^^^^^
+
+warning: struct `EditorStateController` is never constructed
+  --> src\states\editor.rs:14:12
+   |
+14 | pub struct EditorStateController {
+   |            ^^^^^^^^^^^^^^^^^^^^^
+
+warning: associated function `new` is never used
+  --> src\states\editor.rs:19:12
+   |
+18 | impl EditorStateController {
+   | -------------------------- associated function in this implementation
+19 |     pub fn new(menu_state: Arc<Mutex<MenuState>>) -> Self {
+   |            ^^^
+
+warning: struct `MenuStateController` is never constructed
+ --> src\states\menu.rs:8:12
+  |
+8 | pub struct MenuStateController {
+  |            ^^^^^^^^^^^^^^^^^^^
+
+warning: associated items `new`, `with_menu_state`, and `request_load_map` are never used
+  --> src\states\menu.rs:13:12
+   |
+12 | impl MenuStateController {
+   | ------------------------ associated items in this implementation
+13 |     pub fn new(menu_state: Arc<Mutex<MenuState>>) -> Self {
+   |            ^^^
+...
+17 |     fn with_menu_state<F>(&self, mut f: F)
+   |        ^^^^^^^^^^^^^^^
+...
+27 |     fn request_load_map(&self, ctx: &mut StateContext, is_editor: bool) -> bool {
+   |        ^^^^^^^^^^^^^^^^
+
+warning: struct `PlayStateController` is never constructed
+ --> src\states\play.rs:8:12
+  |
+8 | pub struct PlayStateController {
+  |            ^^^^^^^^^^^^^^^^^^^
+
+warning: associated function `new` is never used
+  --> src\states\play.rs:13:12
+   |
+12 | impl PlayStateController {
+   | ------------------------ associated function in this implementation
+13 |     pub fn new(menu_state: Arc<Mutex<MenuState>>) -> Self {
+   |            ^^^
+
+warning: struct `ResultStateController` is never constructed
+ --> src\states\result.rs:9:12
+  |
+9 | pub struct ResultStateController {
+  |            ^^^^^^^^^^^^^^^^^^^^^
+
+warning: associated items `new` and `with_menu_state` are never used
+  --> src\states\result.rs:14:12
+   |
+13 | impl ResultStateController {
+   | -------------------------- associated items in this implementation
+14 |     pub fn new(
+   |            ^^^
+...
+46 |     fn with_menu_state<F>(&self, mut f: F)
+   |        ^^^^^^^^^^^^^^^
+
+warning: function `quad_from_rect` is never used
+  --> src\views\components\common\primitives.rs:11:8
+   |
+11 | pub fn quad_from_rect(
+   |        ^^^^^^^^^^^^^^
+
+warning: method `render_notes` is never used
+  --> src\views\components\gameplay\playfield.rs:55:12
+   |
+34 | impl PlayfieldDisplay {
+   | --------------------- method in this implementation
+...
+55 |     pub fn render_notes(
+   |            ^^^^^^^^^^^^
+
+warning: fields `image` and `image_hash` are never read
+  --> src\views\components\menu\song_select\mod.rs:32:9
+   |
+31 | pub struct CurrentBackground {
+   |            ----------------- fields in this struct
+32 |     pub image: DynamicImage,
+   |         ^^^^^
+33 |     pub image_hash: md5::Digest,
+   |         ^^^^^^^^^^
+
+warning: field `leaderboard_bg` is never read
+  --> src\views\components\menu\song_select\mod.rs:41:9
+   |
+37 | pub struct UIPanelTextures {
+   |            --------------- field in this struct
+...
+41 |     pub leaderboard_bg: Option<TextureId>,
+   |         ^^^^^^^^^^^^^^
+
+warning: fields `current_background_image` and `current_beatmap_hash` are never read
+  --> src\views\components\menu\song_select\mod.rs:60:5
+   |
+55 | pub struct SongSelectScreen {
+   |            ---------------- fields in this struct
+...
+60 |     current_background_image: Option<CurrentBackground>,
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^
+61 |     current_beatmap_hash: Option<String>,
+   |     ^^^^^^^^^^^^^^^^^^^^
+
+warning: multiple methods are never used
+   --> src\views\components\menu\song_select\mod.rs:76:12
+    |
+ 64 | impl SongSelectScreen {
+    | --------------------- methods in this implementation
+...
+ 76 |     pub fn set_scroll_to(&mut self, to: usize) {
+    |            ^^^^^^^^^^^^^
+...
+ 80 |     pub fn increment_beatmap(&mut self) {
+    |            ^^^^^^^^^^^^^^^^^
+...
+ 84 |     pub fn decrement_beatmap(&mut self) {
+    |            ^^^^^^^^^^^^^^^^^
+...
+ 88 |     pub fn set_background(&mut self, image: DynamicImage, md5: Digest) {
+    |            ^^^^^^^^^^^^^^
+...
+100 |     pub fn update_leaderboard(
+    |            ^^^^^^^^^^^^^^^^^^
+...
+116 |     pub fn set_current_beatmap_hash(&mut self, hash: Option<String>) {
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^
+...
+120 |     pub fn on_resize(&mut self, _new_size: &PhysicalSize<u32>) {}
+    |            ^^^^^^^^^
+
+warning: methods `set_colors` and `render_ssr_breakdown` are never used
+   --> src\views\components\menu\song_select\beatmap_info.rs:85:12
+    |
+ 76 | impl BeatmapInfo {
+    | ---------------- methods in this implementation
+...
+ 85 |     pub fn set_colors(&mut self, colors: BeatmapInfoColors) {
+    |            ^^^^^^^^^^
+...
+593 |     fn render_ssr_breakdown(
+    |        ^^^^^^^^^^^^^^^^^^^^
+
+warning: function `default_calculators` is never used
+   --> src\views\components\menu\song_select\beatmap_info.rs:695:8
+    |
+695 | pub fn default_calculators() -> Vec<CalculatorOption> {
+    |        ^^^^^^^^^^^^^^^^^^^
+
+warning: field `total_notes` is never read
+  --> src\views\components\menu\song_select\leaderboard.rs:18:9
+   |
+14 | pub struct ScoreCard {
+   |            --------- field in this struct
+...
+18 |     pub total_notes: usize,
+   |         ^^^^^^^^^^^
+   |
+   = note: `ScoreCard` has a derived impl for the trait `Clone`, but this is intentionally ignored during dead code analysis
+
+warning: method `simulate_with_chart` is never used
+  --> src\views\components\menu\song_select\leaderboard.rs:50:12
+   |
+27 | impl ScoreCard {
+   | -------------- method in this implementation
+...
+50 |     pub fn simulate_with_chart(&mut self, chart: &[NoteData], hit_window: &HitWindow) {
+   |            ^^^^^^^^^^^^^^^^^^^
+
+warning: method `simulate_all` is never used
+  --> src\views\components\menu\song_select\leaderboard.rs:70:12
+   |
+60 | impl Leaderboard {
+   | ---------------- method in this implementation
+...
+70 |     pub fn simulate_all(&mut self, chart: &[NoteData], hit_window: &HitWindow) {
+   |            ^^^^^^^^^^^^
+
+warning: field `accent_dim` is never read
+  --> src\views\components\menu\song_select\search_panel.rs:24:9
+   |
+19 | pub struct SearchPanelColors {
+   |            ----------------- field in this struct
+...
+24 |     pub accent_dim: Color32,
+   |         ^^^^^^^^^^
+   |
+   = note: `SearchPanelColors` has a derived impl for the trait `Clone`, but this is intentionally ignored during dead code analysis
+
+warning: method `set_colors` is never used
+  --> src\views\components\menu\song_select\search_panel.rs:69:12
+   |
+57 | impl SearchPanel {
+   | ---------------- method in this implementation
+...
+69 |     pub fn set_colors(&mut self, colors: SearchPanelColors) {
+   |            ^^^^^^^^^^
+
+warning: method `set_scroll_to` is never used
+  --> src\views\components\menu\song_select\song_list.rs:31:12
+   |
+20 | impl SongList {
+   | ------------- method in this implementation
+...
+31 |     pub fn set_scroll_to(&mut self, to: usize) {
+   |            ^^^^^^^^^^^^^
+
+warning: field `master_volume` is never read
+  --> src\views\context.rs:40:9
+   |
+10 | pub struct GameplayRenderContext<'a> {
+   |            --------------------- field in this struct
+...
+40 |     pub master_volume: f32,
+   |         ^^^^^^^^^^^^^
+
+warning: method `playfield_component` is never used
+  --> src\views\gameplay.rs:53:12
+   |
+34 | impl GameplayView {
+   | ----------------- method in this implementation
+...
+53 |     pub fn playfield_component(&self) -> &PlayfieldDisplay {
+   |            ^^^^^^^^^^^^^^^^^^^
+
+warning: `rvsrg` (bin "rvsrg") generated 111 warnings
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 27.57s

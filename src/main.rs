@@ -22,7 +22,6 @@ mod difficulty;
 mod models;
 mod shaders;
 mod shared;
-mod states;
 mod views;
 
 use crate::database::DbManager;
@@ -64,4 +63,3 @@ fn main() {
     // Run the render loop (blocking)
     render::app::App::run(render_bus);
 }
-
