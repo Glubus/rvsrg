@@ -5,10 +5,9 @@
 
 pub mod audio;
 pub mod audio_thread;
-pub mod state;
 
 use crate::database::DbManager;
-use crate::logic::state::GlobalState;
+use crate::state::GlobalState;
 use crate::system::bus::{SystemBus, SystemEvent};
 use std::thread;
 use std::time::{Duration, Instant};
