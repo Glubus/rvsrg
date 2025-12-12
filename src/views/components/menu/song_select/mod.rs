@@ -4,6 +4,7 @@
 
 pub(super) mod beatmap_info;
 pub(super) mod difficulty_card;
+pub(super) mod difficulty_utils;
 pub(super) mod leaderboard;
 pub(super) mod leaderboard_card;
 pub(super) mod search_panel;
@@ -121,6 +122,7 @@ impl SongSelectScreen {
 
     // Signature extended to optionally bubble up GameResultData.
     // Returns: (UIAction, GameResultData, SearchFilters, CalculatorChanged)
+    #[allow(clippy::too_many_arguments)]
     pub fn render(
         &mut self,
         ctx: &egui::Context,
@@ -138,6 +140,7 @@ impl SongSelectScreen {
         song_sel_color: Color32,
         diff_sel_color: Color32,
         panel_textures: &UIPanelTextures,
+        rating_colors: Option<&crate::models::skin::menus::song_select::RatingColorsConfig>,
     ) -> (
         Option<GameAction>,
         Option<GameResultData>,
@@ -257,6 +260,7 @@ impl SongSelectScreen {
                                                 diff_sel_tex,
                                                 song_sel_color,
                                                 diff_sel_color,
+                                                rating_colors,
                                             );
                                         });
                                     });

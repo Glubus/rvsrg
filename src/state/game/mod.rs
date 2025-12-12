@@ -99,6 +99,9 @@ pub struct GameEngine {
     pub(crate) checkpoint_state: Option<CheckpointState>,
     /// Timestamp of the last checkpoint in µs (for cooldown enforcement).
     pub(crate) last_checkpoint_time_us: i64,
+    /// Global audio offset in microseconds.
+    /// Applied to note timing calculations to compensate for audio latency.
+    pub audio_offset_us: i64,
 }
 
 impl GameEngine {
@@ -181,6 +184,7 @@ impl GameEngine {
             practice_mode: false,
             checkpoint_state: None,
             last_checkpoint_time_us: i64::MIN,
+            audio_offset_us: 0,
         }
     }
 
@@ -227,6 +231,7 @@ impl GameEngine {
             practice_mode: false,
             checkpoint_state: None,
             last_checkpoint_time_us: i64::MIN,
+            audio_offset_us: 0,
         }
     }
 
@@ -244,8 +249,26 @@ impl GameEngine {
 
         if !self.started_audio {
             if self.audio_clock_us >= 0 {
+                // Request audio to start playing
                 self.audio_manager.play();
-                self.started_audio = true;
+
+                // Check if audio has actually started (position > 0)
+                if self.has_audio {
+                    let audio_pos = self.audio_manager.get_position_seconds();
+                    if audio_pos > 0.001 {
+                        // Audio has started! Sync our clock to it
+                        self.audio_clock_us = (audio_pos * 1_000_000.0) as i64;
+                        self.started_audio = true;
+                    } else {
+                        // Audio not started yet, keep clock at 0 and wait
+                        self.audio_clock_us = 0;
+                        return;
+                    }
+                } else {
+                    // No audio (debug mode), just start immediately
+                    self.audio_clock_us = 0;
+                    self.started_audio = true;
+                }
             } else {
                 return;
             }
@@ -272,7 +295,9 @@ impl GameEngine {
         let current_time_us = self.audio_clock_us;
 
         // 3. Note state updates and miss handling
-        self.update_notes(current_time_us);
+        // Apply audio offset for note timing calculations
+        let offset_time_us = current_time_us + self.audio_offset_us;
+        self.update_notes(offset_time_us);
 
         // 4. Update NPS tracking
         self.update_nps();

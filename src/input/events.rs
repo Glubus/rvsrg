@@ -83,6 +83,10 @@ pub enum GameAction {
     Release { column: usize },
     /// Restart the current map.
     Restart,
+    /// Increase scroll speed by 10ms.
+    ScrollSpeedUp,
+    /// Decrease scroll speed by 10ms.
+    ScrollSpeedDown,
 
     // Practice Mode (in-game)
     /// Place a checkpoint (max 1 every 15 seconds).

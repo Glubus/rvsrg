@@ -13,13 +13,14 @@ pub struct Beatmapset {
 
 #[derive(Debug, Clone, FromRow)]
 pub struct Beatmap {
-    pub hash: String, // MD5 hash acting as primary key
+    pub hash: String, // blake3 hash from ROX
     pub beatmapset_id: i64,
     pub path: String,
     pub difficulty_name: Option<String>,
     pub note_count: i32,
     pub duration_ms: i32,
     pub nps: f64,
+    pub bpm: f64, // Dominant BPM (longest duration in chart)
 }
 
 #[derive(Debug, Clone, FromRow)]

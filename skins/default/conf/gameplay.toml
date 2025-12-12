@@ -1,19 +1,19 @@
 [playfield]
 column_width = 100.0
-receptor_spacing = 44.0
+receptor_spacing = 56.0
 hit_position_y = 0.0
 
 [playfield.position]
-x = 996.9182739257813
+x = 995.4390869140625
 y = 27.687755584716797
 
 [playfield.note_size]
-x = 110.0
-y = 107.0
+x = 130.0
+y = 135.0
 
 [playfield.receptor_size]
-x = 132.0
-y = 208.0
+x = 150.0
+y = 228.0
 
 [notes.note]
 color = [

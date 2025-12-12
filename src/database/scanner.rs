@@ -7,10 +7,9 @@
 
 use crate::database::connection::Database;
 use crate::database::query::insert_beatmap;
-use md5::Context;
 use rhythm_open_exchange::codec::auto_decode;
+use std::collections::HashMap;
 use std::fs;
-use std::io::Read;
 use std::path::{Path, PathBuf};
 
 /// Supported chart file extensions.
@@ -116,10 +115,11 @@ async fn process_chart_file(
     beatmapset_id: i64,
     chart_file: &PathBuf,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let hash = calculate_file_hash(chart_file)?;
-
     // Use ROX to decode the chart
     let chart = auto_decode(chart_file)?;
+
+    // Use ROX's blake3 hash instead of MD5
+    let hash = chart.hash();
 
     // Extract basic info from ROX chart
     let note_count = chart.notes.len() as i32;
@@ -141,6 +141,9 @@ async fn process_chart_file(
         0.0
     };
 
+    // Extract dominant BPM (the one that lasts the longest, ignoring SV changes)
+    let bpm = calculate_dominant_bpm(&chart.timing_points, last_time);
+
     let difficulty_name = chart.metadata.difficulty_name.clone();
 
     if let Some(chart_str) = chart_file.to_str() {
@@ -153,15 +156,75 @@ async fn process_chart_file(
             note_count,
             duration_ms,
             nps,
+            bpm,
         )
         .await?;
 
-        // NOTE: We no longer calculate ratings here!
-        // Ratings are computed on-demand when the user selects a beatmap.
-        // This dramatically speeds up the scan process.
+        // Calculate and save difficulty ratings during scan
+        calculate_and_save_ratings(db, &hash, &chart).await;
     }
 
     Ok(())
+}
+
+/// Calculate difficulty ratings using available calculators and save to DB.
+async fn calculate_and_save_ratings(
+    db: &Database,
+    hash: &str,
+    chart: &rhythm_open_exchange::RoxChart,
+) {
+    use crate::difficulty::{calculate_on_demand, rox_chart_to_rosu};
+
+    // Convert RoxChart to rosu Beatmap format
+    let rosu_beatmap = match rox_chart_to_rosu(chart) {
+        Ok(bm) => bm,
+        Err(e) => {
+            log::warn!("Failed to convert chart {} for rating: {}", hash, e);
+            return;
+        }
+    };
+
+    // Calculate Etterna rating
+    if let Ok(ssr) = calculate_on_demand(&rosu_beatmap, "etterna", 1.0) {
+        if let Err(e) = crate::database::query::insert_beatmap_rating(
+            db.pool(),
+            hash,
+            "etterna",
+            ssr.overall,
+            ssr.stream,
+            ssr.jumpstream,
+            ssr.handstream,
+            ssr.stamina,
+            ssr.jackspeed,
+            ssr.chordjack,
+            ssr.technical,
+        )
+        .await
+        {
+            log::warn!("Failed to save Etterna rating for {}: {}", hash, e);
+        }
+    }
+
+    // Calculate Osu rating
+    if let Ok(ssr) = calculate_on_demand(&rosu_beatmap, "osu", 1.0) {
+        if let Err(e) = crate::database::query::insert_beatmap_rating(
+            db.pool(),
+            hash,
+            "osu",
+            ssr.overall,
+            ssr.stream,
+            ssr.jumpstream,
+            ssr.handstream,
+            ssr.stamina,
+            ssr.jackspeed,
+            ssr.chordjack,
+            ssr.technical,
+        )
+        .await
+        {
+            log::warn!("Failed to save Osu rating for {}: {}", hash, e);
+        }
+    }
 }
 
 fn find_background_image(beatmapset_path: &Path, filename: Option<&str>) -> Option<String> {
@@ -175,16 +238,45 @@ fn find_background_image(beatmapset_path: &Path, filename: Option<&str>) -> Opti
     })
 }
 
-/// Computes the MD5 hash for a chart file.
-fn calculate_file_hash(file_path: &Path) -> Result<String, std::io::Error> {
-    let mut file = fs::File::open(file_path)?;
-    let mut buffer = String::new();
-    file.read_to_string(&mut buffer)?;
+/// Calculates the dominant BPM (the one that lasts the longest).
+/// Only considers timing points where is_inherited is false (actual BPM changes, not SV).
+fn calculate_dominant_bpm(
+    timing_points: &[rhythm_open_exchange::TimingPoint],
+    chart_end_time_us: i64,
+) -> f64 {
+    // Filter to only BPM timing points (not SV changes)
+    let bpm_points: Vec<_> = timing_points.iter().filter(|tp| !tp.is_inherited).collect();
 
-    let mut context = Context::new();
-    context.consume(buffer.as_bytes());
-    let result = context.finalize();
-    let hash_string = format!("{:x}", result);
+    if bpm_points.is_empty() {
+        return 0.0;
+    }
 
-    Ok(hash_string)
+    // If only one BPM point, return it
+    if bpm_points.len() == 1 {
+        return bpm_points[0].bpm as f64;
+    }
+
+    // Calculate duration for each BPM segment
+    let mut bpm_durations: HashMap<u32, i64> = HashMap::new();
+
+    for (i, tp) in bpm_points.iter().enumerate() {
+        let start_time = tp.time_us;
+        let end_time = if i + 1 < bpm_points.len() {
+            bpm_points[i + 1].time_us
+        } else {
+            chart_end_time_us
+        };
+
+        let duration = (end_time - start_time).max(0);
+        // Round BPM to integer for grouping (handles floating point variations)
+        let bpm_key = (tp.bpm * 10.0) as u32; // Keep 1 decimal precision
+        *bpm_durations.entry(bpm_key).or_insert(0) += duration;
+    }
+
+    // Find the BPM with the longest total duration
+    bpm_durations
+        .into_iter()
+        .max_by_key(|(_, duration)| *duration)
+        .map(|(bpm_key, _)| bpm_key as f64 / 10.0)
+        .unwrap_or(0.0)
 }

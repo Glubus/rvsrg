@@ -189,8 +189,8 @@ impl MenuState {
             return Some(cached.clone());
         }
 
-        // Load and calculate
-        let map = match rosu_map::Beatmap::from_path(&beatmap_path) {
+        // Load any format via ROX -> encode to .osu -> parse with rosu_map
+        let map = match difficulty::load_as_rosu_beatmap(std::path::Path::new(&beatmap_path)) {
             Ok(map) => map,
             Err(err) => {
                 log::error!("MENU: Failed to load beatmap for difficulty calc: {}", err);
@@ -270,7 +270,7 @@ impl MenuState {
         }
 
         if !self.rate_cache.contains_key(&beatmap_hash) {
-            let map = match rosu_map::Beatmap::from_path(&beatmap_path) {
+            let map = match difficulty::load_as_rosu_beatmap(std::path::Path::new(&beatmap_path)) {
                 Ok(map) => map,
                 Err(err) => {
                     log::debug!(

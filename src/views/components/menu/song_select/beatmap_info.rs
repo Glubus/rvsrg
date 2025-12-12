@@ -195,6 +195,7 @@ impl BeatmapInfo {
                             beatmap,
                             &colors,
                             background_texture.is_some(),
+                            rate,
                         );
 
                         ui.add_space(10.0);
@@ -292,6 +293,7 @@ impl BeatmapInfo {
         beatmap: Option<&BeatmapWithRatings>,
         colors: &BeatmapInfoColors,
         has_bg: bool,
+        rate: f64,
     ) {
         ui.horizontal_wrapped(|ui| {
             ui.spacing_mut().item_spacing = Vec2::new(6.0, 4.0);
@@ -310,9 +312,17 @@ impl BeatmapInfo {
                     badge_bg,
                     colors,
                 );
-            }
 
-            self.render_badge(ui, "BPM", "180", badge_bg, colors);
+                // Display BPM adjusted for current rate
+                let effective_bpm = bm.beatmap.bpm * rate;
+                self.render_badge(
+                    ui,
+                    "BPM",
+                    &format!("{:.0}", effective_bpm),
+                    badge_bg,
+                    colors,
+                );
+            }
         });
     }
 

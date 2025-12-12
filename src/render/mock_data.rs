@@ -101,6 +101,7 @@ fn create_mock_menu() -> RenderState {
         note_count: 1540,
         duration_ms: 180000,
         nps: 15.4,
+        bpm: 180.0,
     };
 
     let ratings = vec![BeatmapRating {

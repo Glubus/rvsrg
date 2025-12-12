@@ -42,7 +42,7 @@ impl GlobalState {
 
         Self {
             saved_menu_state: menu.clone(),
-            current_state: AppState::Menu(menu),
+            current_state: AppState::MainMenu, // Start on main menu
             db_manager,
             last_db_version: 0,
             last_leaderboard_version: 0,
@@ -69,6 +69,7 @@ impl GlobalState {
 
         // Call update on the current state and collect any transition
         let transition = match &mut self.current_state {
+            AppState::MainMenu => None, // No update needed for main menu
             AppState::Menu(menu) => Update::update(menu, dt, &mut ctx),
             AppState::Game(engine) => Update::update(engine, dt, &mut ctx),
             AppState::Result(result) => Update::update(result, dt, &mut ctx),
@@ -177,6 +178,21 @@ impl GlobalState {
             std::mem::replace(&mut self.current_state, AppState::Menu(MenuState::new()));
 
         let transition = match &mut current_state {
+            AppState::MainMenu => {
+                // Handle main menu actions
+                match &action {
+                    GameAction::Confirm => {
+                        // Play -> go to song select, load maps automatically
+                        self.db_manager.load();
+                        Some(AppState::Menu(self.saved_menu_state.clone()))
+                    }
+                    GameAction::Back => {
+                        // Quit -> exit game
+                        std::process::exit(0);
+                    }
+                    _ => None,
+                }
+            }
             AppState::Menu(menu) => {
                 let next = apply_to_menu(self, menu, &action);
                 self.cache_menu_state(menu.clone());
@@ -202,6 +218,7 @@ impl GlobalState {
     /// Produces a render-ready snapshot for the renderer thread.
     pub fn create_snapshot(&mut self) -> RenderState {
         match &mut self.current_state {
+            AppState::MainMenu => RenderState::MainMenu,
             AppState::Menu(menu) => RenderState::Menu(Snapshot::create_snapshot(menu)),
             AppState::Game(engine) => RenderState::InGame(Snapshot::create_snapshot(engine)),
             AppState::Editor(editor) => {

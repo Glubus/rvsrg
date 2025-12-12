@@ -34,6 +34,11 @@ pub struct SettingsState {
     pub master_volume: f32,
     /// Scroll speed in milliseconds.
     pub scroll_speed: f64,
+    /// Global audio offset in milliseconds.
+    /// Positive values = notes appear later (audio is late/notes early).
+    /// Negative values = notes appear earlier (audio is early/notes late).
+    #[serde(default)]
+    pub global_audio_offset_ms: f64,
     /// Hit window calculation mode.
     pub hit_window_mode: HitWindowMode,
     /// Hit window value (OD or judge level).
@@ -66,6 +71,7 @@ impl SettingsState {
         Self {
             master_volume: 0.5,
             scroll_speed: 500.0,
+            global_audio_offset_ms: 0.0,
             hit_window_mode: HitWindowMode::OsuOD,
             hit_window_value: 5.0,
             aspect_ratio_mode: AspectRatioMode::Auto,

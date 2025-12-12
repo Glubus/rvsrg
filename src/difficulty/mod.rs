@@ -19,7 +19,7 @@ pub mod rox_converter;
 // Re-export commonly used types
 pub use builtin::{EtternaCalculator, OsuCalculator};
 pub use calculator::CalcError;
-pub use rox_converter::load_as_rosu_beatmap;
+pub use rox_converter::{load_as_rosu_beatmap, rox_chart_to_rosu};
 
 use minacalc_rs::Calc;
 use rosu_map::Beatmap;

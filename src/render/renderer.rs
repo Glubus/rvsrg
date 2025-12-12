@@ -303,6 +303,7 @@ impl Renderer {
                             to_egui(menus.song_select.song_button.selected_border_color),
                             to_egui(menus.song_select.difficulty_button.selected_text_color),
                             &panel_textures,
+                            Some(&menus.song_select.rating_colors),
                         );
 
                         // Finaliser le rendu Egui offscreen dans la texture
@@ -349,6 +350,19 @@ impl Renderer {
         let ctx_egui = self.ui.ctx.clone();
 
         match &self.current_state {
+            RenderState::MainMenu => {
+                use crate::views::components::menu::main_menu::{MainMenuAction, MainMenuScreen};
+                let action = MainMenuScreen::render(&ctx_egui);
+                match action {
+                    MainMenuAction::Play => {
+                        actions_to_send.push(GameAction::Confirm);
+                    }
+                    MainMenuAction::Quit => {
+                        actions_to_send.push(GameAction::Back);
+                    }
+                    MainMenuAction::None => {}
+                }
+            }
             RenderState::Menu(menu_state) => {
                 // Gestion de la fenêtre de Settings (Popup)
                 if menu_state.show_settings {
@@ -448,6 +462,7 @@ impl Renderer {
                         to_egui(menus.song_select.song_button.selected_border_color),
                         to_egui(menus.song_select.difficulty_button.selected_text_color),
                         &panel_textures,
+                        Some(&menus.song_select.rating_colors),
                     );
 
                 if let Some(calc_id) = calculator_changed {

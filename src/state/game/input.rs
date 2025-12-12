@@ -54,7 +54,9 @@ impl GameEngine {
     /// Finds the closest unhit note within the hit window and applies
     /// the appropriate judgement based on note type.
     pub(crate) fn process_hit(&mut self, column: usize) {
-        let current_time_us = self.audio_clock_us;
+        // Apply global audio offset to compensate for audio latency
+        // Positive offset = notes appear later (audio late), Negative = notes appear earlier (audio early)
+        let current_time_us = self.audio_clock_us + self.audio_offset_us;
         let miss_us = self.hit_window.miss_us;
         let mut best_note_idx = None;
         let mut min_diff: i64 = i64::MAX;
@@ -121,7 +123,8 @@ impl GameEngine {
 
     /// Processes a release input on the given column (for hold notes).
     pub(crate) fn process_release(&mut self, column: usize) {
-        let current_time_us = self.audio_clock_us;
+        // Apply global audio offset for consistency with process_hit
+        let current_time_us = self.audio_clock_us + self.audio_offset_us;
 
         // Find active hold in this column
         for note in self.chart.iter_mut().skip(self.head_index) {

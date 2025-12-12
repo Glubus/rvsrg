@@ -10,8 +10,11 @@ use crate::shared::snapshot::GameplaySnapshot;
 impl GameEngine {
     /// Creates a snapshot of the current game state for rendering.
     pub fn get_snapshot(&self) -> GameplaySnapshot {
+        // Apply audio offset for visual synchronization
+        let offset_clock_us = self.audio_clock_us + self.audio_offset_us;
+
         let scroll_speed_us = (self.scroll_speed_ms * US_PER_MS as f64 * self.rate) as i64;
-        let max_visible_time_us = self.audio_clock_us + scroll_speed_us;
+        let max_visible_time_us = offset_clock_us + scroll_speed_us;
         let buffer_us = 2_000_000; // 2 seconds buffer
 
         // For notes with duration (Hold/Burst), we need to keep them visible
@@ -28,7 +31,7 @@ impl GameEngine {
                 // For notes with duration, keep visible until end time passes
                 if n.has_duration() {
                     // Keep visible if end hasn't passed yet
-                    n.end_time_us() > self.audio_clock_us - 100_000 // 100ms
+                    n.end_time_us() > offset_clock_us - 100_000 // 100ms
                 } else {
                     true
                 }
@@ -45,7 +48,7 @@ impl GameEngine {
             .collect();
 
         GameplaySnapshot {
-            audio_time: self.audio_clock_us as f64 / US_PER_MS as f64,
+            audio_time: offset_clock_us as f64 / US_PER_MS as f64,
             timestamp: std::time::Instant::now(),
             rate: self.rate,
             scroll_speed: self.scroll_speed_ms,

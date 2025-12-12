@@ -6,7 +6,7 @@ pub mod replay_storage;
 pub mod scanner;
 
 pub use connection::Database;
-pub use manager::{DbManager, DbStatus, SaveReplayCommand};
+pub use manager::{DbManager, DbStatus, SaveRatingCommand, SaveReplayCommand};
 pub use models::{
     BeatmapRating, BeatmapWithRatings,
     Beatmapset, /*BeatmapsetLight,*/

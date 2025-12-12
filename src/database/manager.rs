@@ -2,8 +2,9 @@
 
 use crate::database::connection::Database;
 use crate::database::models::{BeatmapWithRatings, Beatmapset, Replay};
-use crate::database::query::{clear_all, get_all_beatmapsets};
+use crate::database::query::{clear_all, get_all_beatmapsets, insert_beatmap_rating};
 use crate::database::scanner::scan_songs_directory;
+use crate::difficulty::BeatmapSsr;
 use crate::models::search::MenuSearchFilters;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
@@ -63,8 +64,17 @@ pub enum DbCommand {
     Rescan,
     Search(MenuSearchFilters),
     SaveReplay(SaveReplayCommand),
+    SaveRating(SaveRatingCommand),
     FetchLeaderboard(String),
     Shutdown,
+}
+
+/// Command to save a calculated difficulty rating.
+#[derive(Debug, Clone)]
+pub struct SaveRatingCommand {
+    pub beatmap_hash: String,
+    pub calculator_name: String,
+    pub ssr: BeatmapSsr,
 }
 
 pub struct DbManager {
@@ -156,6 +166,11 @@ impl DbManager {
                 Ok(DbCommand::FetchLeaderboard(hash)) => {
                     if let Some(ref d) = db {
                         Self::load_leaderboard(&state, d, &hash).await;
+                    }
+                }
+                Ok(DbCommand::SaveRating(payload)) => {
+                    if let Some(ref d) = db {
+                        Self::persist_rating(d, payload).await;
                     }
                 }
                 Ok(DbCommand::Shutdown) => {
@@ -343,5 +358,42 @@ impl DbManager {
 
     pub fn fetch_leaderboard(&self, beatmap_hash: &str) {
         let _ = self.send_command(DbCommand::FetchLeaderboard(beatmap_hash.to_string()));
+    }
+
+    pub fn save_rating(&self, payload: SaveRatingCommand) {
+        let _ = self.send_command(DbCommand::SaveRating(payload));
+    }
+
+    async fn persist_rating(db: &Database, payload: SaveRatingCommand) {
+        let ssr = &payload.ssr;
+        if let Err(e) = insert_beatmap_rating(
+            db.pool(),
+            &payload.beatmap_hash,
+            &payload.calculator_name,
+            ssr.overall,
+            ssr.stream,
+            ssr.jumpstream,
+            ssr.handstream,
+            ssr.stamina,
+            ssr.jackspeed,
+            ssr.chordjack,
+            ssr.technical,
+        )
+        .await
+        {
+            log::error!(
+                "DB: failed to save rating for {} ({}): {}",
+                payload.beatmap_hash,
+                payload.calculator_name,
+                e
+            );
+        } else {
+            log::debug!(
+                "DB: rating saved for {} ({}) = {:.2}",
+                payload.beatmap_hash,
+                payload.calculator_name,
+                ssr.overall
+            );
+        }
     }
 }

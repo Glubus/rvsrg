@@ -14,6 +14,8 @@ use std::time::Instant;
 pub enum RenderState {
     /// Initial empty state.
     Empty,
+    /// Main menu (Play/Quit).
+    MainMenu,
     /// Song select menu.
     Menu(MenuState),
     /// Active gameplay.

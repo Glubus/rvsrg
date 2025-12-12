@@ -12,6 +12,7 @@ const MIGRATION_CREATE_REPLAY: &str = include_str!("migrations/003_create_replay
 const MIGRATION_CREATE_BEATMAP_RATING: &str =
     include_str!("migrations/005_create_beatmap_rating.sql");
 const MIGRATION_REPLAY_FILE_STORAGE: &str = include_str!("migrations/006_replay_file_storage.sql");
+const MIGRATION_ADD_BPM: &str = include_str!("migrations/007_add_bpm.sql");
 
 pub struct Database {
     pool: SqlitePool,
@@ -79,6 +80,17 @@ impl Database {
                 .await?;
         }
 
+        // Conditional migration: Add BPM column
+        let has_bpm: Option<i32> =
+            sqlx::query_scalar("SELECT 1 FROM pragma_table_info('beatmap') WHERE name = 'bpm'")
+                .fetch_optional(&self.pool)
+                .await?;
+
+        if has_bpm.is_none() {
+            log::info!("DB: Applying migration MIGRATION_ADD_BPM");
+            sqlx::query(MIGRATION_ADD_BPM).execute(&self.pool).await?;
+        }
+
         Ok(())
     }
 
@@ -113,6 +125,7 @@ impl Database {
         note_count: i32,
         duration_ms: i32,
         nps: f64,
+        bpm: f64,
     ) -> Result<String, sqlx::Error> {
         query::insert_beatmap(
             &self.pool,
@@ -123,6 +136,7 @@ impl Database {
             note_count,
             duration_ms,
             nps,
+            bpm,
         )
         .await
     }

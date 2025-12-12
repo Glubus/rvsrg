@@ -3394,9 +3394,9 @@ dependencies = [
 
 [[package]]
 name = "rhythm-open-exchange"
-version = "0.2.1"
+version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bf31eaa6d338737780f0f0cab1504e4bf462dbb2e7de2cab17f84148604f6fd9"
+checksum = "d5caac707903698abdea31cd491f8ec3665153aadbf1184b9212e750e467c96a"
 dependencies = [
  "bincode",
  "bitflags 2.10.0",

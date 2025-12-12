@@ -123,11 +123,16 @@ impl InputManager {
 
         // Practice Mode
         self.bindings
-            .insert(KeyCode::F3, GameAction::LaunchPractice); // Menu: launch practice
+            .insert(KeyCode::F6, GameAction::LaunchPractice); // Menu: launch practice
         self.bindings
             .insert(KeyCode::BracketLeft, GameAction::PracticeCheckpoint); // In-game: checkpoint
         self.bindings
             .insert(KeyCode::BracketRight, GameAction::PracticeRetry); // In-game: retry
+
+        // Scroll Speed (in-game)
+        self.bindings
+            .insert(KeyCode::F3, GameAction::ScrollSpeedDown); // -10ms
+        self.bindings.insert(KeyCode::F4, GameAction::ScrollSpeedUp); // +10ms
 
         // UI navigation (mirrored inside the editor).
         self.bindings

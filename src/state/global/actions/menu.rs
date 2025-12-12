@@ -1,4 +1,5 @@
 use crate::input::events::GameAction;
+use crate::models::engine::US_PER_MS;
 use crate::state::global::GlobalState;
 use crate::state::global::app_state::AppState;
 use crate::state::global::helpers::create_debug_chart;
@@ -175,6 +176,7 @@ fn handle_confirm(state: &mut GlobalState, menu: &mut MenuState) -> Option<AppSt
 
     let mut engine = engine;
     engine.scroll_speed_ms = state.settings.scroll_speed;
+    engine.audio_offset_us = (state.settings.global_audio_offset_ms * US_PER_MS as f64) as i64;
     engine
         .audio_manager
         .set_volume(state.settings.master_volume);
@@ -227,6 +229,7 @@ fn handle_launch_practice(state: &mut GlobalState, menu: &mut MenuState) -> Opti
 
     let mut engine = engine;
     engine.scroll_speed_ms = state.settings.scroll_speed;
+    engine.audio_offset_us = (state.settings.global_audio_offset_ms * US_PER_MS as f64) as i64;
     engine
         .audio_manager
         .set_volume(state.settings.master_volume);
@@ -270,6 +273,7 @@ fn handle_toggle_editor(state: &mut GlobalState, menu: &mut MenuState) -> Option
 
     let mut engine = engine;
     engine.scroll_speed_ms = state.settings.scroll_speed;
+    engine.audio_offset_us = (state.settings.global_audio_offset_ms * US_PER_MS as f64) as i64;
     engine
         .audio_manager
         .set_volume(state.settings.master_volume);
@@ -288,5 +292,6 @@ fn handle_launch_debug_map(state: &mut GlobalState) -> Option<AppState> {
     );
     let mut engine = engine;
     engine.scroll_speed_ms = state.settings.scroll_speed;
+    engine.audio_offset_us = (state.settings.global_audio_offset_ms * US_PER_MS as f64) as i64;
     Some(AppState::Game(engine))
 }

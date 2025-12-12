@@ -55,6 +55,9 @@ pub fn draw_game(
         RenderState::Result(_) => {
             draw_background(ctx, res, encoder, view);
         }
+        RenderState::MainMenu => {
+            draw_background(ctx, res, encoder, view);
+        }
         RenderState::Empty => {
             encoder.begin_render_pass(&RenderPassDescriptor {
                 label: Some("Clear Pass"),

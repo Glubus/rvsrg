@@ -74,6 +74,7 @@ pub async fn insert_beatmap(
     note_count: i32,
     duration_ms: i32,
     nps: f64,
+    bpm: f64,
 ) -> Result<String, sqlx::Error> {
     // Check whether a beatmap already exists for the given hash.
     let existing: Option<String> = sqlx::query_scalar("SELECT hash FROM beatmap WHERE hash = ?1")
@@ -85,7 +86,7 @@ pub async fn insert_beatmap(
         Some(existing_hash) => {
             // Update the existing row.
             sqlx::query(
-                "UPDATE beatmap SET beatmapset_id = ?1, path = ?2, difficulty_name = ?3, note_count = ?4, duration_ms = ?5, nps = ?6 WHERE hash = ?7"
+                "UPDATE beatmap SET beatmapset_id = ?1, path = ?2, difficulty_name = ?3, note_count = ?4, duration_ms = ?5, nps = ?6, bpm = ?7 WHERE hash = ?8"
             )
             .bind(beatmapset_id)
             .bind(path)
@@ -93,6 +94,7 @@ pub async fn insert_beatmap(
             .bind(note_count)
             .bind(duration_ms)
             .bind(nps)
+            .bind(bpm)
             .bind(&existing_hash)
             .execute(pool)
             .await?;
@@ -101,7 +103,7 @@ pub async fn insert_beatmap(
         None => {
             // Insert a new row.
             sqlx::query(
-                "INSERT INTO beatmap (hash, beatmapset_id, path, difficulty_name, note_count, duration_ms, nps) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)"
+                "INSERT INTO beatmap (hash, beatmapset_id, path, difficulty_name, note_count, duration_ms, nps, bpm) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)"
             )
             .bind(hash)
             .bind(beatmapset_id)
@@ -110,6 +112,7 @@ pub async fn insert_beatmap(
             .bind(note_count)
             .bind(duration_ms)
             .bind(nps)
+            .bind(bpm)
             .execute(pool)
             .await?;
             Ok(hash.to_string())
@@ -142,6 +145,49 @@ pub async fn get_all_beatmap_ratings(pool: &SqlitePool) -> Result<Vec<BeatmapRat
     Ok(ratings)
 }
 
+/// Inserts or updates a beatmap rating.
+/// Uses UPSERT to handle existing ratings for the same (beatmap_hash, name) pair.
+pub async fn insert_beatmap_rating(
+    pool: &SqlitePool,
+    beatmap_hash: &str,
+    name: &str,
+    overall: f64,
+    stream: f64,
+    jumpstream: f64,
+    handstream: f64,
+    stamina: f64,
+    jackspeed: f64,
+    chordjack: f64,
+    technical: f64,
+) -> Result<(), sqlx::Error> {
+    sqlx::query(
+        "INSERT INTO beatmap_rating (beatmap_hash, name, overall, stream, jumpstream, handstream, stamina, jackspeed, chordjack, technical)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)
+         ON CONFLICT(beatmap_hash, name) DO UPDATE SET
+             overall = excluded.overall,
+             stream = excluded.stream,
+             jumpstream = excluded.jumpstream,
+             handstream = excluded.handstream,
+             stamina = excluded.stamina,
+             jackspeed = excluded.jackspeed,
+             chordjack = excluded.chordjack,
+             technical = excluded.technical"
+    )
+    .bind(beatmap_hash)
+    .bind(name)
+    .bind(overall)
+    .bind(stream)
+    .bind(jumpstream)
+    .bind(handstream)
+    .bind(stamina)
+    .bind(jackspeed)
+    .bind(chordjack)
+    .bind(technical)
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
 /// Retrieves every beatmapset together with its beatmaps/ratings.
 pub async fn get_all_beatmapsets(
     pool: &SqlitePool,
@@ -163,14 +209,19 @@ pub async fn get_all_beatmapsets(
 
     let mut result = Vec::new();
     for beatmapset in beatmapsets {
+        // Query beatmaps with their ratings, ordered by overall rating (lowest to highest)
         let beatmaps: Vec<Beatmap> = sqlx::query_as(
-            "SELECT hash, beatmapset_id, path, difficulty_name, note_count, duration_ms, nps FROM beatmap WHERE beatmapset_id = ?1 ORDER BY difficulty_name"
+            "SELECT b.hash, b.beatmapset_id, b.path, b.difficulty_name, b.note_count, b.duration_ms, b.nps, b.bpm 
+             FROM beatmap b
+             LEFT JOIN beatmap_rating br ON b.hash = br.beatmap_hash AND LOWER(br.name) = 'etterna'
+             WHERE b.beatmapset_id = ?1 
+             ORDER BY COALESCE(br.overall, 999) ASC, b.difficulty_name ASC"
         )
         .bind(beatmapset.id)
         .fetch_all(pool)
         .await?;
 
-        let with_ratings = beatmaps
+        let mut with_ratings: Vec<BeatmapWithRatings> = beatmaps
             .into_iter()
             .map(|beatmap| {
                 let ratings = ratings_map.remove(&beatmap.hash).unwrap_or_default();
@@ -250,8 +301,13 @@ pub async fn search_beatmapsets(
     let mut result = Vec::new();
 
     for beatmapset in beatmapsets {
+        // Query beatmaps with their ratings, ordered by overall rating (lowest to highest)
         let beatmaps: Vec<Beatmap> = sqlx::query_as(
-            "SELECT hash, beatmapset_id, path, difficulty_name, note_count, duration_ms, nps FROM beatmap WHERE beatmapset_id = ?1 ORDER BY difficulty_name",
+            "SELECT b.hash, b.beatmapset_id, b.path, b.difficulty_name, b.note_count, b.duration_ms, b.nps, b.bpm 
+             FROM beatmap b
+             LEFT JOIN beatmap_rating br ON b.hash = br.beatmap_hash AND LOWER(br.name) = 'etterna'
+             WHERE b.beatmapset_id = ?1 
+             ORDER BY COALESCE(br.overall, 999) ASC, b.difficulty_name ASC",
         )
         .bind(beatmapset.id)
         .fetch_all(pool)

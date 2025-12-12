@@ -73,9 +73,39 @@ pub fn render_settings_window(
                     .step_by(0.01),
             );
 
+            ui.add(
+                egui::Slider::new(&mut settings.global_audio_offset_ms, -100.0..=100.0)
+                    .text("Audio Offset (ms)")
+                    .step_by(1.0),
+            );
+            ui.label("Adjust if notes and audio are out of sync.");
+
             if (settings.master_volume - snapshot.master_volume).abs() > f32::EPSILON {
                 volume_changed = Some(settings.master_volume);
             }
+
+            ui.separator();
+            ui.heading("Gameplay");
+            ui.horizontal(|ui| {
+                if ui.button("-50").clicked() {
+                    settings.scroll_speed = (settings.scroll_speed - 50.0).max(100.0);
+                }
+                if ui.button("-10").clicked() {
+                    settings.scroll_speed = (settings.scroll_speed - 10.0).max(100.0);
+                }
+                ui.add(
+                    egui::Slider::new(&mut settings.scroll_speed, 100.0..=1500.0)
+                        .text("Scroll Speed (ms)")
+                        .step_by(10.0),
+                );
+                if ui.button("+10").clicked() {
+                    settings.scroll_speed = (settings.scroll_speed + 10.0).min(1500.0);
+                }
+                if ui.button("+50").clicked() {
+                    settings.scroll_speed = (settings.scroll_speed + 50.0).min(1500.0);
+                }
+            });
+            ui.label("Lower = faster notes, Higher = slower notes");
 
             ui.separator();
             ui.heading("Judgement");

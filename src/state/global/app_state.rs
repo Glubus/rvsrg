@@ -5,6 +5,8 @@ use crate::state::{GameEngine, GameResultData, MenuState};
 
 /// High-level application states driven by `GlobalState`.
 pub(super) enum AppState {
+    /// Main menu (Play/Quit).
+    MainMenu,
     /// Song select and menu browsing.
     Menu(MenuState),
     /// Live gameplay.

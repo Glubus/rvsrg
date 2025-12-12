@@ -42,6 +42,18 @@ pub fn apply(
 
             None
         }
+        GameAction::ScrollSpeedUp => {
+            engine.scroll_speed_ms = (engine.scroll_speed_ms + 10.0).min(1500.0);
+            state.settings.scroll_speed = engine.scroll_speed_ms;
+            state.persist_settings();
+            None
+        }
+        GameAction::ScrollSpeedDown => {
+            engine.scroll_speed_ms = (engine.scroll_speed_ms - 10.0).max(100.0);
+            state.settings.scroll_speed = engine.scroll_speed_ms;
+            state.persist_settings();
+            None
+        }
         _ => {
             engine.handle_input(action.clone());
             None
