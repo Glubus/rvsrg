@@ -6,13 +6,20 @@
 //!
 //! Difficulty is calculated on-demand when a beatmap is selected,
 //! rather than during the initial scan. This dramatically improves scan speed.
+//!
+//! ## Multi-Format Support
+//!
+//! Uses rhythm-open-exchange (ROX) to convert any supported chart format
+//! to .osu format for compatibility with rosu-pp and MinaCalc.
 
 pub mod builtin;
 pub mod calculator;
+pub mod rox_converter;
 
 // Re-export commonly used types
 pub use builtin::{EtternaCalculator, OsuCalculator};
 pub use calculator::CalcError;
+pub use rox_converter::load_as_rosu_beatmap;
 
 use minacalc_rs::Calc;
 use rosu_map::Beatmap;

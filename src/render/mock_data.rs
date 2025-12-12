@@ -17,33 +17,43 @@ pub fn create_mock_state(scene: EditorScene) -> RenderState {
 }
 
 fn create_mock_gameplay(key_count: usize) -> RenderState {
+    use crate::models::engine::US_PER_MS;
+
     let mut notes = Vec::new();
-    let time_base = 2000.0;
+    let time_base_us: i64 = 2000 * US_PER_MS; // 2000ms in µs
 
     // Pattern en escalier pour visualiser les colonnes
     for i in 0..8 {
-        let col = i % key_count;
-        let time = time_base + (i as f64 * 200.0);
-        notes.push(NoteData::tap(time, col));
+        let col = (i % key_count) as u8;
+        let time_us = time_base_us + (i as i64 * 200 * US_PER_MS);
+        notes.push(NoteData::tap(time_us, col));
     }
 
     // Un Hold (Note longue)
     if key_count > 0 {
-        notes.push(NoteData::hold(time_base + 2000.0, 0, 500.0));
+        notes.push(NoteData::hold(
+            time_base_us + 2000 * US_PER_MS,
+            0,
+            500 * US_PER_MS,
+        ));
     }
 
     // Une Mine
     if key_count > 1 {
-        notes.push(NoteData::mine(time_base + 2200.0, 1));
+        notes.push(NoteData::mine(time_base_us + 2200 * US_PER_MS, 1));
     }
 
     // Un Burst
     if key_count > 2 {
-        notes.push(NoteData::burst(time_base + 2500.0, 2, 200.0, 4));
+        notes.push(NoteData::burst(
+            time_base_us + 2500 * US_PER_MS,
+            2,
+            200 * US_PER_MS,
+        ));
     }
 
     RenderState::InGame(GameplaySnapshot {
-        audio_time: time_base + 500.0, // On se place un peu après le début pour voir les notes arriver
+        audio_time: (time_base_us + 500 * US_PER_MS) as f64 / US_PER_MS as f64, // Keep as ms for now
         timestamp: Instant::now(),
         rate: 1.0,
         scroll_speed: 650.0,

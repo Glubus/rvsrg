@@ -2,22 +2,24 @@
 //!
 //! This module handles recording and playback of user inputs for replays,
 //! as well as deterministic simulation to recalculate scores.
+//!
+//! All timestamps are in **microseconds (i64)** for precision.
 
-use crate::models::engine::NoteData;
 use crate::models::engine::hit_window::HitWindow;
+use crate::models::engine::note::{NoteData, US_PER_MS};
 use crate::models::settings::HitWindowMode;
 use crate::models::stats::{HitStats, Judgement};
 use serde::{Deserialize, Serialize};
 
 /// Current replay format version for compatibility.
-pub const REPLAY_FORMAT_VERSION: u8 = 3;
+pub const REPLAY_FORMAT_VERSION: u8 = 4; // Bumped for µs transition
 
 /// A single user input (press or release).
-/// Compressed to save space (5 bytes total).
+/// Uses microseconds for precision.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ReplayInput {
-    /// Absolute time in ms since map start (quantized to nearest ms).
-    pub timestamp_ms: i32,
+    /// Absolute time in microseconds since map start.
+    pub time_us: i64,
     /// Packed data: (column << 1) | is_press
     /// Bit 0: is_press (1 = press, 0 = release)
     /// Bits 1-7: column index
@@ -53,14 +55,14 @@ pub struct ReplayData {
     /// Whether practice mode was enabled (scores labeled differently).
     #[serde(default)]
     pub is_practice_mode: bool,
-    /// Checkpoints placed by the user (timestamps in ms).
+    /// Checkpoints placed by the user (timestamps in µs).
     /// Maximum 1 checkpoint every 15 seconds.
     #[serde(default)]
-    pub checkpoints: Vec<f64>,
+    pub checkpoints: Vec<i64>,
 }
 
-/// Minimum interval between checkpoints (in ms).
-pub const CHECKPOINT_MIN_INTERVAL_MS: f64 = 15000.0;
+/// Minimum interval between checkpoints (in µs).
+pub const CHECKPOINT_MIN_INTERVAL_US: i64 = 15_000_000; // 15 seconds
 
 impl ReplayData {
     /// Creates a new replay data structure.
@@ -86,49 +88,45 @@ impl ReplayData {
     /// Adds a checkpoint if the minimum interval is respected.
     ///
     /// Returns `true` if the checkpoint was successfully added.
-    pub fn add_checkpoint(&mut self, timestamp_ms: f64) -> bool {
+    pub fn add_checkpoint(&mut self, time_us: i64) -> bool {
         // Check interval with last checkpoint
-        if let Some(&last) = self.checkpoints.last()
-            && timestamp_ms - last < CHECKPOINT_MIN_INTERVAL_MS
-        {
-            return false;
+        if let Some(&last) = self.checkpoints.last() {
+            if time_us - last < CHECKPOINT_MIN_INTERVAL_US {
+                return false;
+            }
         }
-        self.checkpoints.push(timestamp_ms);
+        self.checkpoints.push(time_us);
         true
     }
 
     /// Returns the last checkpoint timestamp, if any.
-    pub fn get_last_checkpoint(&self) -> Option<f64> {
+    pub fn get_last_checkpoint(&self) -> Option<i64> {
         self.checkpoints.last().copied()
     }
 
     /// Removes all inputs after the given timestamp.
     ///
     /// Used when retrying from a checkpoint.
-    pub fn truncate_inputs_after(&mut self, timestamp_ms: f64) {
-        self.inputs
-            .retain(|input| (input.timestamp_ms as f64) < timestamp_ms);
+    pub fn truncate_inputs_after(&mut self, time_us: i64) {
+        self.inputs.retain(|input| input.time_us < time_us);
     }
 
     /// Adds an input (press or release).
-    pub fn add_input(&mut self, timestamp_ms: f64, column: usize, is_press: bool) {
+    pub fn add_input(&mut self, time_us: i64, column: usize, is_press: bool) {
         let payload = ((column as u8) << 1) | (is_press as u8);
-        self.inputs.push(ReplayInput {
-            timestamp_ms: timestamp_ms.round() as i32,
-            payload,
-        });
+        self.inputs.push(ReplayInput { time_us, payload });
     }
 
     /// Adds a key press input.
     #[inline]
-    pub fn add_press(&mut self, timestamp_ms: f64, column: usize) {
-        self.add_input(timestamp_ms, column, true);
+    pub fn add_press(&mut self, time_us: i64, column: usize) {
+        self.add_input(time_us, column, true);
     }
 
     /// Adds a key release input.
     #[inline]
-    pub fn add_release(&mut self, timestamp_ms: f64, column: usize) {
-        self.add_input(timestamp_ms, column, false);
+    pub fn add_release(&mut self, time_us: i64, column: usize) {
+        self.add_input(time_us, column, false);
     }
 
     /// Serializes to JSON.
@@ -173,49 +171,31 @@ impl ReplayData {
     }
 }
 
-/// Recalculates stats from hit timings of a `ReplayResult`.
-///
-/// Useful for re-judging an already simulated result with a new hit window
-/// WITHOUT access to the original chart (approximation).
-pub fn rejudge_hit_timings(hit_timings: &[HitTiming], hit_window: &HitWindow) -> (HitStats, f64) {
-    let mut stats = HitStats::new();
-
-    for hit in hit_timings {
-        let (judgement, _) = hit_window.judge(hit.timing_ms);
-
-        match judgement {
-            Judgement::Marv => stats.marv += 1,
-            Judgement::Perfect => stats.perfect += 1,
-            Judgement::Great => stats.great += 1,
-            Judgement::Good => stats.good += 1,
-            Judgement::Bad => stats.bad += 1,
-            Judgement::Miss => stats.miss += 1,
-            Judgement::GhostTap => stats.ghost_tap += 1,
-        }
-    }
-
-    let accuracy = stats.calculate_accuracy();
-    (stats, accuracy)
-}
-
 /// Individual hit timing for graphs and analysis.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct HitTiming {
     /// Index of the hit note.
     pub note_index: usize,
-    /// Timing offset in ms (negative = early, positive = late).
-    pub timing_ms: f64,
+    /// Timing offset in µs (negative = early, positive = late).
+    pub timing_us: i64,
     /// Assigned judgement.
     pub judgement: Judgement,
-    /// Timestamp of the note in the map.
-    pub note_timestamp_ms: f64,
+    /// Timestamp of the note in the map (µs).
+    pub note_time_us: i64,
+}
+
+impl HitTiming {
+    /// Timing offset in milliseconds (for display).
+    pub fn timing_ms(&self) -> f64 {
+        self.timing_us as f64 / US_PER_MS as f64
+    }
 }
 
 /// Ghost tap (press without a corresponding note).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct GhostTap {
-    /// Timestamp of the ghost tap.
-    pub timestamp_ms: i32,
+    /// Timestamp of the ghost tap (µs).
+    pub time_us: i64,
     /// Column index.
     pub column: u8,
 }
@@ -256,6 +236,31 @@ impl Default for ReplayResult {
     }
 }
 
+/// Recalculates stats from hit timings of a `ReplayResult`.
+///
+/// Useful for re-judging an already simulated result with a new hit window
+/// WITHOUT access to the original chart (approximation).
+pub fn rejudge_hit_timings(hit_timings: &[HitTiming], hit_window: &HitWindow) -> (HitStats, f64) {
+    let mut stats = HitStats::new();
+
+    for hit in hit_timings {
+        let (judgement, _) = hit_window.judge(hit.timing_us);
+
+        match judgement {
+            Judgement::Marv => stats.marv += 1,
+            Judgement::Perfect => stats.perfect += 1,
+            Judgement::Great => stats.great += 1,
+            Judgement::Good => stats.good += 1,
+            Judgement::Bad => stats.bad += 1,
+            Judgement::Miss => stats.miss += 1,
+            Judgement::GhostTap => stats.ghost_tap += 1,
+        }
+    }
+
+    let accuracy = stats.calculate_accuracy();
+    (stats, accuracy)
+}
+
 /// Simulates a replay on a chart with the given hit window.
 ///
 /// This function replays recorded inputs on the map to deterministically
@@ -268,6 +273,9 @@ pub fn simulate_replay(
     let mut result = ReplayResult::new();
     let mut combo: u32 = 0;
 
+    // Use hit window miss threshold directly (already in µs)
+    let miss_us = hit_window.miss_us;
+
     // Track hit notes (index -> hit)
     let mut note_hit: Vec<bool> = vec![false; chart.len()];
 
@@ -276,7 +284,7 @@ pub fn simulate_replay(
 
     for input in &replay_data.inputs {
         let (input_column, is_press) = input.unpack();
-        let input_timestamp_ms = input.timestamp_ms as f64;
+        let input_time_us = input.time_us;
 
         // Before processing this input, check for missed notes
         while head_index < chart.len() {
@@ -286,9 +294,9 @@ pub fn simulate_replay(
             }
 
             let note = &chart[head_index];
-            let miss_deadline = note.timestamp_ms + hit_window.miss_ms;
+            let miss_deadline = note.time_us() + miss_us;
 
-            if input_timestamp_ms > miss_deadline {
+            if input_time_us > miss_deadline {
                 // Miss!
                 note_hit[head_index] = true;
                 result.hit_stats.miss += 1;
@@ -296,9 +304,9 @@ pub fn simulate_replay(
 
                 result.hit_timings.push(HitTiming {
                     note_index: head_index,
-                    timing_ms: hit_window.miss_ms,
+                    timing_us: miss_us,
                     judgement: Judgement::Miss,
-                    note_timestamp_ms: note.timestamp_ms,
+                    note_time_us: note.time_us(),
                 });
 
                 head_index += 1;
@@ -313,22 +321,20 @@ pub fn simulate_replay(
         }
 
         // Find the best note to hit in this column
-        let current_time = input_timestamp_ms;
-        let mut best_match: Option<(usize, f64)> = None;
-        let search_limit = current_time + hit_window.miss_ms;
+        let current_time = input_time_us;
+        let mut best_match: Option<(usize, i64)> = None;
+        let search_limit = current_time + miss_us;
 
         for i in head_index..chart.len() {
             let note = &chart[i];
 
-            if note.timestamp_ms > search_limit {
+            if note.time_us() > search_limit {
                 break;
             }
 
-            if note.column == input_column && !note_hit[i] {
-                let diff = (note.timestamp_ms - current_time).abs();
-                if diff <= hit_window.miss_ms
-                    && best_match.is_none_or(|(_, best_diff)| diff < best_diff)
-                {
+            if note.column() == input_column && !note_hit[i] {
+                let diff = (note.time_us() - current_time).abs();
+                if diff <= miss_us && best_match.is_none_or(|(_, best_diff)| diff < best_diff) {
                     best_match = Some((i, diff));
                 }
             }
@@ -336,8 +342,8 @@ pub fn simulate_replay(
 
         if let Some((idx, _)) = best_match {
             let note = &chart[idx];
-            let diff = note.timestamp_ms - current_time; // Signed: negative = early
-            let (judgement, _) = hit_window.judge(diff);
+            let diff_us = note.time_us() - current_time; // Signed: negative = early
+            let (judgement, _) = hit_window.judge(diff_us);
 
             note_hit[idx] = true;
 
@@ -373,15 +379,15 @@ pub fn simulate_replay(
 
             result.hit_timings.push(HitTiming {
                 note_index: idx,
-                timing_ms: diff,
+                timing_us: diff_us,
                 judgement,
-                note_timestamp_ms: note.timestamp_ms,
+                note_time_us: note.time_us(),
             });
         } else {
             // Ghost tap - no corresponding note
             result.hit_stats.ghost_tap += 1;
             result.ghost_taps.push(GhostTap {
-                timestamp_ms: input_timestamp_ms as i32, // Stored as i32
+                time_us: input_time_us,
                 column: input_column as u8,
             });
         }
@@ -393,9 +399,9 @@ pub fn simulate_replay(
             result.hit_stats.miss += 1;
             result.hit_timings.push(HitTiming {
                 note_index: idx,
-                timing_ms: hit_window.miss_ms,
+                timing_us: miss_us,
                 judgement: Judgement::Miss,
-                note_timestamp_ms: note.timestamp_ms,
+                note_time_us: note.time_us(),
             });
         }
     }

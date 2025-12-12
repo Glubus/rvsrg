@@ -1,103 +1,91 @@
 //! Note processing - update_notes, apply_judgement
+//!
+//! All times are in microseconds (i64).
 
 use super::GameEngine;
-use crate::models::engine::NoteType;
 use crate::models::stats::Judgement;
 
 impl GameEngine {
     /// Updates note states and handles misses for all note types.
-    pub(crate) fn update_notes(&mut self, current_time: f64) {
-        let miss_threshold = self.hit_window.miss_ms;
+    pub(crate) fn update_notes(&mut self, current_time_us: i64) {
+        let miss_us = self.hit_window.miss_us;
         let mut new_head = self.head_index;
 
         // Collect judgements to apply (to avoid borrow conflicts)
         let mut judgements: Vec<Judgement> = Vec::new();
-        let _keys_held = self.keys_held.clone();
 
         while new_head < self.chart.len() {
             let note = &mut self.chart[new_head];
 
             // Skip already completed notes
-            if note.hit {
+            if note.state.hit {
                 new_head += 1;
                 continue;
             }
 
-            let note_timestamp = note.timestamp_ms;
-            let note_end_time = note.end_time_ms();
+            let note_time_us = note.time_us();
+            let note_end_time_us = note.end_time_us();
 
-            match &mut note.note_type {
-                NoteType::Tap => {
-                    if current_time > note_timestamp + miss_threshold {
-                        note.hit = true;
-                        judgements.push(Judgement::Miss);
-                        new_head += 1;
-                    } else {
-                        break;
-                    }
+            if note.is_tap() {
+                if current_time_us > note_time_us + miss_us {
+                    note.state.hit = true;
+                    judgements.push(Judgement::Miss);
+                    new_head += 1;
+                } else {
+                    break;
                 }
-
-                NoteType::Hold {
-                    is_held,
-                    start_time,
-                    ..
-                } => {
-                    if *is_held {
-                        // Check if hold completed (reached end time)
-                        if current_time >= note_end_time {
-                            note.hit = true;
-                            *is_held = false;
-                            judgements.push(Judgement::Marv);
-                            new_head += 1;
-                        }
-                        // Don't advance head_index while holding - note is still active!
-                        // Break to stop processing further notes
-                        break;
-                    } else if start_time.is_none() && current_time > note_timestamp + miss_threshold
-                    {
-                        // Never started holding - miss
-                        note.hit = true;
-                        judgements.push(Judgement::Miss);
+            } else if note.is_hold() {
+                if note.state.hold.is_held {
+                    // Check if hold completed (reached end time)
+                    if current_time_us >= note_end_time_us {
+                        note.state.hit = true;
+                        note.state.hold.is_held = false;
+                        judgements.push(Judgement::Marv);
                         new_head += 1;
-                    } else {
-                        break;
                     }
+                    // Don't advance head_index while holding - note is still active!
+                    // Break to stop processing further notes
+                    break;
+                } else if note.state.hold.start_time_us.is_none()
+                    && current_time_us > note_time_us + miss_us
+                {
+                    // Never started holding - miss
+                    note.state.hit = true;
+                    judgements.push(Judgement::Miss);
+                    new_head += 1;
+                } else {
+                    break;
                 }
-
-                NoteType::Mine => {
-                    if current_time > note_timestamp + miss_threshold {
-                        note.hit = true;
-                        // No judgement - mines that pass are good!
-                        new_head += 1;
-                    } else {
-                        break;
-                    }
+            } else if note.is_mine() {
+                if current_time_us > note_time_us + miss_us {
+                    note.state.hit = true;
+                    // No judgement - mines that pass are good!
+                    new_head += 1;
+                } else {
+                    break;
                 }
-
-                NoteType::Burst {
-                    duration_ms,
-                    required_hits,
-                    current_hits,
-                } => {
-                    if current_time > note_timestamp + *duration_ms {
-                        note.hit = true;
-                        if *current_hits < *required_hits {
-                            let ratio = *current_hits as f64 / *required_hits as f64;
-                            let judgement = if ratio >= 0.8 {
-                                Judgement::Great
-                            } else if ratio >= 0.5 {
-                                Judgement::Good
-                            } else if ratio > 0.0 {
-                                Judgement::Bad
-                            } else {
-                                Judgement::Miss
-                            };
-                            judgements.push(judgement);
-                        }
-                        new_head += 1;
-                    } else {
-                        break;
+            } else if note.is_burst() {
+                let duration_us = note.duration_us();
+                if current_time_us > note_time_us + duration_us {
+                    note.state.hit = true;
+                    let current_hits = note.state.burst.current_hits;
+                    let required_hits = note.state.burst.required_hits;
+                    if current_hits < required_hits {
+                        let ratio = current_hits as f64 / required_hits as f64;
+                        let judgement = if ratio >= 0.8 {
+                            Judgement::Great
+                        } else if ratio >= 0.5 {
+                            Judgement::Good
+                        } else if ratio > 0.0 {
+                            Judgement::Bad
+                        } else {
+                            Judgement::Miss
+                        };
+                        judgements.push(judgement);
                     }
+                    new_head += 1;
+                } else {
+                    break;
                 }
             }
         }

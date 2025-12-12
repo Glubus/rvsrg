@@ -1,5 +1,5 @@
 use crate::models::engine::{
-    HIT_LINE_Y, InstanceRaw, NUM_COLUMNS, NoteData, NoteType, PixelSystem, PlayfieldConfig,
+    HIT_LINE_Y, InstanceRaw, NUM_COLUMNS, NoteData, PixelSystem, PlayfieldConfig, US_PER_MS,
     VISIBLE_DISTANCE,
 };
 
@@ -55,12 +55,12 @@ impl PlayfieldDisplay {
     pub fn render_notes(
         &self,
         visible_notes: &[NoteData],
-        song_time: f64,
+        song_time_ms: f64,
         scroll_speed_ms: f64,
         pixel_system: &PixelSystem,
     ) -> Vec<(usize, InstanceRaw)> {
         // Convert typed instances to simple format for backward compatibility
-        self.render_notes_typed(visible_notes, song_time, scroll_speed_ms, pixel_system)
+        self.render_notes_typed(visible_notes, song_time_ms, scroll_speed_ms, pixel_system)
             .into_iter()
             .filter(|n| n.visual == NoteVisual::Tap) // Only tap notes for old system
             .map(|n| (n.column, n.instance))
@@ -68,10 +68,11 @@ impl PlayfieldDisplay {
     }
 
     /// Calcule la position de chaque note visible avec le type visuel.
+    /// song_time_ms and scroll_speed_ms are in milliseconds for renderer compatibility.
     pub fn render_notes_typed(
         &self,
         visible_notes: &[NoteData],
-        song_time: f64,
+        song_time_ms: f64,
         scroll_speed_ms: f64,
         pixel_system: &PixelSystem,
     ) -> Vec<NoteInstance> {
@@ -94,27 +95,81 @@ impl PlayfieldDisplay {
         let mut instances = Vec::with_capacity(visible_notes.len() * 2); // LNs can generate multiple
 
         for note in visible_notes {
-            if note.hit {
+            if note.state.hit {
                 continue;
             }
 
+            // Convert note time from µs to ms for rendering
+            let note_time_ms = note.time_us() as f64 / US_PER_MS as f64;
+            let note_duration_ms = note.duration_us() as f64 / US_PER_MS as f64;
+
             // Position X (commune à tous les types)
-            let col_offset = note.column as f32 * (column_width_norm + spacing_norm);
+            let col_offset = note.column() as f32 * (column_width_norm + spacing_norm);
             let center_x =
                 playfield_left_x + col_offset + (column_width_norm / 2.0) + x_offset_norm;
 
             // Physique de défilement : Distance = Temps / Vitesse
-            let time_to_hit = note.timestamp_ms - song_time;
+            let time_to_hit = note_time_ms - song_time_ms;
             let progress = time_to_hit / scroll_speed_ms;
 
             let y_pos = (HIT_LINE_Y as f64
                 + y_offset_norm as f64
                 + (VISIBLE_DISTANCE as f64 * progress)) as f32;
 
-            match &note.note_type {
-                NoteType::Tap => {
+            if note.is_tap() {
+                instances.push(NoteInstance {
+                    column: note.column(),
+                    visual: NoteVisual::Tap,
+                    instance: InstanceRaw {
+                        offset: [center_x, y_pos],
+                        scale: [note_width_norm, note_height_norm],
+                    },
+                });
+            } else if note.is_mine() {
+                instances.push(NoteInstance {
+                    column: note.column(),
+                    visual: NoteVisual::Mine,
+                    instance: InstanceRaw {
+                        offset: [center_x, y_pos],
+                        scale: [note_width_norm, note_height_norm],
+                    },
+                });
+            } else if note.is_hold() {
+                let is_held = note.state.hold.is_held;
+                let end_time_ms = note_time_ms + note_duration_ms;
+                let end_progress = (end_time_ms - song_time_ms) / scroll_speed_ms;
+                let end_y_pos = (HIT_LINE_Y as f64
+                    + y_offset_norm as f64
+                    + (VISIBLE_DISTANCE as f64 * end_progress))
+                    as f32;
+
+                // If being held, clamp the start to the hit line (don't go below receptors)
+                let hit_line_y = HIT_LINE_Y + y_offset_norm;
+                let clamped_y_pos = if is_held && y_pos < hit_line_y {
+                    hit_line_y
+                } else {
+                    y_pos
+                };
+
+                let body_height = (end_y_pos - clamped_y_pos).abs();
+                let body_center_y = (clamped_y_pos + end_y_pos) / 2.0;
+
+                // Body (stretched, 95% width)
+                if body_height > 0.001 {
                     instances.push(NoteInstance {
-                        column: note.column,
+                        column: note.column(),
+                        visual: NoteVisual::HoldBody,
+                        instance: InstanceRaw {
+                            offset: [center_x, body_center_y],
+                            scale: [ln_width_norm, body_height],
+                        },
+                    });
+                }
+
+                // Head (tap visual) - only show if not clamped (not being held past the hit line)
+                if clamped_y_pos == y_pos {
+                    instances.push(NoteInstance {
+                        column: note.column(),
                         visual: NoteVisual::Tap,
                         instance: InstanceRaw {
                             offset: [center_x, y_pos],
@@ -123,10 +178,53 @@ impl PlayfieldDisplay {
                     });
                 }
 
-                NoteType::Mine => {
+                // End cap (95% width)
+                instances.push(NoteInstance {
+                    column: note.column(),
+                    visual: NoteVisual::HoldEnd,
+                    instance: InstanceRaw {
+                        offset: [center_x, end_y_pos],
+                        scale: [ln_width_norm, note_height_norm],
+                    },
+                });
+            } else if note.is_burst() {
+                let current_hits = note.state.burst.current_hits;
+                let end_time_ms = note_time_ms + note_duration_ms;
+                let end_progress = (end_time_ms - song_time_ms) / scroll_speed_ms;
+                let end_y_pos = (HIT_LINE_Y as f64
+                    + y_offset_norm as f64
+                    + (VISIBLE_DISTANCE as f64 * end_progress))
+                    as f32;
+
+                // If started hitting, clamp the start to the hit line
+                let hit_line_y = HIT_LINE_Y + y_offset_norm;
+                let started = current_hits > 0;
+                let clamped_y_pos = if started && y_pos < hit_line_y {
+                    hit_line_y
+                } else {
+                    y_pos
+                };
+
+                let body_height = (end_y_pos - clamped_y_pos).abs();
+                let body_center_y = (clamped_y_pos + end_y_pos) / 2.0;
+
+                // Body (stretched, 95% width)
+                if body_height > 0.001 {
                     instances.push(NoteInstance {
-                        column: note.column,
-                        visual: NoteVisual::Mine,
+                        column: note.column(),
+                        visual: NoteVisual::BurstBody,
+                        instance: InstanceRaw {
+                            offset: [center_x, body_center_y],
+                            scale: [ln_width_norm, body_height],
+                        },
+                    });
+                }
+
+                // Head (tap visual) - only show if not clamped
+                if clamped_y_pos == y_pos {
+                    instances.push(NoteInstance {
+                        column: note.column(),
+                        visual: NoteVisual::Tap,
                         instance: InstanceRaw {
                             offset: [center_x, y_pos],
                             scale: [note_width_norm, note_height_norm],
@@ -134,122 +232,15 @@ impl PlayfieldDisplay {
                     });
                 }
 
-                NoteType::Hold {
-                    duration_ms,
-                    is_held,
-                    ..
-                } => {
-                    let end_time = note.timestamp_ms + duration_ms;
-                    let end_progress = (end_time - song_time) / scroll_speed_ms;
-                    let end_y_pos = (HIT_LINE_Y as f64
-                        + y_offset_norm as f64
-                        + (VISIBLE_DISTANCE as f64 * end_progress))
-                        as f32;
-
-                    // If being held, clamp the start to the hit line (don't go below receptors)
-                    let hit_line_y = HIT_LINE_Y + y_offset_norm;
-                    let clamped_y_pos = if *is_held && y_pos < hit_line_y {
-                        hit_line_y
-                    } else {
-                        y_pos
-                    };
-
-                    let body_height = (end_y_pos - clamped_y_pos).abs();
-                    let body_center_y = (clamped_y_pos + end_y_pos) / 2.0;
-
-                    // Body (stretched, 95% width)
-                    if body_height > 0.001 {
-                        instances.push(NoteInstance {
-                            column: note.column,
-                            visual: NoteVisual::HoldBody,
-                            instance: InstanceRaw {
-                                offset: [center_x, body_center_y],
-                                scale: [ln_width_norm, body_height],
-                            },
-                        });
-                    }
-
-                    // Head (tap visual) - only show if not clamped (not being held past the hit line)
-                    if clamped_y_pos == y_pos {
-                        instances.push(NoteInstance {
-                            column: note.column,
-                            visual: NoteVisual::Tap,
-                            instance: InstanceRaw {
-                                offset: [center_x, y_pos],
-                                scale: [note_width_norm, note_height_norm],
-                            },
-                        });
-                    }
-
-                    // End cap (95% width)
-                    instances.push(NoteInstance {
-                        column: note.column,
-                        visual: NoteVisual::HoldEnd,
-                        instance: InstanceRaw {
-                            offset: [center_x, end_y_pos],
-                            scale: [ln_width_norm, note_height_norm],
-                        },
-                    });
-                }
-
-                NoteType::Burst {
-                    duration_ms,
-                    current_hits,
-                    ..
-                } => {
-                    let end_time = note.timestamp_ms + duration_ms;
-                    let end_progress = (end_time - song_time) / scroll_speed_ms;
-                    let end_y_pos = (HIT_LINE_Y as f64
-                        + y_offset_norm as f64
-                        + (VISIBLE_DISTANCE as f64 * end_progress))
-                        as f32;
-
-                    // If started hitting, clamp the start to the hit line
-                    let hit_line_y = HIT_LINE_Y + y_offset_norm;
-                    let started = *current_hits > 0;
-                    let clamped_y_pos = if started && y_pos < hit_line_y {
-                        hit_line_y
-                    } else {
-                        y_pos
-                    };
-
-                    let body_height = (end_y_pos - clamped_y_pos).abs();
-                    let body_center_y = (clamped_y_pos + end_y_pos) / 2.0;
-
-                    // Body (stretched, 95% width)
-                    if body_height > 0.001 {
-                        instances.push(NoteInstance {
-                            column: note.column,
-                            visual: NoteVisual::BurstBody,
-                            instance: InstanceRaw {
-                                offset: [center_x, body_center_y],
-                                scale: [ln_width_norm, body_height],
-                            },
-                        });
-                    }
-
-                    // Head (tap visual) - only show if not clamped
-                    if clamped_y_pos == y_pos {
-                        instances.push(NoteInstance {
-                            column: note.column,
-                            visual: NoteVisual::Tap,
-                            instance: InstanceRaw {
-                                offset: [center_x, y_pos],
-                                scale: [note_width_norm, note_height_norm],
-                            },
-                        });
-                    }
-
-                    // End cap (95% width)
-                    instances.push(NoteInstance {
-                        column: note.column,
-                        visual: NoteVisual::BurstEnd,
-                        instance: InstanceRaw {
-                            offset: [center_x, end_y_pos],
-                            scale: [ln_width_norm, note_height_norm],
-                        },
-                    });
-                }
+                // End cap (95% width)
+                instances.push(NoteInstance {
+                    column: note.column(),
+                    visual: NoteVisual::BurstEnd,
+                    instance: InstanceRaw {
+                        offset: [center_x, end_y_pos],
+                        scale: [ln_width_norm, note_height_norm],
+                    },
+                });
             }
         }
         instances

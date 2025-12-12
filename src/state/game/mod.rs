@@ -5,6 +5,8 @@
 //! - Score and combo tracking
 //! - Audio synchronization
 //! - Practice mode with checkpoints
+//!
+//! All times are in **microseconds (i64)** for precision.
 
 mod input;
 mod notes;
@@ -13,25 +15,19 @@ mod snapshot;
 
 pub mod actions;
 
-use crate::input::events::GameAction;
 use crate::logic::audio::AudioManager;
-use crate::models::engine::{HitWindow, NUM_COLUMNS, NoteData, load_map};
-use crate::models::replay::{CHECKPOINT_MIN_INTERVAL_MS, ReplayData};
+use crate::models::engine::{HitWindow, NUM_COLUMNS, NoteData, US_PER_MS, load_map};
+use crate::models::replay::ReplayData;
 use crate::models::settings::HitWindowMode;
 use crate::models::stats::{HitStats, Judgement};
-use crate::shared::snapshot::GameplaySnapshot;
 use crate::system::bus::SystemBus;
 use std::collections::VecDeque;
 use std::path::PathBuf;
 
-/// Offset applied when retrying from a checkpoint (in ms).
-/// The player starts 1 second before the checkpoint to prepare.
-pub(crate) const CHECKPOINT_RETRY_OFFSET_MS: f64 = 1000.0;
-
 /// Saved state at a checkpoint for restoration.
 #[derive(Clone)]
 pub(crate) struct CheckpointState {
-    pub timestamp_ms: f64,
+    pub time_us: i64,
     pub head_index: usize,
     pub score: u32,
     pub combo: u32,
@@ -62,15 +58,15 @@ pub struct GameEngine {
 
     /// Currently held keys per column.
     pub keys_held: Vec<bool>,
-    /// Timing offset of the last hit (for hit error display).
-    pub last_hit_timing: Option<f64>,
+    /// Timing offset of the last hit in µs (for hit error display).
+    pub last_hit_timing_us: Option<i64>,
     /// Judgement of the last hit.
     pub last_hit_judgement: Option<Judgement>,
 
     /// Audio manager for music playback.
     pub audio_manager: AudioManager,
-    /// Smoothed audio clock in milliseconds.
-    pub audio_clock: f64,
+    /// Smoothed audio clock in microseconds.
+    pub audio_clock_us: i64,
     /// Whether audio is loaded (false for debug mode).
     pub(crate) has_audio: bool,
 
@@ -92,8 +88,8 @@ pub struct GameEngine {
     /// Whether audio has started playing.
     pub(crate) started_audio: bool,
 
-    /// Timestamps of recent inputs for NPS calculation.
-    pub(crate) input_timestamps: VecDeque<f64>,
+    /// Timestamps of recent inputs for NPS calculation (in µs).
+    pub(crate) input_timestamps: VecDeque<i64>,
     /// Current notes per second.
     pub(crate) current_nps: f64,
 
@@ -101,13 +97,13 @@ pub struct GameEngine {
     pub practice_mode: bool,
     /// Saved state at the last checkpoint.
     pub(crate) checkpoint_state: Option<CheckpointState>,
-    /// Timestamp of the last checkpoint (for cooldown enforcement).
-    pub(crate) last_checkpoint_time: f64,
+    /// Timestamp of the last checkpoint in µs (for cooldown enforcement).
+    pub(crate) last_checkpoint_time_us: i64,
 }
 
 impl GameEngine {
-    /// Pre-roll time before the first note (in ms).
-    const PRE_ROLL_MS: f64 = 3000.0;
+    /// Pre-roll time before the first note (in µs).
+    const PRE_ROLL_US: i64 = 3_000_000; // 3 seconds
 
     /// Creates a new `GameEngine` by loading the map from a file.
     /// Returns `None` if the map cannot be loaded.
@@ -166,10 +162,10 @@ impl GameEngine {
             hit_stats: HitStats::new(),
             notes_passed: 0,
             keys_held: vec![false; NUM_COLUMNS],
-            last_hit_timing: None,
+            last_hit_timing_us: None,
             last_hit_judgement: None,
             audio_manager,
-            audio_clock: -Self::PRE_ROLL_MS,
+            audio_clock_us: -Self::PRE_ROLL_US,
             has_audio: true,
             replay_data: ReplayData::new(rate, hit_window_mode, hit_window_value),
             beatmap_hash,
@@ -184,7 +180,7 @@ impl GameEngine {
             // Practice Mode
             practice_mode: false,
             checkpoint_state: None,
-            last_checkpoint_time: f64::NEG_INFINITY,
+            last_checkpoint_time_us: i64::MIN,
         }
     }
 
@@ -212,10 +208,10 @@ impl GameEngine {
             hit_stats: HitStats::new(),
             notes_passed: 0,
             keys_held: vec![false; NUM_COLUMNS],
-            last_hit_timing: None,
+            last_hit_timing_us: None,
             last_hit_judgement: None,
             audio_manager,
-            audio_clock: -Self::PRE_ROLL_MS,
+            audio_clock_us: -Self::PRE_ROLL_US,
             has_audio: false, // Debug mode - no audio
             replay_data: ReplayData::new(1.0, hit_window_mode, hit_window_value),
             beatmap_hash: Some("debug_map".to_string()),
@@ -230,7 +226,7 @@ impl GameEngine {
             // Practice Mode
             practice_mode: false,
             checkpoint_state: None,
-            last_checkpoint_time: f64::NEG_INFINITY,
+            last_checkpoint_time_us: i64::MIN,
         }
     }
 
@@ -242,11 +238,12 @@ impl GameEngine {
     /// 3. Processes missed notes
     /// 4. Updates NPS tracking
     pub fn update(&mut self, dt_seconds: f64) {
-        // 1. Advance the smoothed clock
-        self.audio_clock += dt_seconds * 1000.0 * self.rate;
+        // 1. Advance the smoothed clock (dt in seconds -> µs)
+        let dt_us = (dt_seconds * 1_000_000.0 * self.rate) as i64;
+        self.audio_clock_us += dt_us;
 
         if !self.started_audio {
-            if self.audio_clock >= 0.0 {
+            if self.audio_clock_us >= 0 {
                 self.audio_manager.play();
                 self.started_audio = true;
             } else {
@@ -257,22 +254,25 @@ impl GameEngine {
         // 2. Re-synchronize with the audio device if drifted
         // Skip sync if audio is seeking (loading in background) or no audio (debug mode)
         if self.has_audio && !self.audio_manager.is_seeking() {
-            let raw_audio_time = self.audio_manager.get_position_seconds() * 1000.0;
-            let drift = raw_audio_time - self.audio_clock;
+            let raw_audio_time_us =
+                (self.audio_manager.get_position_seconds() * 1_000_000.0) as i64;
+            let drift_us = raw_audio_time_us - self.audio_clock_us;
 
-            if drift.abs() > 80.0 {
-                self.audio_clock = raw_audio_time;
-            } else if drift.abs() > 5.0 {
+            if drift_us.abs() > 80_000 {
+                // 80ms
+                self.audio_clock_us = raw_audio_time_us;
+            } else if drift_us.abs() > 5_000 {
+                // 5ms
                 // Use a much smaller correction factor to avoid "sawtooth" velocity changes
                 // causing visual stutter
-                self.audio_clock += drift * 0.05;
+                self.audio_clock_us += (drift_us as f64 * 0.05) as i64;
             }
         }
 
-        let current_time = self.audio_clock;
+        let current_time_us = self.audio_clock_us;
 
         // 3. Note state updates and miss handling
-        self.update_notes(current_time);
+        self.update_notes(current_time_us);
 
         // 4. Update NPS tracking
         self.update_nps();
@@ -280,12 +280,12 @@ impl GameEngine {
 
     /// Updates the notes-per-second tracking.
     fn update_nps(&mut self) {
-        let current_time = self.audio_clock;
-        let window_start = current_time - 1000.0;
+        let current_time_us = self.audio_clock_us;
+        let window_start_us = current_time_us - 1_000_000; // 1 second window
 
         // Remove timestamps older than 1 second
         while let Some(&oldest) = self.input_timestamps.front() {
-            if oldest < window_start {
+            if oldest < window_start_us {
                 self.input_timestamps.pop_front();
             } else {
                 break;
@@ -296,16 +296,22 @@ impl GameEngine {
         self.current_nps = self.input_timestamps.len() as f64;
     }
 
-    /// Returns the current audio clock time in milliseconds.
+    /// Returns the current audio clock time in microseconds.
+    pub fn get_time_us(&self) -> i64 {
+        self.audio_clock_us
+    }
+
+    /// Returns the current audio clock time in milliseconds (for compatibility).
     pub fn get_time(&self) -> f64 {
-        self.audio_clock
+        self.audio_clock_us as f64 / US_PER_MS as f64
     }
 
     /// Returns `true` if the map has finished (2 seconds after last note).
     pub fn is_finished(&self) -> bool {
+        let buffer_us = 2_000_000; // 2 seconds
         self.chart
             .last()
-            .is_none_or(|n| self.audio_clock > n.timestamp_ms + 2000.0)
+            .is_none_or(|n| self.audio_clock_us > n.time_us() + buffer_us)
     }
 
     /// Updates the hit window configuration.

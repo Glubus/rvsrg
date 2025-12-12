@@ -1,6 +1,13 @@
+use crate::models::engine::US_PER_MS;
 use crate::models::engine::hit_window::HitWindow;
 use crate::models::replay::ReplayResult;
 use egui::{Align2, Color32, FontId, Painter, Pos2, Rect, Stroke, Ui, Vec2};
+
+/// Helper to convert µs to ms for display
+#[inline]
+fn us_to_ms(us: i64) -> f64 {
+    us as f64 / US_PER_MS as f64
+}
 
 pub fn render_graphs(ui: &mut Ui, replay_result: &ReplayResult, hit_window: &HitWindow) {
     ui.vertical(|ui| {
@@ -44,18 +51,20 @@ fn render_hit_histogram(
         Stroke::new(1.0, Color32::WHITE.linear_multiply(0.3)),
     );
 
-    // Collecter les timings depuis hit_timings
+    // Collecter les timings depuis hit_timings (convert µs to ms)
     let hits: Vec<f64> = replay_result
         .hit_timings
         .iter()
-        .map(|h| h.timing_ms)
+        .map(|h| h.timing_ms())
         .collect();
 
     if hits.is_empty() {
         return;
     }
 
-    let range_ms = hit_window.miss_ms.max(50.0) as f32;
+    // Convert miss_us to ms for display range
+    let miss_ms = us_to_ms(hit_window.miss_us);
+    let range_ms = (miss_ms as f32).max(50.0);
     let bucket_count = 60;
     let mut buckets = vec![0; bucket_count];
     let min_val = -range_ms;
@@ -94,7 +103,7 @@ fn render_hit_histogram(
             Pos2::new(center_bar_x + bar_width / 2.0, bottom_y),
         );
         let bucket_time = min_val + (i as f32 * step);
-        let color = get_color_for_timing(bucket_time as f64, hit_window);
+        let color = get_color_for_timing_ms(bucket_time as f64, hit_window);
         painter.rect_filled(bar_rect, 1.0, color.linear_multiply(0.8));
     }
 
@@ -147,10 +156,12 @@ fn render_timeline_graph(
         Stroke::new(1.0, Color32::WHITE.linear_multiply(0.3)),
     );
 
-    let scale_y = (graph_rect.height() / 2.0) / hit_window.miss_ms as f32 * 0.9;
+    // Convert miss_us to ms for scale
+    let miss_ms = us_to_ms(hit_window.miss_us) as f32;
+    let scale_y = (graph_rect.height() / 2.0) / miss_ms * 0.9;
     let font_id = FontId::monospace(10.0);
 
-    // Fonction helper pour dessiner les guides
+    // Helper to draw guides (takes ms value for display)
     let draw_guide = |ms: f64, color: Color32, _label: &str| {
         let y_offset = ms as f32 * scale_y;
         let stroke = Stroke::new(1.0, color.linear_multiply(0.15));
@@ -165,7 +176,7 @@ fn render_timeline_graph(
         painter.text(
             Pos2::new(graph_rect.right() + 5.0, y_top),
             Align2::LEFT_CENTER,
-            format!("+{}ms", ms),
+            format!("+{:.0}ms", ms),
             font_id.clone(),
             color,
         );
@@ -180,15 +191,20 @@ fn render_timeline_graph(
         painter.text(
             Pos2::new(graph_rect.right() + 5.0, y_bottom),
             Align2::LEFT_CENTER,
-            format!("-{}ms", ms),
+            format!("-{:.0}ms", ms),
             font_id.clone(),
             color,
         );
     };
 
-    draw_guide(hit_window.marv_ms, Color32::from_rgb(0, 255, 255), "Marv");
-    draw_guide(hit_window.perfect_ms, Color32::YELLOW, "Perf");
-    draw_guide(hit_window.great_ms, Color32::GREEN, "Great");
+    // Convert µs thresholds to ms for display
+    draw_guide(
+        us_to_ms(hit_window.marv_us),
+        Color32::from_rgb(0, 255, 255),
+        "Marv",
+    );
+    draw_guide(us_to_ms(hit_window.perfect_us), Color32::YELLOW, "Perf");
+    draw_guide(us_to_ms(hit_window.great_us), Color32::GREEN, "Great");
 
     painter.text(
         Pos2::new(graph_rect.right() + 5.0, center_y),
@@ -198,45 +214,50 @@ fn render_timeline_graph(
         Color32::WHITE,
     );
 
-    // Utiliser note_timestamp_ms pour l'axe X (plus précis que note_index)
+    // Use note_time_us for X axis (more precise than note_index)
     let min_time = replay_result
         .hit_timings
         .first()
-        .map(|h| h.note_timestamp_ms)
+        .map(|h| us_to_ms(h.note_time_us))
         .unwrap_or(0.0);
     let max_time = replay_result
         .hit_timings
         .last()
-        .map(|h| h.note_timestamp_ms)
+        .map(|h| us_to_ms(h.note_time_us))
         .unwrap_or(1.0);
     let time_range = (max_time - min_time).max(1.0);
 
     for hit in &replay_result.hit_timings {
-        let x_ratio = (hit.note_timestamp_ms - min_time) as f32 / time_range as f32;
+        let note_time_ms = us_to_ms(hit.note_time_us);
+        let x_ratio = (note_time_ms - min_time) as f32 / time_range as f32;
         let x = graph_rect.left() + x_ratio * width;
 
+        let timing_ms = hit.timing_ms();
         // Invert timing data so Early (if positive) plots to Negative region (Bottom/Left)
-        let display_timing = -hit.timing_ms;
+        let display_timing = -timing_ms;
 
         let y_offset = display_timing as f32 * scale_y;
         let y = center_y - y_offset;
 
-        let color = get_color_for_timing(hit.timing_ms, hit_window);
+        let color = get_color_for_timing_ms(timing_ms, hit_window);
         painter.circle_filled(Pos2::new(x, y), 2.0, color);
     }
 }
 
-fn get_color_for_timing(timing: f64, hit_window: &HitWindow) -> Color32 {
-    let abs_timing = timing.abs();
-    if abs_timing <= hit_window.marv_ms {
+/// Get color based on timing offset (in ms) compared to hit window thresholds (in µs)
+fn get_color_for_timing_ms(timing_ms: f64, hit_window: &HitWindow) -> Color32 {
+    // Convert timing from ms to µs for comparison with window thresholds
+    let timing_us = (timing_ms.abs() * US_PER_MS as f64) as i64;
+
+    if timing_us <= hit_window.marv_us {
         Color32::from_rgb(0, 255, 255)
-    } else if abs_timing <= hit_window.perfect_ms {
+    } else if timing_us <= hit_window.perfect_us {
         Color32::YELLOW
-    } else if abs_timing <= hit_window.great_ms {
+    } else if timing_us <= hit_window.great_us {
         Color32::GREEN
-    } else if abs_timing <= hit_window.good_ms {
+    } else if timing_us <= hit_window.good_us {
         Color32::from_rgb(0, 0, 128)
-    } else if abs_timing <= hit_window.bad_ms {
+    } else if timing_us <= hit_window.bad_us {
         Color32::from_rgb(255, 105, 180)
     } else {
         Color32::RED

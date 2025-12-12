@@ -1,14 +1,18 @@
 //! Snapshot creation for GameEngine - get_snapshot
+//!
+//! All times are in microseconds internally, converted to ms for GameplaySnapshot.
 
 use super::GameEngine;
 use crate::models::engine::NoteData;
+use crate::models::engine::US_PER_MS;
 use crate::shared::snapshot::GameplaySnapshot;
 
 impl GameEngine {
     /// Creates a snapshot of the current game state for rendering.
     pub fn get_snapshot(&self) -> GameplaySnapshot {
-        let effective_speed = self.scroll_speed_ms * self.rate;
-        let max_visible_time = self.audio_clock + effective_speed;
+        let scroll_speed_us = (self.scroll_speed_ms * US_PER_MS as f64 * self.rate) as i64;
+        let max_visible_time_us = self.audio_clock_us + scroll_speed_us;
+        let buffer_us = 2_000_000; // 2 seconds buffer
 
         // For notes with duration (Hold/Burst), we need to keep them visible
         // until their end time has passed, not just their start time
@@ -16,15 +20,15 @@ impl GameEngine {
             .chart
             .iter()
             .skip(self.head_index)
-            .take_while(|n| n.timestamp_ms <= max_visible_time + 2000.0)
+            .take_while(|n| n.time_us() <= max_visible_time_us + buffer_us)
             .filter(|n| {
-                if n.hit {
+                if n.state.hit {
                     return false;
                 }
                 // For notes with duration, keep visible until end time passes
-                if n.note_type.has_duration() {
+                if n.has_duration() {
                     // Keep visible if end hasn't passed yet
-                    n.end_time_ms() > self.audio_clock - 100.0
+                    n.end_time_us() > self.audio_clock_us - 100_000 // 100ms
                 } else {
                     true
                 }
@@ -32,8 +36,16 @@ impl GameEngine {
             .cloned()
             .collect();
 
+        // Convert checkpoints from i64 µs to f64 ms for compatibility
+        let checkpoints_ms: Vec<f64> = self
+            .replay_data
+            .checkpoints
+            .iter()
+            .map(|&us| us as f64 / US_PER_MS as f64)
+            .collect();
+
         GameplaySnapshot {
-            audio_time: self.audio_clock,
+            audio_time: self.audio_clock_us as f64 / US_PER_MS as f64,
             timestamp: std::time::Instant::now(),
             rate: self.rate,
             scroll_speed: self.scroll_speed_ms,
@@ -45,11 +57,13 @@ impl GameEngine {
             hit_stats: self.hit_stats.clone(),
             remaining_notes: self.chart.len().saturating_sub(self.notes_passed as usize),
             last_hit_judgement: self.last_hit_judgement,
-            last_hit_timing: self.last_hit_timing,
+            last_hit_timing: self
+                .last_hit_timing_us
+                .map(|us| us as f64 / US_PER_MS as f64),
             nps: self.current_nps,
             practice_mode: self.practice_mode,
-            checkpoints: self.replay_data.checkpoints.clone(),
-            map_duration: self.get_map_duration(),
+            checkpoints: checkpoints_ms,
+            map_duration: self.get_map_duration_us() as f64 / US_PER_MS as f64,
         }
     }
 }
